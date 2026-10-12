@@ -240,7 +240,7 @@ public sealed class ReportSummaryTests
         var line = Assert.Single(model.Visuals);
         Assert.Equal(ReportVisualType.Line, line.Type);
         Assert.Equal([200m, 300m], line.Series[0].Points.Select(p => p.Value));
-        Assert.Equal("01 Sep", line.Series[0].Points[0].Category);
+        Assert.Equal("01 Sept", line.Series[0].Points[0].Category);
     }
 
     // RA-SALES-07 (1.9.9): the sales column is "Sales incl. GST"; the summaries read it, and still read "Net Sales"

@@ -73,7 +73,7 @@ public sealed class PolishUiStatusTests
             await view.RunReportAsync("sales-store");
             var first = TestStoreCatalog.Create().Stores[0];
             var text = ((TextBlock)view.FindName("ReportResult")).Text;
-            Assert.StartsWith("Passed", text, StringComparison.Ordinal);
+            Assert.StartsWith("OK", text, StringComparison.Ordinal);
             Assert.EndsWith(ReportsWorkspaceView.AutoStoreNote(StoreScopeCatalog.Label(first)), text, StringComparison.Ordinal);
             Assert.Equal(first.Code, ((TextBox)view.FindName("StoreFilterInput")).Text);
             Assert.Equal("Store Sales Summary", latest().ExportMetadata!.ReportName);
@@ -89,11 +89,11 @@ public sealed class PolishUiStatusTests
             new(new(2026, 9, 1), "WLMHW", "A", "INV", 1m, 118m, 1, "Name"),
             new(new(2026, 9, 2), "WLMHW", "B", "SR", -1m, -118m, 1, null)
         };
-        Assert.Equal("Passed: 01 Sep 2026 – 28 Sep 2026, 1 invoices, 1 returns; 1 missing customer names.",
+        Assert.Equal("OK: 01 Sept 2026 – 28 Sept 2026, 1 invoices, 1 returns; 1 missing customer names.",
             ReportsWorkspaceView.CustomerWiseStatus(ReconciliationStatus.Passed, rows, new(2026, 9, 1), new(2026, 9, 28)));
-        Assert.Equal("Blocked: 0 invoices.", ReportsWorkspaceView.CustomerWiseStatus(ReconciliationStatus.Blocked, [], new(2026, 9, 1), new(2026, 9, 28)));
+        Assert.Equal("Cannot run: 0 invoices.", ReportsWorkspaceView.CustomerWiseStatus(ReconciliationStatus.Blocked, [], new(2026, 9, 1), new(2026, 9, 28)));
         // An empty window still reads as the shared "No data for ..." line.
-        Assert.Equal("No data for 01 Sep 2026 – 28 Sep 2026, All stores.",
+        Assert.Equal("No data for 01 Sept 2026 – 28 Sept 2026, All stores.",
             ReportsWorkspaceView.NoDataStatus("invoice", 0, new(2026, 9, 1), new(2026, 9, 28), "All stores", "Blocked: 0 invoices."));
     }
 
@@ -110,15 +110,15 @@ public sealed class PolishUiStatusTests
             Day(3, 100m, 5m, 5m, 10m, "Complete")
         };
         var text = ReportsWorkspaceView.CashBookStatus(ReconciliationStatus.Blocked, days);
-        Assert.StartsWith("Blocked: 2 of 3 day(s) incomplete - missing opening cash, service cash, expenses, cash deposit.", text, StringComparison.Ordinal);
+        Assert.StartsWith("Cannot run: 2 of 3 day(s) incomplete - missing opening cash, service cash, expenses, cash deposit.", text, StringComparison.Ordinal);
         Assert.EndsWith(ReportsWorkspaceView.CashBookEntryHint, text, StringComparison.Ordinal);
 
         var noTender = new CashBookDay(new(2026, 9, 4), "WLMHW", 100m, "", new Dictionary<string, decimal>(), 5m, 1m, 1m, 5m, 10m, 0m, null, null, 0m, 0m,
             CashBookTables.TenderSourceMissing, TenderSourceImported: false);
-        Assert.StartsWith("Blocked: 1 of 1 day(s) incomplete - missing R022 tender import.",
+        Assert.StartsWith("Cannot run: 1 of 1 day(s) incomplete - missing invoice tenders import.",
             ReportsWorkspaceView.CashBookStatus(ReconciliationStatus.Blocked, [noTender]), StringComparison.Ordinal);
 
-        Assert.StartsWith("Passed: 1 of 1 day(s) complete.", ReportsWorkspaceView.CashBookStatus(ReconciliationStatus.Passed, [days[2]]), StringComparison.Ordinal);
+        Assert.StartsWith("OK: 1 of 1 day(s) complete.", ReportsWorkspaceView.CashBookStatus(ReconciliationStatus.Passed, [days[2]]), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -132,13 +132,13 @@ public sealed class PolishUiStatusTests
     public void Physical_stock_status_says_no_count_was_entered_and_where_to_enter_it()
     {
         var day = new DateOnly(2026, 9, 29);
-        Assert.Equal("Blocked: No physical count entered for WLMHW on 29 Sep 2026; enter it at Stock > Physical count.",
+        Assert.Equal("Cannot run: No physical count entered for WLMHW on 29 Sept 2026; enter it at Stock > Physical count.",
             ReportsWorkspaceView.PhysicalStockStatus(ReconciliationStatus.Blocked, 0, 0, "WLMHW", day));
-        Assert.Equal("Blocked: 16 brand(s). No physical count entered for WLMHW on 29 Sep 2026; enter it at Stock > Physical count.",
+        Assert.Equal("Cannot run: 16 brand(s). No physical count entered for WLMHW on 29 Sept 2026; enter it at Stock > Physical count.",
             ReportsWorkspaceView.PhysicalStockStatus(ReconciliationStatus.Blocked, 16, 16, "WLMHW", day));
-        Assert.Equal("Blocked: 16 brand(s); 4 not counted on 29 Sep 2026. Enter them at Stock > Physical count.",
+        Assert.Equal("Cannot run: 16 brand(s); 4 not counted on 29 Sept 2026. Enter them at Stock > Physical count.",
             ReportsWorkspaceView.PhysicalStockStatus(ReconciliationStatus.Blocked, 16, 4, "WLMHW", day));
-        Assert.Equal("Passed: 16 brand(s).", ReportsWorkspaceView.PhysicalStockStatus(ReconciliationStatus.Passed, 16, 0, "WLMHW", day));
+        Assert.Equal("OK: 16 brand(s).", ReportsWorkspaceView.PhysicalStockStatus(ReconciliationStatus.Passed, 16, 0, "WLMHW", day));
     }
 
     [Fact]
@@ -152,13 +152,13 @@ public sealed class PolishUiStatusTests
         ];
         var (status, text) = ReportsWorkspaceView.DailyExceptionStatus(notEntered);
         Assert.Equal(ReconciliationStatus.Blocked, status);
-        Assert.Equal("Blocked: 7 exception(s) - 2 source report(s) not imported, 5 input(s) not entered, 0 variance(s) or failure(s).", text);
+        Assert.Equal("Cannot run: 7 exception(s) - 2 source report(s) not imported, 5 input(s) not entered, 0 variance(s) or failure(s).", text);
 
         var (failed, failedText) = ReportsWorkspaceView.DailyExceptionStatus([("BLOCKER", "MANUAL_INPUT_MISSING"), ("FAIL", "TENDER_VARIANCE"), ("WARNING", "R013_UNMATCHED")]);
         Assert.Equal(ReconciliationStatus.Failed, failed);
-        Assert.Equal("Failed: 3 exception(s) - 1 input(s) not entered, 1 variance(s) or failure(s), 1 warning(s).", failedText);
+        Assert.Equal("Problem: 3 exception(s) - 1 input(s) not entered, 1 variance(s) or failure(s), 1 warning(s).", failedText);
 
-        Assert.Equal((ReconciliationStatus.Passed, "Passed: 0 exception(s)."), ReportsWorkspaceView.DailyExceptionStatus([]));
+        Assert.Equal((ReconciliationStatus.Passed, "OK: 0 exception(s)."), ReportsWorkspaceView.DailyExceptionStatus([]));
         Assert.Equal(ReconciliationStatus.Passed, ReportsWorkspaceView.DailyExceptionStatus([("WARNING", "R013_UNMATCHED")]).Status);
     }
 
@@ -179,11 +179,11 @@ public sealed class PolishUiStatusTests
     public void Dsr_and_service_status_lines_start_with_the_status_word()
     {
         var day = new DateOnly(2026, 9, 29);
-        Assert.Equal($"Passed: {ReportsWorkspaceView.DsrNote}", ReportsWorkspaceView.DsrStatus(ReconciliationStatus.Passed, null, day));
-        Assert.StartsWith("Blocked: R025 not imported", ReportsWorkspaceView.DsrStatus(ReconciliationStatus.Blocked, "R025 not imported for 29 Sep 2026.", day), StringComparison.Ordinal);
-        Assert.StartsWith("Blocked: No sales found for 29 Sep 2026;", ReportsWorkspaceView.DsrStatus(ReconciliationStatus.Blocked, null, day), StringComparison.Ordinal);
-        Assert.Equal("Passed: m", ReportsWorkspaceView.ServiceStatus(ReconciliationStatus.Passed, "m", "All stores", day));
-        Assert.StartsWith("Blocked: Service entries missing for All stores up to 29 Sep 2026;", ReportsWorkspaceView.ServiceStatus(ReconciliationStatus.Blocked, "m", "All stores", day), StringComparison.Ordinal);
+        Assert.Equal($"OK: {ReportsWorkspaceView.DsrNote}", ReportsWorkspaceView.DsrStatus(ReconciliationStatus.Passed, null, day));
+        Assert.StartsWith("Cannot run: R025 not imported", ReportsWorkspaceView.DsrStatus(ReconciliationStatus.Blocked, "R025 not imported for 29 Sept 2026.", day), StringComparison.Ordinal);
+        Assert.StartsWith("Cannot run: No sales found for 29 Sept 2026;", ReportsWorkspaceView.DsrStatus(ReconciliationStatus.Blocked, null, day), StringComparison.Ordinal);
+        Assert.Equal("OK: m", ReportsWorkspaceView.ServiceStatus(ReconciliationStatus.Passed, "m", "All stores", day));
+        Assert.StartsWith("Cannot run: Service entries missing for All stores up to 29 Sept 2026;", ReportsWorkspaceView.ServiceStatus(ReconciliationStatus.Blocked, "m", "All stores", day), StringComparison.Ordinal);
         Assert.Contains("Today > Cash > Cash and service entries", ReportsWorkspaceView.ServiceStatus(ReconciliationStatus.Blocked, "m", "All stores", day), StringComparison.Ordinal);
     }
 

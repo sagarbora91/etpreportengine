@@ -314,7 +314,7 @@ public sealed class ReportProbes : IHealthProbe
         }
 
         var statusSummary = string.Join("; ", ran.GroupBy(x => x.ReportStatus!).OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => $"{x.Key} x{x.Count()}"));
-        var passText = $"{spec.Name} ran for {scopeText} on {day}: report status {statusSummary}, {rows.ToString("N0", CultureInfo.InvariantCulture)} row(s), {Fixed(seconds)} s.";
+        var passText = $"{spec.Name} ran for {scopeText} on {day}: report status {statusSummary}, {Etp.Reporting.Reporting.IndianFormat.Count(rows)} row(s), {Fixed(seconds)} s.";
 
         if (slow.Length > 0)
         {
@@ -370,7 +370,7 @@ public sealed class ReportProbes : IHealthProbe
 
     private static string Fixed(decimal value) => value.ToString("0.0#", CultureInfo.InvariantCulture);
 
-    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    private static string Day(DateOnly date) => Etp.Reporting.Reporting.IndianFormat.Date(date);
 
     // ---------------------------------------------------------------------------------------------------------------
 

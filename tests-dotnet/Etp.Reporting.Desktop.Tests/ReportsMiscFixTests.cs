@@ -239,7 +239,7 @@ public sealed class ReportsMiscFixTests
 
             // Other reports accept a long window; a snapshot report reads only its To date.
             await view.RunReportAsync("sales-brand");
-            Assert.StartsWith("Passed", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
+            Assert.StartsWith("OK", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
             AssertNoTrendFailureLogged();
         });
     }

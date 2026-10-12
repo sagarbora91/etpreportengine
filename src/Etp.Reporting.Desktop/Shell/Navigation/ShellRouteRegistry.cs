@@ -16,7 +16,7 @@ public static class ShellRouteRegistry
         new("Sales Reports", "reports"),
         new("Registers", "registers"),
         new("Accounting", "accounting"),
-        new("Operations Center", "exceptions"),
+        new("Operations Centre", "exceptions"),
         new("Report Archive", "archive"),
         new("Service Centre", "service"),
         new("Settings", "settings"),

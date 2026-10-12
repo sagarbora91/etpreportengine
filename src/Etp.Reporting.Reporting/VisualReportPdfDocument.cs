@@ -183,8 +183,8 @@ internal sealed class VisualReportPdfDocument : IDisposable
 
     private static string Format(object? value, string format) => value switch
     {
-        null => "—", decimal n => format.Contains('%') ? n.ToString("0.00",CultureInfo.GetCultureInfo("en-IN"))+"%" : n.ToString("N2",CultureInfo.GetCultureInfo("en-IN")),
-        DateOnly date => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture),
+        null => "—", decimal n => format.Contains('%') ? IndianFormat.Percent(n) : IndianFormat.MoneyCell(n),
+        DateOnly date => IndianFormat.Date(date),
         DateTime date => date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
         _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
     };

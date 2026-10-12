@@ -98,7 +98,7 @@ public sealed class TodaySalesView : Grid
         root.Children.Add(table);
         return root;
     }
-    private static string Label(string metric) => metric switch { "VALUE" => "Sales ₹", "VOL" => "Units", "RETAIL WALKIN" => "Walk-ins", "INVOICE" => "Invoices", "CONVERSION %" => "Conversion %", _ => metric };
+    private static string Label(string metric) => metric switch { "VALUE" => "Sales (₹)", "VOL" => "Units", "RETAIL WALKIN" => "Walk-ins", "INVOICE" => "Invoices", "CONVERSION %" => "Conversion %", _ => metric };
     private static TextBlock Text(string value,double size,bool bold=false)
     {
         var text = new TextBlock { Text=value,FontSize=size,FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,0) };
@@ -110,5 +110,5 @@ public sealed class TodaySalesView : Grid
         AutomationProperties.SetHeadingLevel(text,AutomationHeadingLevel.Level2);
         return text;
     }
-    internal static string Format(decimal? value,string? format) => value is null ? "—" : value.Value.ToString(format is "currency" or "ratio" ? "N2" : "0.##",CultureInfo.GetCultureInfo("en-IN")) + (format=="percent"?"%":"");
+    internal static string Format(decimal? value,string? format) => Etp.Reporting.Reporting.IndianFormat.Metric(value,format);
 }

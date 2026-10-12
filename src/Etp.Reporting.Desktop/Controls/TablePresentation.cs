@@ -74,7 +74,7 @@ public static class TablePresentation
             {
                 if (properties.Find(column.Property, false) is not { } property) continue;
                 var (valueType, numeric) = Shape(property);
-                yield return new(property, column.Money ? column.Header + " ₹" : column.Header, numeric, new CellFormat(valueType, numeric, column.LocalTime ? property.Name + LocalTimeSuffix : property.Name));
+                yield return new(property, column.Money ? Etp.Reporting.Reporting.IndianFormat.MoneyHeader(column.Header) : column.Header, numeric, new CellFormat(valueType, numeric, column.LocalTime ? property.Name + LocalTimeSuffix : property.Name));
             }
             yield break;
         }
@@ -85,7 +85,7 @@ public static class TablePresentation
             var money = valueType == typeof(decimal) && Regex.IsMatch(property.Name, "Amount|Value|Sales|Cash|Card|Bank|GiftCard|Opening|Closing|Total|Balance|Expense|UPI", RegexOptions.IgnoreCase)
                 && !Regex.IsMatch(property.Name,"Count|Quantity|Rows|Units",RegexOptions.IgnoreCase);
             var header = table?.Columns[property.Name]?.Caption ?? ReportGridColumns.GenericHeader(property.Name) ?? Regex.Replace(property.Name, "(?<=[a-z0-9])(?=[A-Z])", " ");
-            if (money && table is null) header += " ₹";
+            if (money && table is null) header = Etp.Reporting.Reporting.IndianFormat.MoneyHeader(header);
             yield return new(property, header, numeric, new CellFormat(valueType, numeric, property.Name));
         }
     }
@@ -128,9 +128,10 @@ public static class TablePresentation
             string store when name is "Store" or "StoreCode" => StoreLabel(store),
             // Growth Status and Availability carry MetricAvailability names ("MissingSource") as text.
             string status when name is "GrowthStatus" or "Availability" => SpacedWords(status),
+            Enum member when member.GetType().Name is "ReportStatus" or "ReconciliationStatus" => Etp.Reporting.Reporting.StatusWords.Label(member),
             Enum member => SpacedWords(member.ToString()),
             // A mapped *Utc column marked LocalTime shows the local clock time (RA-TENDER-15).
-            DateTime utc when name.EndsWith(LocalTimeSuffix, StringComparison.Ordinal) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM yyyy HH:mm",PresentationCulture.Indian),
+            DateTime utc when name.EndsWith(LocalTimeSuffix, StringComparison.Ordinal) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM yyyy HH:mm",Etp.Reporting.Reporting.IndianFormat.Culture),
             DateTime date => date.ToString("dd MMM yyyy",PresentationCulture.Indian),
             DateOnly date => date.ToString("dd MMM yyyy",PresentationCulture.Indian),
             // A year is an identifier: 2027, never "2,027" (RA-UI-18).

@@ -39,7 +39,7 @@ public sealed class DiagnosticsScreenServices
 /// <summary>The two Owner-only screens of Settings &gt; Database (1.11.0 self-diagnostics, design 9) and their factory.</summary>
 public static class DiagnosticsScreens
 {
-    public const string Destination = "Operations Center";
+    public const string Destination = "Operations Centre";
     public const string HealthCheckTask = "health-check";
     public const string ErrorRegisterTask = "error-register";
 

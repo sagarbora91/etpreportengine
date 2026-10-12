@@ -12,7 +12,7 @@ public sealed class StockPolishTests
         var text = BrandStockEntryWindow.DescribeLoaded(0, "WLMHW", new DateOnly(2026, 9, 28));
 
         Assert.Contains("No closing-stock snapshot", text, StringComparison.Ordinal);
-        Assert.Contains("WLMHW on 28 Sep 2026", text, StringComparison.Ordinal);
+        Assert.Contains("WLMHW on 28 Sept 2026", text, StringComparison.Ordinal);
         Assert.Contains("Import the Closing Stock export", text, StringComparison.Ordinal);
     }
 
@@ -22,7 +22,7 @@ public sealed class StockPolishTests
         var text = BrandStockEntryWindow.DescribeLoaded(12, "HEMW", new DateOnly(2026, 9, 29));
 
         Assert.False(string.IsNullOrWhiteSpace(text));
-        Assert.Contains("12 brand(s) for HEMW on 29 Sep 2026", text, StringComparison.Ordinal);
+        Assert.Contains("12 brand(s) for HEMW on 29 Sept 2026", text, StringComparison.Ordinal);
         Assert.Contains("Select a brand", text, StringComparison.Ordinal);
     }
 

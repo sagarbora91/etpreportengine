@@ -114,8 +114,8 @@ public static class DailyReadinessEvaluator
         var monthly = facts.StoresWithMonthlyTarget.ToHashSet(Codes);
         var staff = facts.StoresWithStaffTargets.ToHashSet(Codes);
         var date = request.BusinessDate;
-        var day = date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
-        var month = date.ToString("MMM yyyy", CultureInfo.InvariantCulture);
+        var day = Etp.Reporting.Application.Formatting.DisplayText.Date(date);
+        var month = Etp.Reporting.Application.Formatting.DisplayText.Month(date);
         var missing = new List<DailyReadinessItem>();
 
         foreach (var store in stores)

@@ -310,7 +310,7 @@ public sealed class ServiceTodayViewTests
             Assert.Equal(ServiceFreshnessColour.Amber, view.Freshness.Single(chip => chip.Group == "Pending lists").Colour);
             // SRN (S011-S013) comes only in the monthly workbook, so 15 days old is still fresh for it (Q14, R-SQL-14).
             Assert.Equal(ServiceFreshnessColour.Fresh, view.Freshness.Single(chip => chip.Group == "SRN").Colour);
-            Assert.Equal("SRN: last export 24 Sep 2026 (consolidated)", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "SRN")));
+            Assert.Equal("SRN: last export 24 Sept 2026 (consolidated)", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "SRN")));
             var strip = Descendants<System.Windows.Controls.WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
             Assert.Equal(9, strip.Children.Count);
         });

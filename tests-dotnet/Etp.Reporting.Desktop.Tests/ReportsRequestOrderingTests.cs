@@ -60,7 +60,7 @@ public sealed class ReportsRequestOrderingTests
             Assert.Null(data.Totals[6]);
             Assert.Equal("1 missing", data.Totals[7]);
             Assert.Equal(1499m, data.Totals[2]);
-            Assert.Contains("1 store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.", ((TextBlock)view.FindName("ReportResult")).Text);
+            Assert.Contains("1 store-day(s) have no invoice tenders imported; their tender variance is blank, not zero.", ((TextBlock)view.FindName("ReportResult")).Text);
         });
     }
 
@@ -78,7 +78,7 @@ public sealed class ReportsRequestOrderingTests
             var data = Assert.Single(previews).ExportData!;
             Assert.Equal(5m, data.Totals![6]);
             Assert.Equal("", data.Totals[7]);
-            Assert.DoesNotContain("R022 missing", ((TextBlock)view.FindName("ReportResult")).Text);
+            Assert.DoesNotContain("Invoice tenders not imported", ((TextBlock)view.FindName("ReportResult")).Text);
         });
     }
 

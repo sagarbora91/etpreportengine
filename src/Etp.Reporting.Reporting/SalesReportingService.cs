@@ -100,11 +100,11 @@ public sealed class SalesReportingService
         ArgumentNullException.ThrowIfNull(policy);
         var returns = DistinctDocuments(selected.Where(x => x.TransactionType is ReportingTransactionType.Return or ReportingTransactionType.Cancellation));
         if (dimension == SalesSummaryDimension.Returns)
-            return $"{returns:N0} return document(s); return values keep their minus sign.";
+            return IndianFormat.Text($"{returns:N0} return document(s); return values keep their minus sign.");
         var invoices = DistinctDocuments(selected.Where(x => x.TransactionType == ReportingTransactionType.Sale));
         var returnsCounted = policy.IncludedTransactionTypes.Contains(ReportingTransactionType.Return) ||
             policy.IncludedTransactionTypes.Contains(ReportingTransactionType.Cancellation);
-        return $"{invoices:N0} invoice(s), {returns:N0} return(s)" +
+        return IndianFormat.Text($"{invoices:N0} invoice(s), {returns:N0} return(s)") +
             (returnsCounted ? "; returns and bill cancellations are already taken off the totals." : ".");
     }
 
@@ -139,8 +139,8 @@ public sealed class SalesReportingService
             .Select(x => (x.Key.Store, x.Key.Key, Value: x.Sum(l => l.SourceSignedNetAmount)))
             .OrderBy(x => x.Store, StringComparer.OrdinalIgnoreCase).ThenByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.Ordinal).ToArray();
         if (unmapped.Length == 0) return string.Empty;
-        var listed = string.Join("; ", unmapped.Select(x => $"{x.Store} {x.Key[UnmappedPrefix.Length..]} {x.Value:N2}"));
-        return $" Not in the brand-row master, shown as Unmapped rows ({unmapped.Length:N0}, {unmapped.Sum(x => x.Value):N2} in this period): {listed}. Map them in {BrandMasterLocation}.";
+        var listed = string.Join("; ", unmapped.Select(x => IndianFormat.Text($"{x.Store} {x.Key[UnmappedPrefix.Length..]} {x.Value:N2}")));
+        return IndianFormat.Text($" Not in the brand-row master, shown as Unmapped rows ({unmapped.Length:N0}, {unmapped.Sum(x => x.Value):N2} in this period): {listed}. Map them in {BrandMasterLocation}.");
     }
 
     private static int DistinctDocuments(IEnumerable<SalesReportingLine> lines) =>
@@ -166,7 +166,7 @@ public sealed class SalesReportingService
     private static string UnassignedNote(IEnumerable<SalesReportingLine> selected, SalesSummaryDimension dimension)
     {
         var count = selected.Count(x => IsUnassigned(x, dimension));
-        return count == 0 ? string.Empty : $" {count:N0} line(s) have no {DimensionName(dimension)} in the source and are grouped as \"{UnassignedKey}\".";
+        return count == 0 ? string.Empty : IndianFormat.Text($" {count:N0} line(s) have no {DimensionName(dimension)} in the source and are grouped as \"{UnassignedKey}\".");
     }
 
     private static string DimensionName(SalesSummaryDimension dimension) => dimension switch

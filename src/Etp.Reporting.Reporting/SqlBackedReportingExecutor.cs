@@ -41,14 +41,14 @@ public sealed class SqlBackedReportingExecutor(
         // RA-UI-02: no "Tender modes:" suffix when there is no tender at all.
         var modes = tenderRows.Count == 0 ? string.Empty : " Tender modes: " + string.Join(" / ", tenderRows.GroupBy(x => x.TenderType, StringComparer.OrdinalIgnoreCase)
             .Select(x => new { Mode = x.Key, Total = x.Sum(t => t.SourceAmount) }).OrderByDescending(x => x.Total)
-            .Select(x => $"{x.Mode}: {x.Total:N2}"));
+            .Select(x => IndianFormat.Text($"{x.Mode}: {x.Total:N2}")));
         var gaps = await repository.LoadTenderCoverageGapsAsync(scope, cancellationToken);
         if (gaps.Count > 0)
         {
             // Blocked because the period is incomplete, but what the covered days showed is kept after the gap text:
             // the reconciliation's own message and, when it had failed, the failed-document count and variance.
             var failed = result.Status == ReconciliationStatus.Failed
-                ? $" On the days that were reconciled, {result.Documents.Count(x => x.Status == ReconciliationStatus.Failed):N0} document(s) failed; variance {result.Variance:N2}."
+                ? IndianFormat.Text($" On the days that were reconciled, {result.Documents.Count(x => x.Status == ReconciliationStatus.Failed):N0} document(s) failed; variance {result.Variance:N2}.")
                 : string.Empty;
             // RA-TENDER-02 / RA-UI-01: the invoices of the uncovered store-days are listed from their sales lines with a
             // blank tender and status Blocked, and counted in the invoice total, so a store without R022 is not dropped
@@ -75,7 +75,7 @@ public sealed class SqlBackedReportingExecutor(
     {
         if (invoices.Count == 0) return string.Empty;
         var stores = invoices.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(x => $"{x.Key} {x.Count():N0} invoice(s) {x.Sum(i => i.GrossAmount):N2}");
+            .Select(x => IndianFormat.Text($"{x.Key} {x.Count():N0} invoice(s) {x.Sum(i => i.GrossAmount):N2}"));
         return $" Listed with a blank tender, not reconciled: {string.Join("; ", stores)}. The invoice total includes them; the variance covers the reconciled documents only.";
     }
 
@@ -86,10 +86,10 @@ public sealed class SqlBackedReportingExecutor(
         var stores = gaps.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(store =>
         {
             var dates = store.Select(x => x.BusinessDate).Distinct().Order().ToArray();
-            var listed = string.Join(", ", dates.Take(shown).Select(x => x.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)));
-            return dates.Length > shown ? $"{store.Key}: {listed} and {dates.Length - shown:N0} more" : $"{store.Key}: {listed}";
+            var listed = string.Join(", ", dates.Take(shown).Select(x => IndianFormat.Date(x)));
+            return dates.Length > shown ? IndianFormat.Text($"{store.Key}: {listed} and {dates.Length - shown:N0} more") : $"{store.Key}: {listed}";
         });
-        return $"R022 missing / not imported for {gaps.Count:N0} store-day(s) with sales ({string.Join("; ", stores)}). Import the Revenue Report (R022) for these dates; tenders are not treated as zero.";
+        return IndianFormat.Text($"Invoice tenders not imported for {gaps.Count:N0} store-day(s) with sales ({string.Join("; ", stores)}). Import the invoice tenders export (Revenue Report) for these dates; tenders are not treated as zero.");
     }
 
     public async Task<StockReconciliationResult> ExecuteStockReconciliationAsync(
@@ -142,10 +142,10 @@ public sealed class SqlBackedReportingExecutor(
                 reasons.Add(shortLedger.LedgerCoversTo is { } covered ? $"ledger ends {Day(covered)}" : "no stock ledger imported");
             if (missing.Contains(store)) reasons.Add($"no closing-stock snapshot on {Day(dateTo)}");
             if (reasons.Count > 0)
-                return $"{store}: Blocked - {string.Join(", ", reasons)}" + (storeItems.Length == 0 ? "" : $" ({storeItems.Length:N0} item(s) listed)");
+                return $"{store}: Blocked - {string.Join(", ", reasons)}" + (storeItems.Length == 0 ? "" : IndianFormat.Text($" ({storeItems.Length:N0} item(s) listed)"));
             if (storeItems.Length == 0) return $"{store}: no stock movement in the period";
             var failed = storeItems.Count(x => x.Status == ReconciliationStatus.Failed);
-            return failed == 0 ? $"{store}: Passed ({storeItems.Length:N0} item(s))" : $"{store}: Failed ({failed:N0} of {storeItems.Length:N0} item(s) differ)";
+            return failed == 0 ? IndianFormat.Text($"{store}: Passed ({storeItems.Length:N0} item(s))") : IndianFormat.Text($"{store}: Failed ({failed:N0} of {storeItems.Length:N0} item(s) differ)");
         })) + ".";
     }
 
@@ -205,7 +205,7 @@ public sealed class SqlBackedReportingExecutor(
     }
 
     private static string Join(string? warning, string message) => warning is null ? message : $"{warning} {message}";
-    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Day(DateOnly date) => IndianFormat.Date(date);
 
     private void Validate(ReportingQueryScope scope)
     {

@@ -201,7 +201,7 @@ public static class TallySalesVoucherComposer
         var missingTax = invoice.Lines.Select(line => line.ProductCode).Distinct(StringComparer.Ordinal)
             .Where(product => !invoice.TaxRows.Any(row => string.Equals(row.ItemNumber, product, StringComparison.Ordinal))).ToArray();
         if (missingTax.Length > 0)
-            return Blocked("TAX_ROW_MISSING", $"no GST row for item {string.Join(", ", missingTax)}. Import the GST detail report (R018) for this day.");
+            return Blocked("TAX_ROW_MISSING", $"no GST row for item {string.Join(", ", missingTax)}. Import the GST detail report for this day.");
         var components = new List<(string Component, decimal Rate, decimal Amount)>();
         foreach (var row in invoice.TaxRows)
             foreach (var (component, rate, amount) in new[] { ("CGST", row.CgstRate, row.CgstAmount), ("SGST", row.SgstRate, row.SgstAmount), ("IGST", row.IgstRate, row.IgstAmount) })
@@ -243,7 +243,7 @@ public static class TallySalesVoucherComposer
             return Blocked("UNBALANCED", $"payment and round-off ({Text(debit)}) do not equal revenue and GST ({Text(credit)}). Check the sales export for this invoice.");
         var missing = lines.Select(line => line.Event).Where(code => !mappings.ContainsKey(code)).Distinct(StringComparer.Ordinal).ToArray();
         if (missing.Length > 0)
-            return Blocked("MAPPING_MISSING", $"no approved ledger for {string.Join(", ", missing)} on {invoice.InvoiceDate.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture)}.");
+            return Blocked("MAPPING_MISSING", $"no approved ledger for {string.Join(", ", missing)} on {Etp.Reporting.Application.Formatting.DisplayText.Date(invoice.InvoiceDate)}.");
 
         var entries = new List<PlannedEntry>();
         foreach (var line in lines)

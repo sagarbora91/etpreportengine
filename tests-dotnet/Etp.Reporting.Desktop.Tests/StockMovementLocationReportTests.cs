@@ -51,7 +51,7 @@ public sealed class StockMovementLocationReportTests
             var snapshot = Assert.Single(previews);
             Assert.Equal(3, snapshot.ExportData!.Rows.Count);
             Assert.All(snapshot.ExportData.Rows, row => Assert.Equal("no snapshot", row[5]));
-            Assert.Contains("No closing-stock snapshot for WLMHW on 10 Sep 2026; movements are shown, closing stock cannot be checked.", snapshot.ExportMetadata!.Message);
+            Assert.Contains("No closing-stock snapshot for WLMHW on 10 Sept 2026; movements are shown, closing stock cannot be checked.", snapshot.ExportMetadata!.Message);
         });
     }
 
@@ -59,10 +59,10 @@ public sealed class StockMovementLocationReportTests
     public void Snapshot_notes_name_only_the_stores_without_one()
     {
         Assert.Equal("", ReportsWorkspaceView.StockMovementSnapshotNote([new("A", "I", "INV", -1m)], new(2026, 9, 10)));
-        Assert.Equal(" No closing-stock snapshot for B on 10 Sep 2026; movements are shown, closing stock cannot be checked.",
+        Assert.Equal(" No closing-stock snapshot for B on 10 Sept 2026; movements are shown, closing stock cannot be checked.",
             ReportsWorkspaceView.StockMovementSnapshotNote([new("A", "I", "INV", -1m), new("B", "I", "INV", -1m, null, false)], new(2026, 9, 10)));
-        Assert.Equal(" No closing-stock snapshot for B on or before 10 Sep 2026; import the Closing Stock export.", ReportsWorkspaceView.MissingSnapshotText(["A", "B"], ["A"], new(2026, 9, 10)));
-        Assert.Equal(" No closing-stock snapshot for any store on or before 10 Sep 2026; import the Closing Stock export.", ReportsWorkspaceView.MissingSnapshotText(null, [], new(2026, 9, 10)));
+        Assert.Equal(" No closing-stock snapshot for B on or before 10 Sept 2026; import the Closing Stock export.", ReportsWorkspaceView.MissingSnapshotText(["A", "B"], ["A"], new(2026, 9, 10)));
+        Assert.Equal(" No closing-stock snapshot for any store on or before 10 Sept 2026; import the Closing Stock export.", ReportsWorkspaceView.MissingSnapshotText(null, [], new(2026, 9, 10)));
         Assert.Equal("", ReportsWorkspaceView.MissingSnapshotText(null, ["A"], new(2026, 9, 10)));
     }
 

@@ -71,7 +71,7 @@ public sealed class ShellNavigationServiceTests
     [InlineData("Registers", "registers")]
     [InlineData("Accounting", "accounting")]
     [InlineData("Report Archive", "archive")]
-    [InlineData("Operations Center", "exceptions")]
+    [InlineData("Operations Centre", "exceptions")]
     [InlineData("Admin / Settings", "settings")]
     public void Every_destination_resolves_to_its_existing_module(string destination, string expectedModule)
     {

@@ -181,7 +181,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             CreditLedgerInput.Clear();
             AccountingMappingReasonInput.Clear();
             AccountingNarrationInput.Text = DefaultNarration;
-            SetStatus($"Approved {eventCode} ledger mapping is active from {scope.BusinessDate:dd-MMM-yyyy}.");
+            SetStatus($"Approved {eventCode} ledger mapping is active from {Etp.Reporting.Reporting.IndianFormat.Date(scope.BusinessDate)}.");
         }
         catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_MAPPING_APPROVAL_FAILED"))); }
     }

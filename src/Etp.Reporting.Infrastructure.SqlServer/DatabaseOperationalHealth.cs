@@ -92,7 +92,7 @@ public static class RecoveryDrillResultText
         }
     }
 
-    public static string Number(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+    public static string Number(long value) => Etp.Reporting.Reporting.IndianFormat.Count(value);
 }
 
 public sealed record DatabaseOperationalHealthThresholds(

@@ -272,7 +272,7 @@ public sealed class ReportExportPathTests
                     var grid = (DataGrid)view.FindName("ReportGrid");
                     TablePresentation.Configure(grid);
                     foreach (var column in mapped.Where(column => column.Money && headers.Contains(column.Header)))
-                        Assert.Contains(grid.Columns, gridColumn => (string)gridColumn.Header == column.Header + " ₹");
+                        Assert.Contains(grid.Columns, gridColumn => (string)gridColumn.Header == column.Header + " (₹)");
                 }
             }
             finally { Directory.Delete(folder, recursive: true); }

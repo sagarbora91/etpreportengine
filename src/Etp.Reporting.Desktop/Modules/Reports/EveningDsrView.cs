@@ -38,6 +38,6 @@ public sealed class EveningDsrView : TabControl
             Items.Add(new TabItem{Header=sheet.StoreName,MinHeight=44,Content=new ScrollViewer{Content=panel,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
         }
     }
-    private static string Money(decimal? value)=>value is null?"—":value.Value.ToString("₹#,##0.00",CultureInfo.GetCultureInfo("en-IN"));
-    private static string Format(decimal? n,string format)=>n is null?"—":n.Value.ToString(format=="currency"?"N2":format=="ratio"?"0.00":"0.##",CultureInfo.GetCultureInfo("en-IN"))+(format=="percent"?"%":"");
+    private static string Money(decimal? value)=>Etp.Reporting.Reporting.IndianFormat.MoneyExact(value);
+    private static string Format(decimal? n,string format)=>Etp.Reporting.Reporting.IndianFormat.Metric(n,format);
 }

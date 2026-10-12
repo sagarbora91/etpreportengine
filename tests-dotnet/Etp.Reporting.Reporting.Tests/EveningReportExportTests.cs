@@ -51,13 +51,13 @@ public sealed class EveningReportExportTests
         {
             var row=data.Rows.Single(x=>Equals(x[4],mode));
             Assert.Null(row[3]);Assert.Null(row[5]);
-            Assert.Equal("R022 missing / not imported",row[6]);
+            Assert.Equal("Invoice tenders not imported",row[6]);
         }
         Assert.DoesNotContain(data.Rows,x=>Equals(x[4],"Credit note redeemed")||Equals(x[4],"Credit note issued"));
         var total=data.Rows.Single(x=>Equals(x[2],"Total"));
         Assert.Null(total[3]);Assert.Null(total[5]);
         Assert.Null(data.Rows.Single(x=>Equals(x[2],"Closing balance"))[3]);
-        Assert.Contains("R022 missing / not imported",(string)data.Rows.Single(x=>Equals(x[4],"Opening balance"))[6]!);
+        Assert.Contains("Invoice tenders not imported",(string)data.Rows.Single(x=>Equals(x[4],"Opening balance"))[6]!);
     }
 
     [Fact]

@@ -294,7 +294,7 @@ public sealed class ServiceUiRulesTests
         Assert.Equal((AsAt.AddDays(-2), ServiceFreshnessColour.Fresh), (jobs.LatestSnapshotDate!.Value, jobs.Colour));
         var pending = chips.Single(chip => chip.Group == "Pending lists");
         Assert.Equal((AsAt.AddDays(-9), ServiceFreshnessColour.Amber, "RAW"), (pending.LatestSnapshotDate!.Value, pending.Colour, pending.SourceKind));
-        Assert.Equal("last export 26 Sep 2026 (raw)", pending.Text);
+        Assert.Equal("last export 26 Sept 2026 (raw)", pending.Text);
         Assert.Equal(ServiceFreshnessColour.Red, chips.Single(chip => chip.Group == "Status views").Colour);
         Assert.Equal(ServiceFreshnessColour.NoData, chips.Single(chip => chip.Group == "Claims").Colour);
         Assert.Equal("no export yet", chips.Single(chip => chip.Group == "Claims").Text);
@@ -468,7 +468,7 @@ public sealed class ServiceUiRulesTests
         // R-SQL-08: the GPRC hole is named on the Claims chip and makes it at least amber.
         var claims = chips.Single(chip => chip.Group == "Claims");
         Assert.Equal(ServiceFreshnessColour.Amber, claims.Colour);
-        Assert.EndsWith(" · no GPRC lines 06 Aug 2026 - 30 Sep 2026", claims.Text, StringComparison.Ordinal);
+        Assert.EndsWith(" · no GPRC lines 06 Aug 2026 - 30 Sept 2026", claims.Text, StringComparison.Ordinal);
         Assert.Contains("never exported: S024, S025, S026, S039, S040", claims.Text, StringComparison.Ordinal);
     }
 

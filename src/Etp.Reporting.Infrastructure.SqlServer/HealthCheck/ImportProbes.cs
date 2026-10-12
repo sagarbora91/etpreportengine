@@ -271,7 +271,7 @@ internal static class ImportDataProbeSupport
     /// <summary>Invariant-culture text from an interpolated string (counts and dates print the same on every PC).</summary>
     public static string Text(FormattableString text) => FormattableString.Invariant(text);
 
-    public static string Day(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    public static string Day(DateOnly date) => Etp.Reporting.Reporting.IndianFormat.Date(date);
 
     /// <summary>
     /// A command for text that passed <see cref="ReadOnlySqlGuard"/>; a text that is not read-only throws before any command exists (design 5.4).

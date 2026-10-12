@@ -44,8 +44,8 @@ public sealed class BrandStockEntryWindow : Window
     // RA-STOCK-13 (1.9.9): an empty grid used to come with a blank status, so the user could not
     // tell that the system side (the closing-stock snapshot) was missing.
     internal static string DescribeLoaded(int rows,string store,DateOnly date)=>rows==0
-        ? $"No closing-stock snapshot or saved count for {store} on {date.ToString("dd MMM yyyy",CultureInfo.InvariantCulture)}, so there are no brands to count. Import the Closing Stock export for that day, then open this window again."
-        : $"{rows.ToString(CultureInfo.InvariantCulture)} brand(s) for {store} on {date.ToString("dd MMM yyyy",CultureInfo.InvariantCulture)}. Select a brand to enter today's count.";
+        ? $"No closing-stock snapshot or saved count for {store} on {Etp.Reporting.Reporting.IndianFormat.Date(date)}, so there are no brands to count. Import the Closing Stock export for that day, then open this window again."
+        : $"{rows.ToString(CultureInfo.InvariantCulture)} brand(s) for {store} on {Etp.Reporting.Reporting.IndianFormat.Date(date)}. Select a brand to enter today's count.";
 
     // Counts are typed as plain numbers; parse them the same way on every Windows culture.
     internal static bool TryParseCount(string? text,out decimal value)=>

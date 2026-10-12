@@ -145,7 +145,7 @@ public sealed class OperationsAdministrationPresentationSession
     /// them how current the list is.
     /// </summary>
     public static string DescribeIssuesSynced(DateTime? syncedUtc) => syncedUtc is { } utc
-        ? $"Open items last updated from the live checks: {DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)}. They update after every import, failed ones included (a folder import once, after its last file), and when an Owner or Store Manager opens this screen."
+        ? $"Open items last updated from the live checks: {Etp.Reporting.Reporting.IndianFormat.LocalDateTime(utc)}. They update after every import, failed ones included (a folder import once, after its last file), and when an Owner or Store Manager opens this screen."
         : "Open items have not been updated from the live checks yet. They update after every import, failed ones included (a folder import once, after its last file), and when an Owner or Store Manager opens this screen.";
 
     public ScheduleEditorState? SelectSchedule(ReportSchedule? schedule)

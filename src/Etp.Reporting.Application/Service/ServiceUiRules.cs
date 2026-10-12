@@ -248,7 +248,7 @@ public static class ServiceFreshness
 
     private const string ClaimsGroup = "Claims";
 
-    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Day(DateOnly date) => Etp.Reporting.Application.Formatting.DisplayText.Date(date);
 }
 
 /// <summary>The Claims screen composed from v_service_claims lines and v_service_job rows (design 3.5, Q9 = A: raised only).</summary>

@@ -46,7 +46,7 @@ public sealed class TallyVouchersView : UserControl
         this.batches = batches;
         Column(VoucherGrid, "Invoice", nameof(VoucherRow.Invoice), 130);
         Column(VoucherGrid, "Result", nameof(VoucherRow.Result), 110);
-        Column(VoucherGrid, "Amount", nameof(VoucherRow.Amount), 110);
+        Column(VoucherGrid, "Amount (₹)", nameof(VoucherRow.Amount), 110);
         Column(VoucherGrid, "Reason", nameof(VoucherRow.Reason), 520);
         Column(FindingGrid, "Kind", nameof(FindingRow.Kind), 90);
         Column(FindingGrid, "Rule", nameof(FindingRow.Rule), 120);
@@ -209,7 +209,7 @@ public sealed class TallyVouchersView : UserControl
     {
         public string Invoice => Voucher.DocumentNumber;
         public string Result => Voucher.Status == TallyVoucherStatus.Planned ? "Ready" : Voucher.LeftOutByScope ? "Left out" : "Fix needed";
-        public string Amount => Voucher.ExpectedTotal.ToString("N2", CultureInfo.InvariantCulture);
+        public string Amount => Etp.Reporting.Reporting.IndianFormat.MoneyCell(Voucher.ExpectedTotal);
         public string Reason => Voucher.BlockedReason ?? "";
     }
 

@@ -40,7 +40,7 @@ internal static class OperationalInputScreens
         inputs.FirstOrDefault(x => string.Equals(x.FieldCode, fieldCode, StringComparison.OrdinalIgnoreCase)) is { DisplayName: { } name }
             && !string.IsNullOrWhiteSpace(name) ? name.Trim() : fieldCode;
 
-    public static string FormatDate(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    public static string FormatDate(DateOnly date) => Etp.Reporting.Reporting.IndianFormat.Date(date);
 }
 
 public sealed class DailyReportingPackService(string connectionString)

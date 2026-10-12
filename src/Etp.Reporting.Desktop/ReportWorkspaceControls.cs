@@ -455,7 +455,7 @@ public sealed class DailySalesReportWorkspace : Grid
     internal const string TargetsEntryHint = "Enter monthly targets in Settings > Stores & masters > Brands and targets > Monthly targets (Owner).";
     internal static IReadOnlyList<ReportDataAvailability> DefaultAvailability(DailySalesReportDocument report) =>
     [
-        new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded GST-inclusive sales (R025 NETAMOUNT) are available."),
+        new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded GST-inclusive sales are available."),
         new("Walk-ins", report.WalkIns is not null, report.WalkIns is null ? WalkInsEntryHint : "Combined walk-ins are available."),
         new("LY comparison", report.Stores.All(store => store.Periods.All(period => period.MissingSourceNote is null)), "Missing prior-year periods remain visibly unavailable."),
         new("Service", report.Service.Total is not null, report.Service.Total is null ? ServiceEntryHint : "Service values are available."),

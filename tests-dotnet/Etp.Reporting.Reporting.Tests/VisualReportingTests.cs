@@ -30,9 +30,9 @@ public sealed class VisualReportingTests
     [Fact]
     public void Missing_zero_and_not_applicable_are_distinct()
     {
-        Assert.Equal("Not available", IndianNumberFormatter.Format(null, "currency", VisualValueState.Missing));
+        Assert.Equal("Not imported yet", IndianNumberFormatter.Format(null, "currency", VisualValueState.Missing));
         Assert.Equal("N/A", IndianNumberFormatter.Format(null, "currency", VisualValueState.NotApplicable));
-        Assert.Contains("0.00", IndianNumberFormatter.Format(0m, "currency"));
+        Assert.Equal("₹0", IndianNumberFormatter.Format(0m, "currency"));
     }
 
     [Fact]

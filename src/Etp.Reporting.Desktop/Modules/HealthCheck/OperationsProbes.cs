@@ -352,7 +352,7 @@ public sealed class OperationsProbes : IHealthProbe
         decimal? metric = null, IReadOnlyList<HealthCheckSubResult>? subs = null) =>
         new(id, HealthCheckId.AreaOf(id), outcome, code, text, fix, stopwatch.Elapsed, metric, subs);
 
-    private static string Stamp(DateTimeOffset value) => value.UtcDateTime.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC";
+    private static string Stamp(DateTimeOffset value) => value.UtcDateTime.ToString("dd MMM yyyy HH:mm", Etp.Reporting.Reporting.IndianFormat.Culture) + " UTC";
     private static decimal Round(double value, int digits = 1) => Math.Round((decimal)value, digits);
 
     private static DateTimeOffset? Utc(DateTime? value) =>

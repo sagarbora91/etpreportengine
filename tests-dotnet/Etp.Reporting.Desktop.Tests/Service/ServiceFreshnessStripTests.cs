@@ -79,6 +79,6 @@ public sealed class ServiceFreshnessStripTests
         var status = chips.Single(chip => chip.Group == "Status views");
         Assert.Equal(new DateOnly(2026, 9, 29), status.LatestSnapshotDate);
         Assert.Equal(ServiceFreshnessColour.Amber, status.Colour);
-        Assert.Equal("Status views: last export 29 Sep 2026", ServiceFreshnessStrip.TextFor(status));
+        Assert.Equal("Status views: last export 29 Sept 2026", ServiceFreshnessStrip.TextFor(status));
     }
 }
