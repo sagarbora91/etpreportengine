@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Etp.Reporting.Reporting;
+using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
@@ -48,6 +49,57 @@ public sealed class DailyReportingPackService(string connectionString)
     public const string ServiceSectionName = "Service Sale Report";
     /// <summary>The pack section that is NotRun until the day is finalised; never a finalise warning.</summary>
     public const string FinalisationSectionName = "Business Date Finalisation";
+
+    /// <summary>
+    /// AUDIT-2 S-07: Owner-only. The setter checks the caller's role in SQL (no other role holds UPDATE on product_settings
+    /// either) and records a ConfigurationChange audit row. Error 51060 when the caller is not the Owner.
+    /// </summary>
+    internal const string SetSharePackCustomerNamesSql = """
+        SET XACT_ABORT ON;
+        IF ISNULL(IS_MEMBER(N'etp_owner'),0)<>1 AND ISNULL(IS_MEMBER(N'db_owner'),0)<>1
+            THROW 51060,N'Only the Owner can change whether shared packs include customer names.',1;
+        BEGIN TRANSACTION;
+        UPDATE dbo.product_settings SET share_pack_customer_names=@include,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
+        WHERE product_setting_id=1;
+        IF @@ROWCOUNT<>1 THROW 51061,N'Product settings are not initialized.',1;
+        EXEC dbo.record_operational_audit 'ConfigurationChange','Succeeded',N'Shared pack customer names setting changed',N'database';
+        COMMIT TRANSACTION;
+        """;
+
+    internal const string LoadSharePackCustomerNamesSql =
+        "SELECT share_pack_customer_names FROM dbo.product_settings WHERE product_setting_id=1;";
+
+    /// <summary>
+    /// "Include customer names in shared packs" (AUDIT-2 S-07), default off. Fails closed: if the setting cannot be read the
+    /// pack is generated without names.
+    /// </summary>
+    public async Task<bool> LoadSharePackCustomerNamesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
+            await connection.OpenAsync(cancellationToken);
+            await using var command = new SqlCommand(LoadSharePackCustomerNamesSql, connection);
+            return await command.ExecuteScalarAsync(cancellationToken) is true;
+        }
+        catch (SqlException) { return false; }
+    }
+
+    /// <summary>Owner only: switch customer names in shared packs on or off, with a reason (audited).</summary>
+    public async Task SetSharePackCustomerNamesAsync(bool include, string reason, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Enter a reason for the settings change.", nameof(reason));
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(SetSharePackCustomerNamesSql, connection);
+        command.Parameters.AddWithValue("@include", include);
+        command.Parameters.AddWithValue("@reason", reason.Trim());
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    internal static string InvoiceCustomerNameNote(bool shareCustomerNames) => shareCustomerNames
+        ? "Customer names use active R024 and are shown to Owner and Store Manager only; unavailable names remain blank."
+        : "Customer names are left out of this pack (Settings: include customer names in shared packs is off).";
 
     public async Task<ReportPackDocument> GenerateCombinedAsync(
         DateOnly businessDate,
@@ -116,6 +168,8 @@ public sealed class DailyReportingPackService(string connectionString)
         var cashBook=await operational.LoadCashBookAsync(storeCode,businessDate,businessDate,cancellationToken);
         var evening=await operational.LoadEveningSheetsAsync(businessDate,dsr,cancellationToken);
         var exceptions = await operational.LoadDailyExceptionsAsync(storeCode, businessDate, cancellationToken);
+        var sourceShortfalls = await operational.LoadTenderSourceShortfallsAsync(scope, cancellationToken);
+        var shareNames = await LoadSharePackCustomerNamesAsync(cancellationToken);
         var invoiceTotal = invoice.Sum(x => x.NetValue);
         var dsrFtd = dsr.SingleOrDefault(x => x.Period == "FTD" && string.Equals(x.Store, storeCode, StringComparison.OrdinalIgnoreCase));
         var serviceFtd = service.SingleOrDefault(x => x.Period == "FTD" && string.Equals(x.StoreCode, storeCode, StringComparison.OrdinalIgnoreCase));
@@ -132,7 +186,7 @@ public sealed class DailyReportingPackService(string connectionString)
         {
             new("Customer-wise Invoice Sales", !hasR025 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed,
                 hasR025 ? invoiceTotal : null, null,
-                !hasR025 ? "R025 source is missing for this business date." : $"{invoice.Count:N0} invoices; zero sales remains distinct from a missing source. Customer names use active R024; unavailable names remain blank."),
+                !hasR025 ? "R025 source is missing for this business date." : $"{invoice.Count:N0} invoices; zero sales remains distinct from a missing source. " + InvoiceCustomerNameNote(shareNames)),
             new("Daily Sales Report", dsrStatus, dsrFtd?.TySales, dsrVariance,
                 "FTD DSR uses R025 and is compared independently with imported Revenue Report controls (R022). MTD/YTD use the selected business date."),
             // RA-OPS-09: SERVICE_CASH/CARD/UPI are not required to finalise, so a day without them is NotRun (like an uncounted
@@ -141,7 +195,10 @@ public sealed class DailyReportingPackService(string connectionString)
                 serviceFtd?.Total, null, serviceFtd?.Total is null
                     ? "Service cash, card and UPI are not entered (not required to finalise); missing values are not converted to zero. Enter them on Today > Cash > Cash and service entries."
                     : "Service tender values are controlled operational facts and remain separate from retail sales."),
-            new("Tender Reconciliation", tender.Status, tender.TenderTotal, tender.Variance, tender.Message),
+            // AUDIT-1 fix 4: a shortfall that is in the R022 export itself is named, so it does not read as an import fault.
+            new("Tender Reconciliation", tender.Status, tender.TenderTotal, tender.Variance,
+                tender.Message + OperationalReportRepository.SourceTenderShortfallSummary(
+                    OperationalReportRepository.FailedSourceTenderShortfalls(tender, sourceShortfalls))),
             new("Daily Cash Reconciliation", CashSectionStatus(cash), cash.CalculatedClosing, cash.Variance, CashSectionMessage(cash)),
             new("System Closing Stock", stock.Status, stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.ReportedClosing),
                 stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.Variance), stock.Message),
@@ -174,7 +231,7 @@ public sealed class DailyReportingPackService(string connectionString)
         };
         var generatedAt = DateTimeOffset.UtcNow;
         var document = BuildDocument(storeCode, businessDate, status, message, generatedAt, sections, invoice, invoiceLineage, dsr,
-            service, tender, cashBook, evening, stock, physicalStock, staff, exceptions, workflow);
+            service, tender, cashBook, evening, stock, physicalStock, staff, exceptions, workflow, shareNames);
         var controlJson = JsonSerializer.Serialize(new
         {
             storeCode,
@@ -233,10 +290,16 @@ public sealed class DailyReportingPackService(string connectionString)
     // GST-inclusive. "Net Value" read as the ex-GST NETVALUE, so the pack now uses the workspace exports' wording.
     internal const string InvoiceValueHeader = "Value incl. GST";
 
-    internal static ReportPackTable InvoiceSummaryTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesSummaryRow> invoice) =>
+    /// <summary>
+    /// AUDIT-2 S-07: the pack is e-mailed and shared, so its Customer column is blank unless the Owner switched on "include
+    /// customer names in shared packs" (product_settings.share_pack_customer_names, 0060, default off). The column stays, so
+    /// the sheet keeps its layout. With the setting on, the names are what the generating role may read (decision 37: a
+    /// Viewer's pack is blank either way, because v_sales_invoice_customer_name gives a Viewer NULL). The flag defaults to off.
+    /// </summary>
+    internal static ReportPackTable InvoiceSummaryTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesSummaryRow> invoice, bool shareCustomerNames = false) =>
         new("Invoice Summary", section.Status.ToString(), section.Message,
             new([new("Date"),new("Store"),new("Document"),new("Customer"),new("Transaction Type"),new("Quantity","#,##0.00"),new(InvoiceValueHeader,"#,##0.00"),new("Source Rows","#,##0")],
-                invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
+                invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,shareCustomerNames?x.CustomerName:null,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
                 ["Total","","","","",invoice.Sum(x=>x.Quantity),invoice.Sum(x=>x.NetValue),invoice.Sum(x=>x.SourceRows)]));
 
     internal static ReportPackTable InvoiceLineageTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesLineageRow> invoiceLineage) =>
@@ -263,7 +326,8 @@ public sealed class DailyReportingPackService(string connectionString)
         IReadOnlyList<PhysicalStockReportRow> physicalStock,
         StaffPerformanceResult staff,
         IReadOnlyList<DailyExceptionRow> exceptions,
-        DailyWorkflowSnapshot workflow)
+        DailyWorkflowSnapshot workflow,
+        bool shareCustomerNames)
     {
         var tables = new List<ReportPackTable>
         {
@@ -271,13 +335,13 @@ public sealed class DailyReportingPackService(string connectionString)
                 new([new("Report"),new("Status"),new("Control Total","#,##0.00"),new("Variance","#,##0.00"),new("Message")],
                     sections.Select(x => (IReadOnlyList<object?>)[x.Report,x.Status.ToString(),x.ControlTotal,x.Variance,x.Message]).ToArray(),
                     ["Overall",status.ToString(),null,null,message])),
-            InvoiceSummaryTable(sections[0], invoice),
+            InvoiceSummaryTable(sections[0], invoice, shareCustomerNames),
             InvoiceLineageTable(sections[0], invoiceLineage),
             new("DSR", sections[1].Status.ToString(), sections[1].Message,EveningReportTables.Dsr(evening.Where(x=>x.StoreCode==storeCode).ToArray())),
             new("Service Sales", sections[2].Status.ToString(), sections[2].Message,
                 new([new("Period"),new("Store"),new("From"),new("To"),new("WDC","#,##0.00"),new("Cash","#,##0.00"),new("Card","#,##0.00"),new("UPI","#,##0.00"),new("Total","#,##0.00"),new("LY Total","#,##0.00"),new("Growth %","0.00%"),new("Availability"),new("Missing days","#,##0"),new("LY missing days","#,##0")],
                     service.Select(x => (IReadOnlyList<object?>)[x.Period,x.StoreCode,x.PeriodStart,x.PeriodEnd,x.Wdc,x.Cash,x.Card,x.Upi,x.Total,x.LastYearTotal,x.GrowthPercent,x.Availability,x.MissingDays,x.LastYearMissingDays]).ToArray())),
-            new("Tender Reconciliation", tender.Status.ToString(), tender.Message,
+            new("Tender Reconciliation", tender.Status.ToString(), sections[3].Message,
                 new([new("Store"),new("Document"),new("Revenue","#,##0.00"),new("Tender","#,##0.00"),new("Variance","#,##0.00"),new("Status")],
                     tender.Documents.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(),
                     ["Total","",tender.InvoiceTotal,tender.TenderTotal,tender.Variance,tender.Status.ToString()])),

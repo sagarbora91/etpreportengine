@@ -152,6 +152,9 @@ public sealed record ServiceSalesRow(
     int MissingDays = 0,
     int LastYearMissingDays = 0, decimal? Wdc = null);
 
+/// <summary>AUDIT-1 fix 4: a document whose tender shortfall is in the R022 export (Shortfall = control minus tenders, positive).</summary>
+public sealed record TenderSourceShortfallRow(string StoreCode, string DocumentNumber, decimal Shortfall);
+
 public sealed record CashReconciliationResult(
     string StoreCode,
     DateOnly BusinessDate,
@@ -170,7 +173,8 @@ public sealed record CashReconciliationResult(
 public sealed partial class OperationalReportRepository(string connectionString)
 {
     public const string DsrMetricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1";
-    public const string StaffMetricPolicy = "R013_NET_SALES_AND_QUANTITY_PER_UNIQUE_INV_V2";
+    // V3 (1.11.2, AUDIT-1 D6): value and quantity of the R025 line each R013 row is paired with, not R013's own value.
+    public const string StaffMetricPolicy = "R025_PAIRED_NET_SALES_AND_QUANTITY_PER_UNIQUE_INV_V3";
     // Owner answer Q2: gift cards (NonMerchandiseSql) are left out of stock. This one query feeds Closing, Slow, Brand Stock,
     // Brand Stock Entry, Brand Physical Stock, the daily pack's physical sheet and the daily exceptions' physical check.
     // Owner answer Q3/Q5 (decision 14): brand_row is the DSR brand row (Settings > Evening masters) whose source code is the item's
@@ -232,32 +236,51 @@ public sealed partial class OperationalReportRepository(string connectionString)
         ORDER BY 2,5,4,3;
         """;
 
+    /// <summary>
+    /// Customer-wise / Invoice Summary, one row per document. 1.11.2 (AUDIT-2 S-07, decision 37): the customer name comes only
+    /// from lane L1's <c>dbo.v_invoice_customer_names</c> (0059), which gives it to Owner and Store Manager and NULL to a Viewer,
+    /// and which a Viewer can still read after 0059 denies the R024 customer column (ownership chaining). The query keeps the
+    /// old lookup's choice: the newest row (etp_row_id) of a current R024 file for the store, document and date.
+    /// AUDIT-4 spot 4: the names of the window are numbered once and joined, not probed per invoice; 0060 indexes etp_r024
+    /// by date.
+    /// </summary>
+    internal const string InvoiceSummarySql = """
+        SELECT i.transaction_date,i.store_code,i.document_number,
+               CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
+                    THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED'))
+                    -- A mixed document names its types (for example INV+BC for a cancelled bill), so Customer-wise
+                    -- can count it as an invoice and as a return (owner decision 13 Q6).
+                    ELSE CONCAT_WS('+',MAX(CASE WHEN UPPER(l.source_transaction_type)='INV' THEN 'INV' END),
+                      MAX(CASE WHEN UPPER(l.source_transaction_type)='SR' THEN 'SR' END),MAX(CASE WHEN UPPER(l.source_transaction_type)='BC' THEN 'BC' END),
+                      MAX(CASE WHEN UPPER(COALESCE(l.source_transaction_type,'')) NOT IN('INV','SR','BC') THEN 'UNMAPPED' END)) END,
+               COALESCE(SUM(l.source_quantity),0),COALESCE(SUM(l.source_gross_amount),0),COUNT_BIG(*),MAX(customer.customer_name)
+        FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
+        LEFT JOIN
+        (
+          SELECT k.store_code,k.document_number,k.transaction_date,k.customer_name,
+                 ROW_NUMBER() OVER(PARTITION BY k.store_code,k.document_number,k.transaction_date ORDER BY k.etp_row_id DESC) newest
+          FROM
+          (
+            SELECT CONVERT(varchar(30),d.store_code) store_code,CONVERT(nvarchar(80),d.inv_number) document_number,d.inv_date transaction_date,
+                   CONVERT(nvarchar(200),d.customer_name) customer_name,d.etp_row_id
+            FROM dbo.v_invoice_customer_names d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id
+            WHERE f.is_superseded=0 AND d.inv_date IS NOT NULL AND d.inv_date BETWEEN @from AND @to
+          ) k
+        ) customer
+          ON customer.newest=1 AND customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date
+        WHERE i.transaction_date BETWEEN @from AND @to
+          AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+        GROUP BY i.transaction_date,i.store_code,i.document_number
+        ORDER BY i.transaction_date,i.store_code,i.document_number;
+        """;
+
     public async Task<IReadOnlyList<InvoiceSalesSummaryRow>> LoadInvoiceSummaryAsync(
         ReportingQueryScope scope,
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        const string sql = """
-            SELECT i.transaction_date,i.store_code,i.document_number,
-                   CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
-                        THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED'))
-                        -- A mixed document names its types (for example INV+BC for a cancelled bill), so Customer-wise
-                        -- can count it as an invoice and as a return (owner decision 13 Q6).
-                        ELSE CONCAT_WS('+',MAX(CASE WHEN UPPER(l.source_transaction_type)='INV' THEN 'INV' END),
-                          MAX(CASE WHEN UPPER(l.source_transaction_type)='SR' THEN 'SR' END),MAX(CASE WHEN UPPER(l.source_transaction_type)='BC' THEN 'BC' END),
-                          MAX(CASE WHEN UPPER(COALESCE(l.source_transaction_type,'')) NOT IN('INV','SR','BC') THEN 'UNMAPPED' END)) END,
-                   COALESCE(SUM(l.source_quantity),0),COALESCE(SUM(l.source_gross_amount),0),COUNT_BIG(*),MAX(customer.customer_name)
-            FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
-            OUTER APPLY (SELECT TOP(1) d.customer_name FROM dbo.etp_r024 d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id
-              WHERE f.is_superseded=0 AND d.store_code=i.store_code AND d.inv_number=i.document_number AND d.inv_date=i.transaction_date
-              ORDER BY d.etp_row_id DESC) customer
-            WHERE i.transaction_date BETWEEN @from AND @to
-              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-            GROUP BY i.transaction_date,i.store_code,i.document_number
-            ORDER BY i.transaction_date,i.store_code,i.document_number;
-            """;
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(InvoiceSummarySql, connection);
         command.Parameters.AddWithValue("@from", scope.DateFrom);
         command.Parameters.AddWithValue("@to", scope.DateTo);
         command.Parameters.AddWithValue("@stores", Json(scope.StoreCodes));
@@ -389,32 +412,44 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
     }
 
+    /// <summary>
+    /// Staff / CRO sales. Titan report audit R-01: an R013 row counts when it is paired with an R025 line by occurrence
+    /// (EnrichmentOccurrencePairing), not by its import-time status. 1.11.2 (AUDIT-1 D6, fix 1): value and quantity are the
+    /// paired R025 line's (sales_lines, GST-inclusive NETAMOUNT), and the type is the line's; R013 gives only the CRO, the
+    /// staff name and the discounts. For a sales return R013 states a different value than R025 (R013 SR NETAMOUNT is
+    /// positive while its quantity is negative), so the old sum of R013's own value left staff totals Rs 435 to Rs 10,702 a
+    /// month off the store total in 18 of 25 WLMHW and 8 of 25 HEMW months; now the two agree whenever every line has a CRO.
+    /// </summary>
+    internal static readonly string StaffSql = $"""
+        SELECT e.store_code,e.source_cro_number,COALESCE(SUM(l.source_gross_amount),0),COALESCE(SUM(l.source_quantity),0),
+               SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
+               COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
+               MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
+        FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+        JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
+        LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
+        WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+          AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          AND e.source_cro_number IS NOT NULL
+        GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(l.source_gross_amount) DESC;
+        """;
+
+    /// <summary>Last year's staff sales on the same paired-R025 basis as <see cref="StaffSql"/>.</summary>
+    internal static readonly string StaffLastYearSql = $"""
+        SELECT e.store_code,e.source_cro_number,COALESCE(SUM(l.source_gross_amount),0)
+        FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+        JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
+        WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+          AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          AND e.source_cro_number IS NOT NULL
+        GROUP BY e.store_code,e.source_cro_number;
+        """;
+
     public async Task<StaffPerformanceResult> LoadStaffPerformanceAsync(
         ReportingQueryScope scope,
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        // Titan report audit R-01: R013 rows count when paired with an R025 line by occurrence, not by their import-time status.
-        const string staffSql = $"""
-            SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0),COALESCE(SUM(e.source_quantity),0),
-                   SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
-                   COUNT(DISTINCT CASE WHEN UPPER(e.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
-                   MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
-            FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
-            LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
-            WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
-              AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-              AND e.source_cro_number IS NOT NULL
-            GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(e.source_gross_value) DESC;
-            """;
-        const string lastYearSql = $"""
-            SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0)
-            FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
-            WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
-              AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-              AND e.source_cro_number IS NOT NULL
-            GROUP BY e.store_code,e.source_cro_number;
-            """;
         const string totalSql = """
             SELECT i.store_code,COALESCE(SUM(l.source_gross_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
@@ -424,14 +459,14 @@ public sealed partial class OperationalReportRepository(string connectionString)
             """;
         await using var connection = await OpenAsync(cancellationToken);
         var raw = new List<(string Store, string Cro, decimal Sales, decimal Quantity, decimal Discount, int Transactions, string Name)>();
-        await using (var command = ScopeCommand(connection, staffSql, scope))
+        await using (var command = ScopeCommand(connection, StaffSql, scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
                 raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5), reader.GetString(6)));
         var lastYearWindow = StaffLastYearWindow.For(scope.DateFrom, scope.DateTo);
         var lastYearScope = scope with { DateFrom = lastYearWindow.From, DateTo = lastYearWindow.To };
         var lastYear = new Dictionary<(string Store, string Cro), decimal>();
-        await using (var command = ScopeCommand(connection, lastYearSql, lastYearScope))
+        await using (var command = ScopeCommand(connection, StaffLastYearSql, lastYearScope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
                 lastYear[(reader.GetString(0).ToUpperInvariant(), reader.GetString(1).ToUpperInvariant())] = reader.GetDecimal(2);
@@ -480,7 +515,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var status = variance == 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Failed;
         return new(rows.OrderBy(x => x.StoreCode).ThenBy(x => x.Rank).ThenBy(x => x.CroNumber).ToArray(), canonical, attributed, variance, status,
             (status == ReconciliationStatus.Passed
-                ? "R013 attributed sales reconcile to canonical R025 sales."
+                ? "Staff sales (each R013 row's paired R025 line) reconcile to canonical R025 sales."
                 : "Attributed and canonical sales differ; review unmatched/unassigned source rows without rounding away the variance. LY, target achievement and rank remain independently visible.")
             + StaffLastYearWindow.Note(lastYearWindow),
             StaffMetricPolicy);
@@ -580,12 +615,17 @@ public sealed partial class OperationalReportRepository(string connectionString)
             RetailReportingPolicy.Mapping, RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
         var tender = await executor.ExecuteTenderReconciliationAsync(scope, cancellationToken);
         var pointers = await LoadInvoicePointersAsync(scope, cancellationToken);
+        var sourceShortfalls = (await LoadTenderSourceShortfallsAsync(scope, cancellationToken))
+            .ToDictionary(x => (x.StoreCode.ToUpperInvariant(), x.DocumentNumber.ToUpperInvariant()), x => x.Shortfall);
         foreach (var document in tender.Documents.Where(x => x.Status != ReconciliationStatus.Passed))
         {
             pointers.TryGetValue((document.StoreCode.ToUpperInvariant(), document.DocumentNumber.ToUpperInvariant()), out var pointer);
+            var inSource = IsSourceTenderShortfall(document,
+                sourceShortfalls.TryGetValue((document.StoreCode.ToUpperInvariant(), document.DocumentNumber.ToUpperInvariant()), out var shortfall) ? shortfall : null);
             rows.Add(new("FAIL", "Tender", "TENDER_VARIANCE", document.StoreCode, businessDate, document.DocumentNumber, null, document.Variance,
                 pointer?.FileName, pointer?.SheetName, pointer?.SourceRow,
-                $"Revenue control and reporting-eligible tenders differ by {document.Variance:N2}.", "Review missing, excess or quarantined tender rows; do not change the control total."));
+                inSource ? SourceTenderShortfallMessage(document.Variance!.Value) : $"Revenue control and reporting-eligible tenders differ by {document.Variance:N2}.",
+                inSource ? SourceTenderShortfallAction : "Review missing, excess or quarantined tender rows; do not change the control total."));
         }
 
         const string enrichmentSql = $"""
@@ -643,6 +683,61 @@ public sealed partial class OperationalReportRepository(string connectionString)
     internal static string ManualInputMissingAction(string code) =>
         $"Enter it on {OperationalInputScreens.For(code)}; enter zero explicitly when zero is the true value.";
 
+    /// <summary>
+    /// AUDIT-1 fix 4: the documents whose tender shortfall is in the R022 export itself (<see cref="SqlReportingQueries.TenderSourceShortfalls"/>).
+    /// </summary>
+    public async Task<IReadOnlyList<TenderSourceShortfallRow>> LoadTenderSourceShortfallsAsync(
+        ReportingQueryScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        scope.Validate();
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(SqlReportingQueries.TenderSourceShortfalls, connection);
+        command.Parameters.AddWithValue("@dateFrom", scope.DateFrom);
+        command.Parameters.AddWithValue("@dateTo", scope.DateTo);
+        command.Parameters.AddWithValue("@storesJson", Json(scope.StoreCodes));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<TenderSourceShortfallRow>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetDecimal(2)));
+        return rows;
+    }
+
+    /// <summary>
+    /// A failed tender document is a source shortfall when the reconciliation's variance (control minus tenders) is exactly
+    /// the shortfall the export itself carries: the tenders are short, not in excess, and no imported row was left out.
+    /// </summary>
+    internal static bool IsSourceTenderShortfall(DocumentControlResult document, decimal? sourceShortfall) =>
+        sourceShortfall is > 0m && document.TenderAmount is not null && document.Variance is > 0m && document.Variance == sourceShortfall;
+
+    internal static string SourceTenderShortfallMessage(decimal shortfall) =>
+        $"Source tender shortfall: the R022 export itself pays {shortfall:N2} less than this document's NetValue. Every tender row was imported; this is not an import fault.";
+
+    internal const string SourceTenderShortfallAction =
+        "Ask the POS operator which payment component the export leaves out (for example an instant discount or a gateway charge); do not change the control total.";
+
+    /// <summary>
+    /// The failed tender documents of <paramref name="tender"/> whose shortfall is in the source (a shortfall within the
+    /// tolerance, for example a rupee of rounding, is a passed document and is not listed).
+    /// </summary>
+    internal static IReadOnlyList<TenderSourceShortfallRow> FailedSourceTenderShortfalls(
+        InvoiceTenderReconciliation tender, IReadOnlyList<TenderSourceShortfallRow> shortfalls)
+    {
+        var byDocument = shortfalls.GroupBy(x => (x.StoreCode.ToUpperInvariant(), x.DocumentNumber.ToUpperInvariant()))
+            .ToDictionary(x => x.Key, x => x.First());
+        return tender.Documents
+            .Where(document => document.Status != ReconciliationStatus.Passed)
+            .Select(document => byDocument.GetValueOrDefault((document.StoreCode.ToUpperInvariant(), document.DocumentNumber.ToUpperInvariant())) is { } row
+                && IsSourceTenderShortfall(document, row.Shortfall) ? row : null)
+            .OfType<TenderSourceShortfallRow>()
+            .ToArray();
+    }
+
+    /// <summary>The pack's one-line summary of a day's failed documents whose shortfall is in the source; empty when none.</summary>
+    internal static string SourceTenderShortfallSummary(IReadOnlyList<TenderSourceShortfallRow> shortfalls) =>
+        shortfalls.Count == 0 ? ""
+            : $" Source tender shortfall (in the R022 export, not an import fault): {shortfalls.Count:N0} document(s), {shortfalls.Sum(x => x.Shortfall):N2}.";
+
     internal static readonly string PhysicalCountMissingAction =
         $"Enter the physical count on {OperationalInputScreens.PhysicalCount} when the count is done; enter zero explicitly when correct.";
 
@@ -673,6 +768,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// line adds 0 to value and units, and a document counts as an invoice only when it has a merchandise INV line.
     /// Gift-card value is returned separately (columns 7 and 8) for the DSR GIFT CARD line. A period whose only
     /// lines are gift cards still reads 0, not missing.
+    /// Decision 41 (12 Oct 2026, AUDIT-1 D7): a bill cancelled the same day is not an invoice. An INV document that a BC row of
+    /// a current R025 file cancels on its own date (dbo.v_sales_cancelled_same_day, 0060) is left out of INVOICE; its value and
+    /// units already net to zero with the BC lines, so VALUE and VOL do not change. WLMHW Aug 2026: 254 becomes 253.
     /// </summary>
     internal static readonly string DsrFactsSql = $"""
         SELECT i.store_code,
@@ -680,11 +778,13 @@ public sealed partial class OperationalReportRepository(string connectionString)
           SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
           SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
           SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
-          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END),
-          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END),
+          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} AND cancelled.document_number IS NULL THEN i.sales_invoice_id END),
+          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} AND cancelled.document_number IS NULL THEN i.sales_invoice_id END),
           SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND {NonMerchandiseSql.SalesLine("l")} THEN l.source_gross_amount END),
           SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND {NonMerchandiseSql.SalesLine("l")} THEN l.source_gross_amount END)
         FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
+        LEFT JOIN dbo.v_sales_cancelled_same_day cancelled
+          ON cancelled.store_code=i.store_code AND cancelled.document_number=i.document_number AND cancelled.transaction_date=i.transaction_date
         WHERE (i.transaction_date BETWEEN @currentFrom AND @currentTo OR i.transaction_date BETWEEN @lastFrom AND @lastTo)
           AND i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
           AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC')

@@ -7,20 +7,37 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public static class SqlReportingQueries
 {
     // Column 12 (1.9.8, RA-SALES-03/04): the owner's brand row for the line by the DSR rule (BrandRowSql), NULL when unmapped.
+    // AUDIT-4 spot 3 (1.11.2): the brand and cluster from the latest stock snapshot are resolved in one set-based pass over the
+    // snapshot view for the (store, item) keys sold in the window (CTE latest_product), not by a TOP(1) probe per sales line.
+    // Same rule as before: the latest snapshot day, then the latest row. Read-only check on live, Oct 2024 to Sep 2026:
+    // identical rows (6,679), the lookup 2.6 s -> 0.04 s.
     public const string Sales = $"""
+        WITH sold AS
+        (
+          SELECT DISTINCT si.store_code,sl.product_code
+          FROM dbo.sales_lines sl JOIN dbo.sales_invoices si ON si.sales_invoice_id=sl.sales_invoice_id
+          WHERE si.transaction_date>=@dateFrom AND si.transaction_date<=@dateTo
+            AND (@storesJson IS NULL OR si.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+        ),
+        latest_product AS
+        (
+          SELECT r.store_code,r.product_code,r.brand_name,r.cluster
+          FROM
+          (
+            SELECT s.store_code,s.product_code,COALESCE(s.brand_name,s.brand_code) brand_name,s.cluster,
+                   ROW_NUMBER() OVER(PARTITION BY s.store_code,s.product_code ORDER BY s.snapshot_date DESC,s.stock_snapshot_id DESC) newest
+            FROM dbo.v_stock_snapshots_effective s
+            WHERE EXISTS(SELECT 1 FROM sold k WHERE k.store_code=s.store_code AND k.product_code=s.product_code)
+          ) r
+          WHERE r.newest=1
+        )
         SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
                COALESCE(l.source_brand_name,l.source_brand_code,p.brand_name),COALESCE(l.brand_segment,p.cluster),l.source_transaction_type,l.source_quantity,
                l.source_gross_amount,l.source_net_amount,i.invoice_year,mapped.row_label
         FROM dbo.sales_lines l
         JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
         {BrandRowSql.MappedRowOfL}
-        OUTER APPLY
-        (
-          SELECT TOP(1) COALESCE(s.brand_name,s.brand_code) brand_name,s.cluster
-          FROM dbo.v_stock_snapshots_effective s
-          WHERE s.store_code=i.store_code AND s.product_code=l.product_code
-          ORDER BY s.snapshot_date DESC,s.stock_snapshot_id DESC
-        ) p
+        LEFT JOIN latest_product p ON p.store_code=i.store_code AND p.product_code=l.product_code
         WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
           AND (@storesJson IS NULL OR i.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
           AND (@segmentsJson IS NULL OR COALESCE(l.brand_segment,p.cluster) IN (SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segmentsJson)))
@@ -96,6 +113,28 @@ public static class SqlReportingQueries
         WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
           AND (@storesJson IS NULL OR i.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
         ORDER BY i.store_code,i.document_number,t.sales_tender_id;
+        """;
+
+    /// <summary>
+    /// AUDIT-1 fix 4 (D2): documents whose tender shortfall is in the source export, not made by the import. The R022 row's
+    /// own tender columns (plus any R020 TC fill, as the tender reconciliation counts them) pay less than its NetValue, and
+    /// every tender row imported for the document is reporting-eligible (none excluded), so nothing ETP did explains the gap.
+    /// WLMHW shows 1 to 7 such documents a month (Aug 2026: 100001211 on 25 Aug, Rs 129). Columns: store_code,
+    /// document_number, shortfall (positive, the control minus the tenders).
+    /// </summary>
+    public static readonly string TenderSourceShortfalls = """
+        SELECT i.store_code,i.document_number,c.control-COALESCE(SUM(t.source_amount),0) shortfall
+        FROM dbo.sales_invoices i
+        JOIN (SELECT sales_invoice_id,SUM(source_net_value) control FROM dbo.sales_invoice_controls GROUP BY sales_invoice_id) c ON c.sales_invoice_id=i.sales_invoice_id
+        LEFT JOIN (
+        """ + EffectiveTenders("@dateFrom", "@dateTo", R020StoresJsonCondition) + """
+        ) t ON t.sales_invoice_id=i.sales_invoice_id
+        WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
+          AND (@storesJson IS NULL OR i.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+          AND NOT EXISTS(SELECT 1 FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id AND x.is_reporting_eligible=0)
+        GROUP BY i.store_code,i.document_number,c.control
+        HAVING c.control-COALESCE(SUM(t.source_amount),0)>0
+        ORDER BY i.store_code,i.document_number;
         """;
 
     public const string InvoiceControls = """
