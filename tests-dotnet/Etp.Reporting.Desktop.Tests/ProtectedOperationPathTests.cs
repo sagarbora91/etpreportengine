@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.AccessControl;
+using Etp.Reporting.Desktop.Modules.HealthCheck;
 
 namespace Etp.Reporting.Desktop.Tests;
 
@@ -151,6 +152,61 @@ public sealed class ProtectedOperationPathTests
     {
         var problem = ProtectedOperationPath.VolumeProblem(path, driveType is null ? null : Enum.Parse<DriveType>(driveType), dosDevice);
         Assert.Equal(refused, problem is not null);
+    }
+
+    // 1.11.4: OPS-05 failed ACL_RIGHTS on the VM night-one run (12 Oct 2026) for the Backups folder alone. Setup
+    // (initialize-etp-operation-folders.ps1, Set-PrivateDirectory) gives Modify there to SQL Server's service account, which
+    // writes the .bak, and to the automation account; the probe judged Backups with no permitted writer at all.
+    private const string SqlService = "S-1-5-80-3880006512-4290199581-1648723128-3569869737-3631323133"; // sc showsid MSSQL$SQLEXPRESS
+    private const string Automation = "S-1-5-21-1000000001-2000000002-3000000003-1009";
+    private const string SetupBackups = "O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;" + SqlService + ")(A;OICI;0x1301bf;;;" + Automation + ")";
+
+    [Fact]
+    public void The_service_sid_is_the_one_windows_gives_the_sql_express_service()
+    {
+        Assert.Equal(SqlService, ProtectedOperationPath.ServiceSid("MSSQL$SQLEXPRESS"));
+        Assert.Equal(SqlService, ProtectedOperationPath.ServiceSid("mssql$sqlexpress"));
+    }
+
+    [Fact]
+    public void The_backups_folder_as_setup_leaves_it_passes_with_its_two_writers_and_failed_before()
+    {
+        var writers = ProtectedOperationPath.BackupWriters(["MSSQL$SQLEXPRESS"], Automation);
+        Assert.Null(Record.Exception(() => ProtectedOperationPath.Check(@"C:\ProgramData\EtpReporting\Backups", Folder(SetupBackups), ProtectedOperationPath.Role.Target, targetModifier: writers)));
+        // 1.11.3's rule (no writer permitted) is what the VM reported.
+        Assert.Contains("protected from non-administrator changes", Problem(SetupBackups, ProtectedOperationPath.Role.Target)!.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("(A;OICI;0x1301bf;;;BU)")]                                   // Users may modify
+    [InlineData("(A;OICI;0x1301bf;;;S-1-5-21-1000000001-2000000002-3000000003-1010)")] // another account
+    [InlineData("(A;OICI;0x1701bf;;;" + SqlService + ")")]                   // the SQL service may change permissions
+    [InlineData("(A;OICI;FA;;;" + Automation + ")")]                         // the automation account has Full Control
+    public void A_backups_writer_outside_setup_or_with_more_than_modify_is_still_a_finding(string extra)
+    {
+        var writers = ProtectedOperationPath.BackupWriters(["MSSQL$SQLEXPRESS"], Automation);
+        Assert.NotNull(Record.Exception(() => ProtectedOperationPath.Check(@"C:\ProgramData\EtpReporting\Backups", Folder(SetupBackups + extra), ProtectedOperationPath.Role.Target, targetModifier: writers)));
+    }
+
+    [Fact]
+    public void Without_a_resolved_automation_account_only_the_sql_service_may_write_the_backups()
+    {
+        var writers = ProtectedOperationPath.BackupWriters(["MSSQL$SQLEXPRESS"], null);
+        Assert.True(writers(SqlService));
+        Assert.False(writers(Automation));
+        Assert.Null(ProtectedOperationPath.AccountSid(null));
+        Assert.Null(ProtectedOperationPath.AccountSid(@"NOSUCHPC\NoSuchAccount1114"));
+    }
+
+    [Fact]
+    public void The_checker_gives_each_folder_its_own_writers()
+    {
+        var writers = ProtectedOperationPath.BackupWriters(["MSSQL$SQLEXPRESS"], Automation);
+        var checker = new ProtectedOperationPathChecker(@"C:\ProgramData\EtpReporting\HealthExports", @"C:\ProgramData\EtpReporting\Backups", writers);
+        Assert.Same(writers, checker.TargetModifier(@"C:\ProgramData\EtpReporting\Backups\"));
+        Assert.NotNull(checker.TargetModifier(@"C:\ProgramData\EtpReporting\HealthExports"));
+        Assert.Null(checker.TargetModifier(@"C:\ProgramData\EtpReporting\Operations\operations.json"));
+        Assert.Null(new ProtectedOperationPathChecker().TargetModifier(@"C:\ProgramData\EtpReporting\Backups"));
     }
 
     [Fact]

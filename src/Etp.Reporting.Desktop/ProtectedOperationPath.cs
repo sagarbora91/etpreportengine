@@ -116,6 +116,40 @@ internal static class ProtectedOperationPath
         return resolve(sid) is not (AccountUse.Group or AccountUse.Alias or AccountUse.WellKnownGroup);
     }
 
+    /// <summary>
+    /// 1.11.4 (OPS-05 on the VM night-one run, 12 Oct 2026): the Backups folder's writers. Setup
+    /// (initialize-etp-operation-folders.ps1, Set-PrivateDirectory) gives Modify on Backups to SQL Server's service account
+    /// (NT SERVICE\MSSQL$instance, which writes the .bak files) and to the automation account (receipts and drill files).
+    /// Only those two may write and delete there; neither may change permissions or take ownership, and nobody else may
+    /// write. <paramref name="sqlServiceNames"/> are service names (MSSQL$SQLEXPRESS); their virtual-account SIDs are
+    /// computed, so a service that is not installed matches nothing. <paramref name="automationSid"/> is null when the
+    /// automation account is not configured or cannot be resolved; then only the SQL service may write.
+    /// </summary>
+    internal static Func<string, bool> BackupWriters(IEnumerable<string> sqlServiceNames, string? automationSid)
+    {
+        var allowed = new HashSet<string>(sqlServiceNames.Where(name => !string.IsNullOrWhiteSpace(name)).Select(ServiceSid), StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(automationSid)) allowed.Add(automationSid);
+        return sid => allowed.Contains(sid);
+    }
+
+    /// <summary>The automation account's SID, or null when it is not configured or Windows cannot resolve it.</summary>
+    internal static string? AccountSid(string? account)
+    {
+        if (string.IsNullOrWhiteSpace(account)) return null;
+        try { return new NTAccount(account).Translate(typeof(SecurityIdentifier)).Value; }
+        catch (Exception ex) when (ex is IdentityNotMappedException or SystemException) { return null; }
+    }
+
+    /// <summary>
+    /// The virtual-account SID Windows gives a service (what <c>sc showsid</c> prints): S-1-5-80- and the SHA-1 of the
+    /// upper-case service name in UTF-16LE as five little-endian 32-bit numbers.
+    /// </summary>
+    internal static string ServiceSid(string serviceName)
+    {
+        var hash = System.Security.Cryptography.SHA1.HashData(Encoding.Unicode.GetBytes(serviceName.Trim().ToUpperInvariant()));
+        return "S-1-5-80-" + string.Join("-", Enumerable.Range(0, 5).Select(i => BitConverter.ToUInt32(hash, i * 4).ToString(CultureInfo.InvariantCulture)));
+    }
+
     /// <summary>SID_NAME_USE values of LookupAccountSid that matter here.</summary>
     internal enum AccountUse { User = 1, Group = 2, Domain = 3, Alias = 4, WellKnownGroup = 5, DeletedAccount = 6, Invalid = 7, Unknown = 8, Computer = 9, Label = 10 }
 

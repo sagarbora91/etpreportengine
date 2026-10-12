@@ -24,7 +24,10 @@ public sealed record OperationsProbeSettings(
     string InstallFolder,
     string? AutomationAccount)
 {
-    /// <summary>Event log provider names of the SQL Server instance (default instance for Express).</summary>
+    /// <summary>
+    /// Event log provider names of the SQL Server instance (default instance for Express). They are also its service names,
+    /// whose service account setup lets write the Backups folder (OPS-05, 1.11.4).
+    /// </summary>
     public IReadOnlyList<string> SqlEventProviders { get; init; } = ["MSSQL$SQLEXPRESS"];
     public TimeZoneInfo LocalZone { get; init; } = TimeZoneInfo.Local;
     public TimeSpan BackupWarningAge { get; init; } = TimeSpan.FromHours(36);
@@ -153,17 +156,18 @@ public interface IProtectedPathChecker
 /// The application's protected-path rule (<see cref="ProtectedOperationPath"/>), as setup and the operations scripts apply it.
 /// <paramref name="modifiablePath"/> (HealthExports) may also be modified by individual accounts (setup gives the automation
 /// account and the active Owners Modify there, L9), but its permissions may still be changed only by administrators.
+/// <paramref name="writablePath"/> (Backups, 1.11.4) may be written by <paramref name="writers"/> only: SQL Server's service
+/// account and the automation account, which setup gives Modify there (<see cref="ProtectedOperationPath.BackupWriters"/>).
 /// </summary>
-public sealed class ProtectedOperationPathChecker(string? modifiablePath = null) : IProtectedPathChecker
+public sealed class ProtectedOperationPathChecker(string? modifiablePath = null, string? writablePath = null, Func<string, bool>? writers = null)
+    : IProtectedPathChecker
 {
     public PathProtectionResult Check(string path)
     {
         try
         {
             if (!Directory.Exists(path) && !File.Exists(path)) return new(PathProtection.Missing, "MISSING");
-            var modifiable = modifiablePath is not null
-                && string.Equals(Path.GetFullPath(path).TrimEnd('\\'), Path.GetFullPath(modifiablePath).TrimEnd('\\'),StringComparison.OrdinalIgnoreCase);
-            ProtectedOperationPath.Validate(path, modifiable ? ProtectedOperationPath.IsIndividualAccount : null);
+            ProtectedOperationPath.Validate(path, TargetModifier(path));
             return new(PathProtection.Protected, "OK");
         }
         catch (InvalidOperationException ex)
@@ -182,6 +186,17 @@ public sealed class ProtectedOperationPathChecker(string? modifiablePath = null)
             return new(PathProtection.Unreadable, "UNREADABLE");
         }
     }
+
+    /// <summary>Who besides SYSTEM, Administrators and TrustedInstaller may write <paramref name="path"/> itself; null: nobody.</summary>
+    internal Func<string, bool>? TargetModifier(string path)
+    {
+        if (Same(path, modifiablePath)) return ProtectedOperationPath.IsIndividualAccount;
+        if (Same(path, writablePath)) return writers ?? (_ => false);
+        return null;
+    }
+
+    private static bool Same(string path, string? other) =>
+        other is not null && string.Equals(Path.GetFullPath(path).TrimEnd('\\'), Path.GetFullPath(other).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record SqlServerBuildInfo(string ProductVersion, string? UpdateLevel, string? Edition);
@@ -294,7 +309,9 @@ public sealed class OperationsProbes : IHealthProbe
     /// <summary>The real machine's readers for <paramref name="connectionString"/>; the caller supplies the adapter over L4's KnownSqlBuilds.</summary>
     public static OperationsProbes CreateDefault(string connectionString, OperationsProbeSettings settings, ISqlBuildAssessor sqlBuilds) =>
         new(new EtpScheduledTaskSource(), new DatabaseOperationsHealthSource(connectionString), new WindowsOperationsFileSystem(),
-            new ProtectedOperationPathChecker(settings.HealthExportsFolder), new SqlOperationsSource(connectionString), sqlBuilds, new WindowsEventLogSource(), settings);
+            new ProtectedOperationPathChecker(settings.HealthExportsFolder, settings.BackupFolder,
+                ProtectedOperationPath.BackupWriters(settings.SqlEventProviders, ProtectedOperationPath.AccountSid(settings.AutomationAccount))),
+            new SqlOperationsSource(connectionString), sqlBuilds, new WindowsEventLogSource(), settings);
 
     public IReadOnlyList<string> CheckIds { get; } =
     [
