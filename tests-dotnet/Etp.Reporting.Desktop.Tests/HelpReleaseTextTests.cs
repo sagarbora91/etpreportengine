@@ -18,7 +18,7 @@ public sealed class HelpReleaseTextTests
     {
         var text = Overview("dashboard");
         Assert.Contains("\"What's missing\"", text, StringComparison.Ordinal);
-        foreach (var expected in new[] { "R025", "R022", "R011", "R030", "Service Centre raw pack", "walk-ins", "opening cash", "expenses", "cash deposit",
+        foreach (var expected in new[] { "sales lines", "invoice tenders", "closing stock", "stock ledger", "Service Centre raw pack", "walk-ins", "opening cash", "expenses", "cash deposit",
                      "staff targets", "Import", "Enter walk-ins", "Enter cash", "Set monthly target", "Set staff targets", "hides when nothing is missing" })
             Assert.Contains(expected, text, StringComparison.Ordinal);
         Assert.Contains(HelpCentreRegistry.Search("what's missing"), topic => topic.Id == "dashboard");
@@ -38,7 +38,7 @@ public sealed class HelpReleaseTextTests
     public void Report_help_uses_the_new_status_wording_sales_label_and_exports_folder()
     {
         var sales = Overview("sales-reports");
-        foreach (var expected in new[] { "Passed, Blocked or Failed", "\"Sales incl. GST\"", "\"Unmapped: <brand>\"", @"Documents\ETP Reporting Engine\Exports", "Open export folder" })
+        foreach (var expected in new[] { "OK, Cannot run or Problem", "\"Sales incl. GST\"", "\"Unmapped: <brand>\"", @"Documents\ETP Reporting Engine\Exports", "Open export folder" })
             Assert.Contains(expected, sales, StringComparison.Ordinal);
         Assert.DoesNotContain("Net Sales", sales, StringComparison.Ordinal);
 

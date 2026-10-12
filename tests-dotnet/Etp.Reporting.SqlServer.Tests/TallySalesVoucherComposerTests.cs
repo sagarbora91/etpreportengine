@@ -133,7 +133,7 @@ public sealed class TallySalesVoucherComposerTests
     [InlineData("missing net", "SOURCE_AMOUNT_MISSING")]
     [InlineData("unknown payment code", "TENDER_MODE_UNKNOWN: payment code NEWWALLET")]
     [InlineData("payment short", "UNBALANCED: payment and round-off (1100.00) do not equal revenue and GST (1180.00).")]
-    [InlineData("no ledger for card", "MAPPING_MISSING: no approved ledger for TENDER_CARD on 25-Aug-2026.")]
+    [InlineData("no ledger for card", "MAPPING_MISSING: no approved ledger for TENDER_CARD on 25 Aug 2026.")]
     public void A_fault_blocks_the_invoice_and_the_day_until_it_is_fixed(string name, string reason)
     {
         var plan = TallySalesVoucherComposer.Compose(Context(), [G01("INV-0"), Case(name)]);

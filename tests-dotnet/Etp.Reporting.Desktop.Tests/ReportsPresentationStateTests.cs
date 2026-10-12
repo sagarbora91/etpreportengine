@@ -120,7 +120,7 @@ public sealed class ReportsPresentationStateTests
             ("WLMHW", day, "BinWise"), ("HEMW", day, "Closing Stock"), ("HEMW", day, "Closing Stock"), ("HEMW", day.AddDays(-1), "BinWise")
         ]);
 
-        Assert.Equal(" Snapshot source: HEMW 24-Aug-2026 BinWise; HEMW 25-Aug-2026 Closing Stock; WLMHW 25-Aug-2026 BinWise.", text);
+        Assert.Equal(" Snapshot source: HEMW 24 Aug 2026 BinWise; HEMW 25 Aug 2026 Closing Stock; WLMHW 25 Aug 2026 BinWise.", text);
         Assert.Equal("", ReportsWorkspaceView.SnapshotSourceText([]));
     }
 }

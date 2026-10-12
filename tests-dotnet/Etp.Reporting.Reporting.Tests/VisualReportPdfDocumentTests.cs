@@ -106,7 +106,7 @@ public sealed class VisualReportPdfDocumentTests
             var text = PageText(pdf.Pages[0]);
             Assert.Contains("01 Jul 2026", text, StringComparison.Ordinal);
             Assert.Contains("12,34,567.89", text, StringComparison.Ordinal);
-            Assert.Contains("12.50%", text, StringComparison.Ordinal);
+            Assert.Contains("12.5%", text, StringComparison.Ordinal); // FW R4: percentages print with one decimal
             Assert.Contains("Blank row", text, StringComparison.Ordinal);
             Assert.Contains("—", text, StringComparison.Ordinal);
             Assert.Contains("Passed: Synthetic only", text, StringComparison.Ordinal);

@@ -31,7 +31,7 @@ public sealed class ServiceFreshnessStripTests
             new Dictionary<string, string> { ["S009"] = "RAW", ["S010"] = "RAW" });
         var chip = chips.Single(chip => chip.Group == "Pending lists");
         Assert.Equal(expected, chip.Colour);
-        Assert.Equal($"Pending lists: last export {Today.AddDays(-ageDays):dd MMM yyyy} (raw)", ServiceFreshnessStrip.TextFor(chip));
+        Assert.Equal($"Pending lists: last export {Etp.Reporting.Reporting.IndianFormat.Date(Today.AddDays(-ageDays))} (raw)", ServiceFreshnessStrip.TextFor(chip));
     }
 
     [Fact]

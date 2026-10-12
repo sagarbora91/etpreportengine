@@ -119,7 +119,8 @@ public sealed class StoreDisplayTests
             service.SaveFailure = new InvalidOperationException(ServiceCentreStores.ActivationRefusedMessage);
             view.TypeMasterCode("AW330");
             Assert.False(await view.SaveMasterDraftAsync());
-            Assert.Equal("Master value was not saved: " + ServiceCentreStores.ActivationRefusedMessage, view.StatusText);
+            // 1.11.3 (U5 FW-20): Owner/admin failures end with "Ref: ..." so the Error register can find them.
+            Assert.StartsWith("Master value was not saved: " + ServiceCentreStores.ActivationRefusedMessage + " Ref: ", view.StatusText, StringComparison.Ordinal);
         });
     }
 

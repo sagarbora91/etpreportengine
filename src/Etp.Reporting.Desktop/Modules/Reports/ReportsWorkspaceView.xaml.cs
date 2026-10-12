@@ -454,7 +454,7 @@ public partial class ReportsWorkspaceView : UserControl
 
     /// <summary>RA-EXPORT-10 (1.9.9): the DSR status line always starts with its status word and, when Blocked, says why.</summary>
     internal static string DsrStatus(ReconciliationStatus status, string? coverageBlock, DateOnly businessDate) =>
-        coverageBlock is not null ? $"{ReconciliationStatus.Blocked}: {coverageBlock} {DsrNote}"
+        coverageBlock is not null ? $"{StatusWords.Label(ReconciliationStatus.Blocked)}: {coverageBlock} {DsrNote}"
         : status == ReconciliationStatus.Passed ? $"{StatusWords.Label(status)}: {DsrNote}"
         : $"{StatusWords.Label(status)}: No sales found for {DayText(businessDate)}; import the sales lines export for that date. {DsrNote}";
 
