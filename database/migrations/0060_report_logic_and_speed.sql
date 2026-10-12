@@ -1,10 +1,8 @@
 -- 1.11.2, lane L5 "Report logic and SQL speed" (12 Oct 2026). Audits of 12 Oct: AUDIT-2 S-07, AUDIT-1 D7, AUDIT-4 spots 2-4.
 --
 -- A. S-07 / decision 37: the retail invoice summary (Customer-wise, the daily pack's Invoice Summary) gives the customer name
---    by role. dbo.v_sales_invoice_customer_name returns the current R024 name of each invoice, wrapped in 0056's rule (Owner,
---    Store Manager and db_owner see it, a Viewer reads NULL). The report reads the name only through this view, so it keeps
---    working for every role when 0059 (lane L1) denies the staging tables to a Viewer: dbo owns the view and the tables,
---    so ownership chaining applies.
+--    by role. It reads lane L1's dbo.v_invoice_customer_names (0059: Owner, Store Manager and db_owner see the name, a Viewer
+--    reads NULL); nothing here, the query change is in OperationalReportRepository.InvoiceSummarySql.
 -- B. S-07: product_settings.share_pack_customer_names, the Owner-only setting "include customer names in shared packs".
 --    Default 0 (off): the daily pack is generated with the Customer column blank. product_settings is already Owner-only
 --    for writes (no role holds INSERT/UPDATE on it; 0022 and later revoke them), so the column needs no grant.
@@ -22,31 +20,9 @@
 --
 -- 0001-0059 are not edited. The migration runner applies this entire script in one transaction, so it has no BEGIN or
 -- COMMIT and no GO; statements that must start a batch, or that read the new column, run through EXEC.
--- Grants: the two new views get the same GRANT/DENY lines the Service views carry (0048/0050/0056), so
--- ExpectedRolePermissions.json gains four entries per view at the gate (regenerated there; lane L1 owns the file).
+-- Grants: the new view gets the same GRANT/DENY lines the Service views carry (0048/0050/0056), so
+-- ExpectedRolePermissions.json gains that view's GRANT and DENY rows at the gate (regenerated there; lane L1 owns the file).
 SET XACT_ABORT ON;
-
--- A. The customer name of a retail invoice, by role.
-EXEC(N'CREATE OR ALTER VIEW dbo.v_sales_invoice_customer_name AS
-SELECT x.store_code,x.document_number,x.transaction_date,
-       CASE WHEN IS_MEMBER(N''etp_owner'')=1 OR IS_MEMBER(N''etp_store_manager'')=1 OR IS_MEMBER(N''db_owner'')=1
-       THEN x.customer_name END customer_name
-FROM
-(
-  SELECT k.store_code,k.document_number,k.transaction_date,k.customer_name,
-         ROW_NUMBER() OVER(PARTITION BY k.store_code,k.document_number,k.transaction_date ORDER BY k.etp_row_id DESC) newest
-  FROM
-  (
-    SELECT CONVERT(varchar(30),d.store_code) store_code,CONVERT(nvarchar(80),d.inv_number) document_number,d.inv_date transaction_date,
-           CONVERT(nvarchar(200),d.customer_name) customer_name,d.etp_row_id
-    FROM dbo.etp_r024 d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id
-    WHERE f.is_superseded=0 AND d.inv_date IS NOT NULL
-  ) k
-) x
-WHERE x.newest=1
-');
-GRANT SELECT ON dbo.v_sales_invoice_customer_name TO etp_viewer,etp_store_manager,etp_owner;
-DENY INSERT,UPDATE,DELETE ON dbo.v_sales_invoice_customer_name TO etp_store_manager,etp_viewer;
 
 -- B. Owner-only pack setting, default off.
 ALTER TABLE dbo.product_settings ADD share_pack_customer_names bit NOT NULL

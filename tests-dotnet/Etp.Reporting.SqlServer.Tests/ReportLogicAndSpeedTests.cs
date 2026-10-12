@@ -47,22 +47,6 @@ public sealed class ReportLogicAndSpeedTests
     }
 
     [Fact]
-    public void The_invoice_customer_name_view_gives_the_name_by_0056s_role_rule_and_no_contact_column()
-    {
-        var body = View("v_sales_invoice_customer_name");
-        Assert.Contains($"CASE WHEN {Rule}\n       THEN x.customer_name END customer_name", body, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(body, Regex.Escape(Rule)));
-        Assert.Equal(3, Regex.Matches(body, @"IS_MEMBER\(").Count);
-        Assert.DoesNotContain("etp_viewer", body, StringComparison.Ordinal);
-        foreach (var word in new[] { "phone", "mobile", "mail", "address", "gstin", "customer_no" })
-            Assert.DoesNotContain(word, body, StringComparison.OrdinalIgnoreCase);
-        // Same choice as the old per-invoice lookup: current R024 files only, the newest row of the store, document and date.
-        Assert.Contains("WHERE f.is_superseded=0", body, StringComparison.Ordinal);
-        Assert.Contains("ROW_NUMBER() OVER(PARTITION BY k.store_code,k.document_number,k.transaction_date ORDER BY k.etp_row_id DESC) newest", body, StringComparison.Ordinal);
-        Assert.Contains("WHERE x.newest=1", body, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void The_cancelled_bill_view_carries_no_name_and_matches_a_BC_to_its_invoice_on_the_same_day()
     {
         var body = View("v_sales_cancelled_same_day");
@@ -75,17 +59,17 @@ public sealed class ReportLogicAndSpeedTests
     }
 
     [Fact]
-    public void Both_views_carry_the_service_views_grants_the_setting_defaults_off_and_the_indexes_exist()
+    public void The_view_carries_the_service_views_grants_the_setting_defaults_off_and_the_indexes_exist()
     {
         var script = Migration();
-        foreach (var view in new[] { "v_sales_invoice_customer_name", "v_sales_cancelled_same_day" })
+        foreach (var view in new[] { "v_sales_cancelled_same_day" })
         {
             Assert.Contains($"\nGRANT SELECT ON dbo.{view} TO etp_viewer,etp_store_manager,etp_owner;\n", script, StringComparison.Ordinal);
             Assert.Contains($"\nDENY INSERT,UPDATE,DELETE ON dbo.{view} TO etp_store_manager,etp_viewer;\n", script, StringComparison.Ordinal);
         }
         Assert.Contains("ALTER TABLE dbo.product_settings ADD share_pack_customer_names bit NOT NULL\n    CONSTRAINT DF_product_settings_share_pack_customer_names DEFAULT(0);", script, StringComparison.Ordinal);
-        // The only grants in the file are the four view lines: product_settings stays Owner-only for writes.
-        Assert.Equal(4, Regex.Matches(script, @"^(GRANT|DENY) ", RegexOptions.Multiline).Count);
+        // The only grants in the file are the view's two lines: product_settings stays Owner-only for writes.
+        Assert.Equal(2, Regex.Matches(script, @"^(GRANT|DENY) ", RegexOptions.Multiline).Count);
         Assert.Contains("CREATE INDEX IX_sales_line_enrichments_occurrence ON dbo.sales_line_enrichments\n    (enrichment_type,store_code,transaction_date,document_number,product_code,source_lineage_id)", script, StringComparison.Ordinal);
         Assert.Contains("CREATE INDEX IX_etp_r024_inv_date ON dbo.etp_r024(inv_date)", script, StringComparison.Ordinal);
         Assert.Contains("CREATE INDEX IX_etp_r025_transaction_date ON dbo.etp_r025(transaction_date)", script, StringComparison.Ordinal);
@@ -100,10 +84,12 @@ public sealed class ReportLogicAndSpeedTests
     }
 
     [Fact]
-    public void The_invoice_summary_reads_the_customer_name_only_through_the_role_view()
+    public void The_invoice_summary_reads_the_customer_name_only_through_L1s_role_view()
     {
         var sql = Squash(OperationalReportRepository.InvoiceSummarySql);
-        Assert.Contains("LEFT JOIN dbo.v_sales_invoice_customer_name customer ON customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date", sql, StringComparison.Ordinal);
+        Assert.Contains("FROM dbo.v_invoice_customer_names d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id WHERE f.is_superseded=0", sql, StringComparison.Ordinal);
+        Assert.Contains("ROW_NUMBER() OVER(PARTITION BY k.store_code,k.document_number,k.transaction_date ORDER BY k.etp_row_id DESC) newest", sql, StringComparison.Ordinal);
+        Assert.Contains("ON customer.newest=1 AND customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date", sql, StringComparison.Ordinal);
         Assert.Contains("MAX(customer.customer_name)", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("etp_r024", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("OUTER APPLY", sql, StringComparison.Ordinal);

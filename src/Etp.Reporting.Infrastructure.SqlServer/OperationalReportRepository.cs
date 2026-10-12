@@ -238,10 +238,11 @@ public sealed partial class OperationalReportRepository(string connectionString)
 
     /// <summary>
     /// Customer-wise / Invoice Summary, one row per document. 1.11.2 (AUDIT-2 S-07, decision 37): the customer name comes only
-    /// from <c>dbo.v_sales_invoice_customer_name</c> (0060), which gives it to Owner and Store Manager and NULL to a Viewer, and
-    /// which keeps working for a Viewer once the staging tables are denied to that role (ownership chaining). The view keeps
-    /// the old lookup's choice: the newest row (etp_row_id) of a current R024 file for the store, document and date.
-    /// AUDIT-4 spot 4: the view is joined once per invoice key, not probed per invoice; 0060 indexes etp_r024 by date.
+    /// from lane L1's <c>dbo.v_invoice_customer_names</c> (0059), which gives it to Owner and Store Manager and NULL to a Viewer,
+    /// and which a Viewer can still read after 0059 denies the R024 customer column (ownership chaining). The query keeps the
+    /// old lookup's choice: the newest row (etp_row_id) of a current R024 file for the store, document and date.
+    /// AUDIT-4 spot 4: the names of the window are numbered once and joined, not probed per invoice; 0060 indexes etp_r024
+    /// by date.
     /// </summary>
     internal const string InvoiceSummarySql = """
         SELECT i.transaction_date,i.store_code,i.document_number,
@@ -254,8 +255,19 @@ public sealed partial class OperationalReportRepository(string connectionString)
                       MAX(CASE WHEN UPPER(COALESCE(l.source_transaction_type,'')) NOT IN('INV','SR','BC') THEN 'UNMAPPED' END)) END,
                COALESCE(SUM(l.source_quantity),0),COALESCE(SUM(l.source_gross_amount),0),COUNT_BIG(*),MAX(customer.customer_name)
         FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
-        LEFT JOIN dbo.v_sales_invoice_customer_name customer
-          ON customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date
+        LEFT JOIN
+        (
+          SELECT k.store_code,k.document_number,k.transaction_date,k.customer_name,
+                 ROW_NUMBER() OVER(PARTITION BY k.store_code,k.document_number,k.transaction_date ORDER BY k.etp_row_id DESC) newest
+          FROM
+          (
+            SELECT CONVERT(varchar(30),d.store_code) store_code,CONVERT(nvarchar(80),d.inv_number) document_number,d.inv_date transaction_date,
+                   CONVERT(nvarchar(200),d.customer_name) customer_name,d.etp_row_id
+            FROM dbo.v_invoice_customer_names d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id
+            WHERE f.is_superseded=0 AND d.inv_date IS NOT NULL AND d.inv_date BETWEEN @from AND @to
+          ) k
+        ) customer
+          ON customer.newest=1 AND customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date
         WHERE i.transaction_date BETWEEN @from AND @to
           AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
         GROUP BY i.transaction_date,i.store_code,i.document_number
