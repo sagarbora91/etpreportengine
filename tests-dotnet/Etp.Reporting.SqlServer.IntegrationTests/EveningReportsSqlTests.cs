@@ -62,7 +62,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         var r=new OperationalReportRepository(db.ConnectionString);
         var days=await r.LoadCashBookAsync("NOR022",new(2030,10,1),new(2030,10,2));
         Assert.False(days[0].TenderSourceImported);
-        Assert.Equal("R022 missing / not imported",days[0].Status);
+        Assert.Equal("Invoice tenders not imported",days[0].Status); // 1.11.3 plain words for the missing R022 source
         Assert.Null(days[0].Closing);
         Assert.Null(days[0].RetailTotal);
         Assert.Null(days[0].TotalSale);

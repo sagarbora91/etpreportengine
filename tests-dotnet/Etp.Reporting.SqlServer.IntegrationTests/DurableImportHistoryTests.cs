@@ -70,7 +70,9 @@ public sealed class DurableImportHistoryTests
             catch { process.Kill(entireProcessTree: true); throw; }
             Assert.True(process.ExitCode == 0, await stdout + await stderr);
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(output));
-            Assert.Contains("saved outcomes", json.RootElement.GetProperty("StatusText").GetString());
+            var status = json.RootElement.GetProperty("StatusText").GetString();
+            Assert.Contains("imported", status); // 1.11.3 one-line verdict ("3 files: all imported · range · store"), not the old "saved outcomes" wording
+            Assert.DoesNotContain("could not", status);
             Assert.DoesNotContain("Select an import", json.RootElement.GetProperty("DetailText").GetString());
             return JsonSerializer.Deserialize<List<ImportHistoryEntry>>(json.RootElement.GetProperty("Entries"))!;
         }
