@@ -311,7 +311,7 @@ BEGIN
   DECLARE @fp char(64),@fpv tinyint,@event varchar(80),@sub varchar(60),@source varchar(128),@site varchar(200),
           @exception varchar(200),@sql int,@ts datetime2(3),@severity varchar(10),@ref char(12),@ver varchar(20),@key bigint,
           @report varchar(30),@store varchar(30),@business date,@from date,@operation nvarchar(120),@stack nvarchar(3400),
-          @target int,@status varchar(10),@fixed_key bigint,@day datetime2(3),@hops int;
+          @target int,@status varchar(10),@fixed_key bigint,@day datetime2(3),@hops int,@skip bit;
   DECLARE items CURSOR LOCAL FAST_FORWARD FOR
    SELECT fingerprint,fingerprint_version,event_code,sub_code,source,site,exception_type,sql_number,occurred_utc,severity,reference,
           app_version,app_version_key,report_code,store_code,business_date,date_from,operation,stack
@@ -339,6 +339,17 @@ BEGIN
     SELECT @target=merged_into_id FROM diag.error_register WHERE error_register_id=@target;
     SET @hops+=1;
    END;
+   -- Overflow dedupe (1.11.0 review minor 7): the stored occurrences are the only way to spot a re-sent line, and a busy day
+   -- stores at most 200. Once the day already holds 200 and this line is not newer than the entry''s last_seen_utc, it was
+   -- counted before (a lost cursor re-sends old lines; items arrive oldest first, so new overflow lines are always newer).
+   -- It is a duplicate: it does not grow any counter. A genuinely new line older than last_seen on a spam day is dropped
+   -- too; that is the accepted cost.
+   SET @day=CONVERT(datetime2(3),CONVERT(date,@ts));
+   SET @skip=CASE WHEN (SELECT COUNT(*) FROM diag.error_occurrences WHERE error_register_id=@target AND occurred_utc>=@day AND occurred_utc<DATEADD(day,1,@day))>=200
+                   AND @ts<=(SELECT last_seen_utc FROM diag.error_register WHERE error_register_id=@target) THEN 1 ELSE 0 END;
+   IF @skip=1 SET @duplicates+=1;
+   IF @skip=0
+   BEGIN
    SELECT @status=status,@fixed_key=fixed_in_version_key FROM diag.error_register WHERE error_register_id=@target;
    IF @status=''Fixed'' AND @key>=@fixed_key SET @recurred_entries+=1;
 
@@ -365,14 +376,14 @@ BEGIN
     INSERT diag.error_register_versions(error_register_id,app_version,app_version_key,occurrence_count,first_seen_utc,last_seen_utc)
     VALUES(@target,@ver,@key,1,@ts,@ts);
 
-   -- Spam guard: at most 200 stored occurrences of one entry per UTC day; the counters above still grow.
-   SET @day=CONVERT(datetime2(3),CONVERT(date,@ts));
+   -- Spam guard: at most 200 stored occurrences of one entry per UTC day; the counters above still grow for new lines.
    IF (SELECT COUNT(*) FROM diag.error_occurrences WHERE error_register_id=@target AND occurred_utc>=@day AND occurred_utc<DATEADD(day,1,@day))<200
     INSERT diag.error_occurrences(error_register_id,occurred_utc,reference,app_version,severity,report_code,store_code,
       business_date,date_from,operation,reporter_role,ingested_utc)
     VALUES(@target,@ts,@ref,@ver,@severity,@report,@store,@business,@from,@operation,@role,@now);
 
    SET @accepted+=1;
+   END;
    FETCH NEXT FROM items INTO @fp,@fpv,@event,@sub,@source,@site,@exception,@sql,@ts,@severity,@ref,@ver,@key,
      @report,@store,@business,@from,@operation,@stack;
   END;

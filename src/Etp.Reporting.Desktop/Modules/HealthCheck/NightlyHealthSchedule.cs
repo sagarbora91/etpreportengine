@@ -108,6 +108,7 @@ public sealed class NightlyHealthSchedule
     private readonly INightlyHealthAttemptStore attempts;
     private readonly TimeProvider time;
     private readonly Action<Exception>? reportFailure;
+    private readonly Func<CancellationToken, Task<bool>>? importIsOpen;
 
     /// <param name="loadLastNightlyBusinessDate">The business date of the latest recorded Nightly run, or null (<c>diag.load_health_check_summary</c>).</param>
     /// <param name="tryAcquireLease">The automation lease, or null when another unattended run holds it.</param>
@@ -121,8 +122,10 @@ public sealed class NightlyHealthSchedule
         Func<CancellationToken, Task> runNightly,
         INightlyHealthAttemptStore attempts,
         TimeProvider? time = null,
-        Action<Exception>? reportFailure = null)
+        Action<Exception>? reportFailure = null,
+        Func<CancellationToken, Task<bool>>? importIsOpen = null)
     {
+        this.importIsOpen = importIsOpen;
         this.loadLastNightlyBusinessDate = loadLastNightlyBusinessDate ?? throw new ArgumentNullException(nameof(loadLastNightlyBusinessDate));
         this.tryAcquireLease = tryAcquireLease ?? throw new ArgumentNullException(nameof(tryAcquireLease));
         this.runNightly = runNightly ?? throw new ArgumentNullException(nameof(runNightly));
@@ -180,6 +183,10 @@ public sealed class NightlyHealthSchedule
             {
                 // Checked again under the lease: a run that finished while this tick waited is not repeated.
                 if (!IsDue(nowLocal, await loadLastNightlyBusinessDate(cancellationToken).ConfigureAwait(false))) return NightlyHealthOutcome.NotDue;
+                // 1.11.1 (1.11.0 review minor 8): a manual import does not take the lease. While an import batch is
+                // open the tick yields (Busy, no attempt counted) so DATA-01/IMP-02/RPT never record half-imported
+                // state as the night's result. A check that cannot be read does not block the run.
+                if (importIsOpen is not null && await ImportIsOpenAsync(cancellationToken).ConfigureAwait(false)) return NightlyHealthOutcome.Busy;
                 RecordAttempt();
                 await runNightly(cancellationToken).ConfigureAwait(false);
                 return NightlyHealthOutcome.Completed;
@@ -193,6 +200,13 @@ public sealed class NightlyHealthSchedule
             catch (Exception) { /* reporting must never turn into the task's failure */ }
             return NightlyHealthOutcome.Failed;
         }
+    }
+
+    private async Task<bool> ImportIsOpenAsync(CancellationToken cancellationToken)
+    {
+        try { return await importIsOpen!(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception) { return false; }
     }
 
     /// <summary>
@@ -231,6 +245,28 @@ public sealed class NightlyHealthSchedule
 /// </summary>
 public static class NightlyHealthLease
 {
+    /// <summary>
+    /// True when an import batch started within the last 4 hours is still Pending or Processing
+    /// (<c>open_imports</c> of <c>dbo.load_database_operational_health</c>, which the automation account may run). A batch
+    /// older than 4 hours is stale (a crashed import) and never blocks. Unreadable (older database, no column, any
+    /// error) is false: the run goes ahead.
+    /// </summary>
+    public static async Task<bool> ImportIsOpenAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await using var command = new SqlCommand("EXEC dbo.load_database_operational_health;", connection);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return false;
+            var ordinal = reader.GetOrdinal("open_imports");
+            return !reader.IsDBNull(ordinal) && Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) > 0;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception) { return false; }
+    }
+
     /// <summary>Must equal <c>AutomationSessionLease.Resource</c>.</summary>
     public const string Resource = "ETP_PHASE2_AUTOMATION";
 

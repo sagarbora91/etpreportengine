@@ -84,6 +84,28 @@ public sealed class NightlyHealthScheduleTests
     }
 
     [Fact]
+    public async Task An_open_import_batch_skips_the_tick_as_busy_without_running_or_counting_an_attempt()
+    {
+        var harness = new Harness(Local(2026, 10, 11, 2, 35)) { ImportOpen = true };
+        Assert.Equal(NightlyHealthOutcome.Busy, await harness.Schedule.RunIfDueAsync());
+        Assert.Equal(0, harness.Runs);
+        Assert.Null(harness.Attempts.Saved);
+        Assert.Equal(1, harness.LeasesDisposed);   // the lease is released again
+
+        harness.ImportOpen = false;                // the import finished: the next tick runs
+        Assert.Equal(NightlyHealthOutcome.Completed, await harness.Schedule.RunIfDueAsync());
+        Assert.Equal(1, harness.Runs);
+    }
+
+    [Fact]
+    public async Task An_unreadable_import_check_does_not_block_the_run()
+    {
+        var harness = new Harness(Local(2026, 10, 11, 2, 35)) { ImportCheckFails = true };
+        Assert.Equal(NightlyHealthOutcome.Completed, await harness.Schedule.RunIfDueAsync());
+        Assert.Equal(1, harness.Runs);
+    }
+
+    [Fact]
     public async Task A_run_finished_by_another_process_while_waiting_for_the_lease_is_not_repeated()
     {
         var harness = new Harness(Local(2026, 10, 11, 2, 35));
@@ -319,7 +341,8 @@ public sealed class NightlyHealthScheduleTests
                 },
                 Attempts,
                 clock,
-                Failures.Add);
+                Failures.Add,
+                _ => ImportCheckFails ? throw new InvalidOperationException("unreadable") : Task.FromResult(ImportOpen));
         }
 
         public NightlyHealthSchedule Schedule { get; }
@@ -328,6 +351,8 @@ public sealed class NightlyHealthScheduleTests
         public DateTimeOffset NowUtc => clock.Now;
         public DateOnly? LastNightly { get; set; }
         public bool LeaseFree { get; set; } = true;
+        public bool ImportOpen { get; set; }
+        public bool ImportCheckFails { get; set; }
         public bool RunFails { get; set; }
         public bool LastDateFails { get; set; }
         public bool LeaseHeld { get; set; }

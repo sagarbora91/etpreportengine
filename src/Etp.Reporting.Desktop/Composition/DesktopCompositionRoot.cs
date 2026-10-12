@@ -294,7 +294,8 @@ public sealed class DesktopCompositionRoot
             async token => await RunHealthCheckAsync(target.Value, HealthCheckTrigger.Nightly, null, token).ConfigureAwait(false),
             new FileNightlyHealthAttemptStore(FileNightlyHealthAttemptStore.DefaultPath),
             TimeProvider.System,
-            ReportHealthRunFailure);
+            ReportHealthRunFailure,
+            token => NightlyHealthLease.ImportIsOpenAsync(target.Value, token));
     }
 
     /// <summary>

@@ -357,6 +357,29 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
     }
 
     [Fact]
+    public async Task A_lost_cursor_resending_a_spam_day_does_not_count_the_overflow_again()
+    {
+        // 1.11.1 (1.11.0 review minor 7): only 200 per day are stored, so the 5 overflow lines were found by no stored row.
+        await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
+        var spam = DiagSql.NewFingerprint();
+        var day = DateTime.UtcNow.Date.AddDays(-1).AddHours(1);
+        var items = Enumerable.Range(0, 205).Select(i => Item(spam, day.AddSeconds(i), reference: "OVER" + i.ToString("00000000", CultureInfo.InvariantCulture))).ToArray();
+        Assert.Equal(205, (await IngestAsync(Automation, items))["accepted"]);
+
+        var again = await IngestAsync(Automation, items);
+        Assert.Equal(0, again["accepted"]);
+        Assert.Equal(205, again["duplicates"]);
+        Assert.Equal(205L, await ScalarAsync("SELECT occurrence_count FROM diag.error_register WHERE fingerprint=@f", ("@f", spam)));
+        Assert.Equal(205L, await ScalarAsync(
+            "SELECT CONVERT(bigint,SUM(v.occurrence_count)) FROM diag.error_register_versions v JOIN diag.error_register e ON e.error_register_id=v.error_register_id WHERE e.fingerprint=@f", ("@f", spam)));
+
+        // A genuinely newer line on the same full day is still counted.
+        var fresh = await IngestAsync(Automation, [Item(spam, day.AddSeconds(300), reference: "OVER99999999")]);
+        Assert.Equal(1, fresh["accepted"]);
+        Assert.Equal(206L, await ScalarAsync("SELECT occurrence_count FROM diag.error_register WHERE fingerprint=@f", ("@f", spam)));
+    }
+
+    [Fact]
     public async Task Result_sets_have_the_contract_columns()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
