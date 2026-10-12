@@ -46,7 +46,8 @@ DENY INSERT,UPDATE,DELETE ON dbo.v_sales_cancelled_same_day TO etp_store_manager
 CREATE INDEX IX_sales_line_enrichments_occurrence ON dbo.sales_line_enrichments
     (enrichment_type,store_code,transaction_date,document_number,product_code,source_lineage_id)
     INCLUDE(source_transaction_type,source_cro_number,staff_name,source_quantity,source_gross_value,
-            scheme_discount,user_discount,pre_discount,invoice_year,matched_sales_line_id,match_status);
+            scheme_discount,user_discount,pre_discount,invoice_year,matched_sales_line_id,match_status,
+            source_net_value,other_charges,activation_details,user_discount_details);
 CREATE INDEX IX_etp_r024_inv_date ON dbo.etp_r024(inv_date) INCLUDE(import_file_id,store_code,inv_number);
 CREATE INDEX IX_etp_r025_transaction_date ON dbo.etp_r025(transaction_date)
     INCLUDE(import_file_id,store_code,source_transaction_type,reference_invoice_number,reference_invoice_date);
