@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.11.3] - (date after the 1.11.3 gate)
+## [1.11.3] - 2026-10-12
 
 The UI/UX audit of 12 Oct 2026 in five lanes (theme and shared controls, Service screens, daily screens, outputs, formats and wording). Decision 45: the eight UI/UX recommendations accepted and `ETP-DESIGN-SYSTEM.md` is the rule book. Decision 46: lane U1's four departures accepted (inputs keep a darker edge, the selected grid row has its own colour, the new green everywhere, blue allowed as a tile stripe). Decision 50: 1.11.2 was not gated or released on its own; its changes (listed under [1.11.2] below, plus the 1.11.2 gate fixes) ship in 1.11.3. No migration in this release; figures and report logic are unchanged.
 
@@ -47,7 +47,7 @@ The UI/UX audit of 12 Oct 2026 in five lanes (theme and shared controls, Service
 
 - New shared controls: `StatusChip` (5 tones), `Notice`, `PageFrame` (List / Report / Form / Dashboard templates; `TaskBodyLayout` frozen for new screens), `DesignTokens`, `DesignIcon`; Service stage tokens.
 - New guard tests: no colour literals in Desktop views beyond a shrinking allowlist; no invariant-culture display dates or numbers; staff sheet old/new layout round trips.
-- Tests: unit projects and gate result filled in after the gate.
+- Gate (12 Oct 2026, elevated, on aa22dec, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 4,963 tests, 0 failed, 3 skipped (Desktop 1,685, Domain 12, Import 1,194, Reporting 187, SQL integration 466, SQL 1,419). Earlier run on 349996b failed 2 integration tests that still expected the pre-1.11.3 wording - tests updated in aa22dec. Includes 1.11.2 (not released separately; its gate run on 7926e1c failed 6 tests, fixed in 3af5c2d incl. the DSR guard for v_sales_cancelled_same_day). Installer SHA-256 C2E05F6A2D04FB2AD0C616302ECECD7A33BE81D2B148FB4508251CF625C7D828 (`Installers\ETP Reporting Engine 1.11.3\`).
 
 ## [1.11.2] - not released separately (decision 50: shipped in 1.11.3)
 
