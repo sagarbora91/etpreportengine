@@ -1,0 +1,33 @@
+name: vulnerable-packages
+
+# Standing check: fails when any direct or transitive NuGet package has a known
+# vulnerability (AUDIT-5 finding 9). Runs weekly and on demand; no tests, no SQL.
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore Etp.Reporting.slnx
+      - name: List vulnerable packages
+        shell: pwsh
+        run: |
+          $out = dotnet list Etp.Reporting.slnx package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0) { throw "dotnet list package failed with exit code $LASTEXITCODE." }
+          if ($out -match 'has the following vulnerable packages') { throw 'Vulnerable NuGet packages found (see log above).' }
