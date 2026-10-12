@@ -45,11 +45,11 @@ public sealed class LocalOnlySqlEndpointPolicy : ISqlEndpointPolicy
             server = server[3..];
             if (server.StartsWith(@"\\", StringComparison.Ordinal))
             {
-                var pipe = Regex.Match(server, @"^\\([^\]+)\pipe\[A-Za-z0-9_$\.-]+$", RegexOptions.IgnoreCase);
+                var pipe = Regex.Match(server, @"^\\\\([^\\]+)\\pipe\\[A-Za-z0-9_$\\.-]+$", RegexOptions.IgnoreCase);
                 return pipe.Success && IsLocalHost(pipe.Groups[1].Value);
             }
         }
-        var match = Regex.Match(server, @"^(\.|\(local\)|localhost|\(localdb\)|[A-Za-z0-9_-]+)(?:\([A-Za-z0-9_$-]+))?$", RegexOptions.IgnoreCase);
+        var match = Regex.Match(server, @"^(\.|\(local\)|localhost|\(localdb\)|[A-Za-z0-9_-]+)(?:\\([A-Za-z0-9_$-]+))?$", RegexOptions.IgnoreCase);
         return match.Success && (IsLocalHost(match.Groups[1].Value) ||
             (match.Groups[1].Value.Equals("(localdb)", StringComparison.OrdinalIgnoreCase) && match.Groups[2].Success));
     }
