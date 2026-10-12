@@ -51,7 +51,7 @@ If a report has no rows that day, still save it.
 
 1. **Get the blank sheet.** Open the file `ETP-Daily-Inputs-WLMHW-RETAIL` from `C:\ETP-DailyInputs`. If you do not have a blank one, the Owner or a Store Manager gets it from ETP: open **Import**, press **Get blank daily sheet**, pick the store and sheet (here: Titan World, retail), keep today's date, press **Choose where to save** and save it; the date is already filled in on the sheet. It is saved in the Exports folder by default, already named for the day. Copy it to this PC's `C:\ETP-DailyInputs` (for example on a USB stick or through OneDrive).
 2. Type **today's date** in the Business date box (example 11-Oct-2026). Only dates from the last 31 days up to today are accepted.
-3. Type your name in "Filled by" (optional).
+3. Type your name in "Filled by". **This is required (from 1.11.2): ETP refuses a sheet whose "Filled by" is empty**, even when every box holds a number, because the zeros on a blank sheet prove nothing.
 4. Fill the white boxes in the Value column:
    - Walk-ins: how many people came in (a whole number).
    - Opening cash: cash in the drawer at the start of the day.

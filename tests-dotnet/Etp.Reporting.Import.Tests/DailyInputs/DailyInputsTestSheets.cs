@@ -20,7 +20,7 @@ internal static class DailyInputsTestSheets
         object? date = null,
         string? fileName = null,
         string version = DailyInputsTemplate.CurrentVersion,
-        string? filledBy = null,
+        string? filledBy = "Synthetic staff",
         string sheetName = DailyInputsTemplate.SheetName,
         IReadOnlyList<string>? headers = null,
         IReadOnlyList<(string Code, object? Value)>? fields = null)

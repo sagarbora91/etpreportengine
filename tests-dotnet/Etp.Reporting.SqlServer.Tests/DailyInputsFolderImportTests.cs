@@ -190,7 +190,7 @@ public sealed class DailyInputsFolderImportTests
             Row(3, "KIND", "Sheet type", "RETAIL", null),
             Row(4, "STORE", "Store", "HEMW", "Helios"),
             Row(5, "BUSINESS_DATE", "Business date", Today.ToDateTime(TimeOnly.MinValue), null),
-            Row(6, "FILLED_BY", "Filled by", null, null)
+            Row(6, "FILLED_BY", "Filled by", "Synthetic staff", null)
         };
         string[] fields = ["WALK_INS", "OPENING_CASH", "EXPENSES", "CASH_DEPOSIT", "CASH_ADJUSTMENT", "CLOSING_CASH_COUNTED", "OPERATIONAL_REMARK"];
         rows.AddRange(fields.Select((field, index) => Row(7 + index, field, field, given.GetValueOrDefault(field), null)));

@@ -45,6 +45,21 @@ public sealed class DailyInputsParserTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Decision_43_a_sheet_with_an_empty_filled_by_is_refused_even_with_values(string? filledBy)
+    {
+        var result = Parse(Sheet(filledBy: filledBy, fields: [("WALK_INS", 0m), ("EXPENSES", 0m)]));
+
+        Assert.False(result.Succeeded);
+        var issue = Assert.Single(result.Errors);
+        Assert.Equal(((int?)6, DailyInputsCodes.FilledByMissing), (issue.RowNumber, issue.Code));
+        Assert.Equal(ImportDiagnosticCatalogue.Template(DailyInputsCodes.FilledByMissing), issue.Message);
+        Assert.NotNull(result.Document); // store and date still known for the failure register
+    }
+
+    [Theory]
     [InlineData("2026-10-05")]
     [InlineData("05-10-2026")]
     [InlineData("05/10/2026")]

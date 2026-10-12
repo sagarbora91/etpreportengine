@@ -26,6 +26,7 @@ public sealed class SqlServerDailyInputsApplier : IDailyInputsApplier
     internal const string FieldKindMismatch = DailyInputsCodes.FieldKindMismatch;
     internal const string FieldNotForSheet = DailyInputsCodes.FieldNotForSheet;
     internal const string DayFinalised = DailyInputsCodes.DayFinalised;
+    internal const string FilledByMissing = DailyInputsCodes.FilledByMissing;
 
     internal static string NoPermissionMessage => ImportDiagnosticCatalogue.Template(NoPermission);
     internal static string UnknownStoreMessage => ImportDiagnosticCatalogue.Template(UnknownStore);
@@ -33,6 +34,7 @@ public sealed class SqlServerDailyInputsApplier : IDailyInputsApplier
     internal static string FieldKindMismatchMessage => ImportDiagnosticCatalogue.Template(FieldKindMismatch);
     internal static string FieldNotForSheetMessage => ImportDiagnosticCatalogue.Template(FieldNotForSheet);
     internal static string DayFinalisedMessage => ImportDiagnosticCatalogue.Template(DayFinalised);
+    internal static string FilledByMissingMessage => ImportDiagnosticCatalogue.Template(FilledByMissing);
     internal const string DuplicateMessage = "This daily inputs file was already imported for this store and date; nothing was changed.";
     internal const string AlreadyPresentMessage = "Every value on this daily inputs sheet is already stored; nothing was changed.";
 
@@ -62,6 +64,10 @@ public sealed class SqlServerDailyInputsApplier : IDailyInputsApplier
         // 1. Permission, as the screen asks it (SqlServerDailyWorkflowService: CanImport).
         var access = await loadAccess(cancellationToken).ConfigureAwait(false);
         if (!access.CanImport) return Failed(NoPermission, NoPermissionMessage, document);
+
+        // Decision 43: a sheet nobody signed is refused before any connection (the parser refuses it first; this
+        // covers a document built another way).
+        if (string.IsNullOrWhiteSpace(document.FilledBy)) return Failed(FilledByMissing, FilledByMissingMessage, document);
 
         await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);

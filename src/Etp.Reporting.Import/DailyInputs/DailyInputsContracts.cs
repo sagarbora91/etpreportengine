@@ -54,6 +54,8 @@ public static class DailyInputsCodes
     /// <summary>Information only: the file still imports.</summary>
     public const string NameUnusual = "DAILY_INPUTS_NAME_UNUSUAL";
     public const string NoValues = "DAILY_INPUTS_NO_VALUES";
+    /// <summary>Decision 43 (12 Oct 2026): the Filled by cell is empty, so nothing proves a person filled the sheet.</summary>
+    public const string FilledByMissing = "DAILY_INPUTS_FILLED_BY_MISSING";
 
     // Applier (SQL) and the folder-import hook (inputs-db).
     public const string NoPermission = "DAILY_INPUTS_NO_PERMISSION";
@@ -68,7 +70,7 @@ public static class DailyInputsCodes
     [
         TemplateVersion, KindInvalid, StoreMissing, DateMissing, DateInvalid, DateInFuture, DateTooOld,
         UnknownField, FieldNotForSheet, DuplicateField, ValueInvalid, ValueNegative, TextTooLong,
-        NameMismatch, NameUnusual, NoValues,
+        NameMismatch, NameUnusual, NoValues, FilledByMissing,
         NoPermission, UnknownStore, FieldInactive, FieldKindMismatch, DayFinalised, NotAvailable
     ];
 }

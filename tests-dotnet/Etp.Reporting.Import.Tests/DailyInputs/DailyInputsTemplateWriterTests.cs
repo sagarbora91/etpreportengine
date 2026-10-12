@@ -53,6 +53,7 @@ public sealed class DailyInputsTemplateWriterTests
             new Dictionary<string, object?>
             {
                 ["BUSINESS_DATE"] = "11-10-2026",
+                ["FILLED_BY"] = "Synthetic staff",
                 ["SERVICE_CASH"] = 1500m,
                 ["SERVICE_CARD"] = 900.5m,
                 ["SERVICE_UPI"] = 0m,
@@ -97,8 +98,8 @@ public sealed class DailyInputsTemplateWriterTests
         Assert.True(DailyInputsTemplate.IsDailyInputsWorkbook(workbook));
         var result = DailyInputsParser.Parse(workbook, Today);
         Assert.False(result.Succeeded);
-        // 1.11.2: amounts and counts start at 0, so only the missing date is wrong.
-        Assert.Equal([DailyInputsCodes.DateMissing], result.Errors.Select(e => e.Code));
+        // 1.11.2: amounts and counts start at 0, so only the missing date and (decision 43) the empty Filled by are wrong.
+        Assert.Equal([DailyInputsCodes.DateMissing, DailyInputsCodes.FilledByMissing], result.Errors.Select(e => e.Code));
     }
 
     [Fact]

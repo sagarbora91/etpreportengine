@@ -79,10 +79,13 @@ public static partial class DailyInputsParser
             else if (parsed < today.AddDays(-DailyInputsTemplate.LookbackDays)) errors.Add(Issue(dateRow!.RowNumber, null, DailyInputsCodes.DateTooOld));
         }
 
-        // Filled by (optional).
+        // Filled by. Decision 43 (1.11.2): required. The blank sheet starts its counts and amounts at 0 (L7), so a sheet
+        // saved untouched would otherwise import as a day of zeros; the name proves a person filled it in.
         var filledByRow = Keyed(DailyInputsTemplate.FilledByKey);
         var filledBy = filledByRow is null ? null : DailyInputsTemplate.CellText(filledByRow, ValueColumn);
-        if (filledBy is not null && filledBy.Length > DailyInputsTemplate.MaxFilledByLength)
+        if (string.IsNullOrWhiteSpace(filledBy))
+            errors.Add(Issue(filledByRow?.RowNumber, null, DailyInputsCodes.FilledByMissing));
+        else if (filledBy.Length > DailyInputsTemplate.MaxFilledByLength)
             errors.Add(Issue(filledByRow!.RowNumber, null, DailyInputsCodes.TextTooLong));
 
         // 5. Field rows.

@@ -17,7 +17,7 @@ public sealed class DailyInputsCatalogueTests
     public void All_lists_every_declared_code_once()
     {
         var declared = DeclaredCodes();
-        Assert.Equal(22, declared.Length);
+        Assert.Equal(23, declared.Length);
         Assert.Equal(declared.Order(), DailyInputsCodes.All.Order());
         Assert.All(declared, code => Assert.StartsWith("DAILY_INPUTS_", code));
     }

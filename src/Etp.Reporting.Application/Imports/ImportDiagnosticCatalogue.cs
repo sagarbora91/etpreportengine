@@ -157,6 +157,9 @@ public static class ImportDiagnosticCatalogue
             ["The file name's store, sheet type or date differs from the sheet. Check the business date, save the file under the matching name and send it again."],
         ["DAILY_INPUTS_NAME_UNUSUAL"] = ["The file name does not follow the daily-inputs naming. The sheet was imported under its own store and date."],
         ["DAILY_INPUTS_NO_VALUES"] = ["The sheet has no values. Fill in the figures, save it and send it again."],
+        // Decision 43 (1.11.2): the sheet's own zeros prove nothing, so the person who filled it must give a name.
+        ["DAILY_INPUTS_FILLED_BY_MISSING"] =
+            ["Filled by is empty. Type the name of the person who filled in the sheet, save it and send it again."],
         ["DAILY_INPUTS_NO_PERMISSION"] = ["The account importing this file may not change manual entries. It must be an active Owner or Store Manager."],
         ["DAILY_INPUTS_UNKNOWN_STORE"] = ["The store on the sheet is not an active ETP store."],
         ["DAILY_INPUTS_FIELD_INACTIVE"] = ["A field on the sheet is not an active manual entry."],

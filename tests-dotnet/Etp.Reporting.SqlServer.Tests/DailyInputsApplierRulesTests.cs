@@ -101,10 +101,27 @@ public sealed class DailyInputsApplierRulesTests
         Assert.Equal("DAILY_INPUTS_NO_PERMISSION", Assert.Single(result.Errors).Code);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Decision_43_a_document_without_filled_by_is_refused_before_any_connection(string? filledBy)
+    {
+        // An unreachable server: an Owner's sheet with no Filled by is refused before the applier opens a connection.
+        var applier = new SqlServerDailyInputsApplier("Server=.;Database=etp_never_opened;Integrated Security=true;TrustServerCertificate=true",
+            _ => Task.FromResult(new ApplicationAccess("TEST\\user", "Test", ApplicationRole.Owner, true)));
+
+        var result = await applier.ApplyAsync(Document(DailyInputsKind.Retail, new DailyInputValue(7, "WALK_INS", DailyInputValueKind.Quantity, 1m, null))
+            with { FilledBy = filledBy }, "TEST\\user");
+
+        Assert.Equal(("Failed", DailyInputsCodes.FilledByMissing, 0), (result.Outcome, result.FailureCode, result.Changed));
+        Assert.Equal(SqlServerDailyInputsApplier.FilledByMissingMessage, Assert.Single(result.Errors).Message);
+    }
+
     private static DailyInputValue Money(decimal value) => new(7, "OPENING_CASH", DailyInputValueKind.Money, value, null);
     private static DailyInputValue Text(string value) => new(7, "OPERATIONAL_REMARK", DailyInputValueKind.Text, null, value);
 
     private static DailyInputsDocument Document(DailyInputsKind kind, params DailyInputValue[] values) =>
         new("ETP-Daily-Inputs-HEMW-RETAIL-2026-10-10.xlsx", "0123456789abcdef" + new string('0', 48), "ETP-DAILY-INPUTS-1", kind,
-            "HEMW", Day, null, values);
+            "HEMW", Day, "Staff A", values);
 }

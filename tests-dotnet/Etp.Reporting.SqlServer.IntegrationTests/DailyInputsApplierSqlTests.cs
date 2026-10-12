@@ -267,7 +267,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         WorkbookRow[] rows =
         [
             Row(2, "TEMPLATE", "ETP-DAILY-INPUTS-1"), Row(3, "KIND", "RETAIL"), Row(4, "STORE", "HEMW"),
-            Row(5, "BUSINESS_DATE", day.ToDateTime(TimeOnly.MinValue)), Row(6, "FILLED_BY", null),
+            Row(5, "BUSINESS_DATE", day.ToDateTime(TimeOnly.MinValue)), Row(6, "FILLED_BY", "Synthetic staff"),
             .. fields.Select((field, index) => Row(7 + index, field, field == "WALK_INS" ? 7m : null))
         ];
         return new(name, 1, sha, [new("Daily Inputs", 1, ["Field code", "Input", "Value", "Note"], rows)]);

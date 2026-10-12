@@ -44,7 +44,7 @@ public static class DailyInputsTemplateWriter
             businessDate is { } date ? DateSerial(date, StyleInputDate) : Empty(StyleInputDate),
             Text("The day the figures belong to (dd-mmm-yyyy)", StyleNote)]));
         rows.Append(Row(6, [Text(DailyInputsTemplate.FilledByKey, StyleKey), Text("Filled by"), Empty(StyleInputText),
-            Text("Your name (optional)", StyleNote)]));
+            Text("Your name (required: a sheet without it is refused)", StyleNote)]));
 
         var validations = new List<DataValidation>
         {
