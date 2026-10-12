@@ -47,9 +47,21 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         cancellationToken.ThrowIfCancellationRequested();
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         using var snapshot = new MemoryStream(bytes, writable: false);
-        using var document = SpreadsheetDocument.Open(snapshot, false);
+        // S-10: a workbook is a zip; refuse an unsafe expansion before parsing, and cap any one part's XML.
+        try
+        {
+            using var archive = new System.IO.Compression.ZipArchive(snapshot, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true);
+            new Etp.Reporting.Import.Batch.ImportPathPolicy().ValidateArchive(archive);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_WORKBOOK_INVALID", "The workbook is not a valid .xlsx file.", ex);
+        }
+        snapshot.Position = 0;
+        using var document = SpreadsheetDocument.Open(snapshot, false, new OpenSettings { MaxCharactersInPart = 200_000_000 });
         var workbookPart = document.WorkbookPart ?? throw new InvalidDataException("Workbook part is missing.");
-        var shared = workbookPart.SharedStringTablePart?.SharedStringTable;
+        var shared = workbookPart.SharedStringTablePart?.SharedStringTable
+            .Elements<SharedStringItem>().Select(x => x.InnerText).ToArray();
         var dateStyles = DateStyleIndexes(workbookPart);
         var sheets = new List<WorkbookSheet>();
         foreach (var sheet in workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? [])
@@ -82,7 +94,7 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
 
     private static WorkbookRow ReadRow(
         Row row,
-        SharedStringTable? shared,
+        string[]? shared,
         ISet<uint> dateStyles,
         CancellationToken cancellationToken)
     {
@@ -99,13 +111,13 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         return new WorkbookRow(checked((int)(row.RowIndex?.Value ?? 0)), cells);
     }
 
-    private static object? ReadValue(Cell cell, SharedStringTable? shared, ISet<uint> dateStyles)
+    private static object? ReadValue(Cell cell, string[]? shared, ISet<uint> dateStyles)
     {
         if (cell.InlineString is not null) return cell.InlineString.InnerText;
         var raw = cell.CellValue?.InnerText;
         if (raw is null) return null;
         var type = cell.DataType?.Value;
-        if (type == CellValues.SharedString && int.TryParse(raw, out var index)) return shared?.ElementAtOrDefault(index)?.InnerText;
+        if (type == CellValues.SharedString && int.TryParse(raw, out var index)) return shared is not null && index >= 0 && index < shared.Length ? shared[index] : null;
         if (type == CellValues.Boolean) return raw == "1";
         if (cell.StyleIndex?.Value is uint style && dateStyles.Contains(style) &&
             double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var serial))
