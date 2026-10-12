@@ -1,6 +1,55 @@
 # Changelog
 
-## [1.11.2] - (date after the 1.11.2 gate)
+## [1.11.3] - (date after the 1.11.3 gate)
+
+The UI/UX audit of 12 Oct 2026 in five lanes (theme and shared controls, Service screens, daily screens, outputs, formats and wording). Decision 45: the eight UI/UX recommendations accepted and `ETP-DESIGN-SYSTEM.md` is the rule book. Decision 46: lane U1's four departures accepted (inputs keep a darker edge, the selected grid row has its own colour, the new green everywhere, blue allowed as a tile stripe). Decision 50: 1.11.2 was not gated or released on its own; its changes (listed under [1.11.2] below, plus the 1.11.2 gate fixes) ship in 1.11.3. No migration in this release; figures and report logic are unchanged.
+
+**Look and feel (decisions 45 #1-#3, 46)**
+
+- Screens use the new colour palette: darker grey captions, amber and red that pass contrast, light borders, no card shadows, two corner sizes (8 and 12). Text boxes, drop-downs and check boxes keep a darker edge so an empty box is still visible.
+- DSR, Service and dashboard numbers are dark; green and red appear only where something is good or a figure fell (growth coloured by sign). Tiles carry a coloured stripe only when they show a state.
+- Disabled buttons stay readable. Keyboard focus is visible on date boxes, drop-downs, check boxes, tabs and expanders. A selected grid row has its own colour.
+- Section tabs and the rail show the selected item with a tab underline / rail highlight instead of the main-button colour; one main button per toolbar (DSR: Refresh Preview).
+- Windows high contrast now also covers zebra rows, selection, disabled controls, progress bars and Service stages, and follows the setting while ETP is open.
+- Confirmation and progress dialogs fit the screen at 125 % and 150 % and follow Touch/Desktop density.
+
+**Today, Close day, Health check and Import**
+
+- Close day opens on a coloured verdict (Blocked / Partly ready / Ready, with warnings / Ready / Finalised in plain words); Reopen day is tucked under "More".
+- Health check leads with "1 problem, 5 warnings" and the finding in words; results are coloured chips OK / Check / Problem / Known / Skipped, with the codes last.
+- Import: a clear first screen, results led by a plain verdict per file, and after an import "Show the Daily Sales Report for <date>" and "Show Import History".
+- Import History and Error register: counts and headlines first, a plain "What happened" column; Copy summary is the main action.
+- Today: a shop without a sales file says so in one sentence instead of a table of dashes; the "What's missing" box is amber; a checklist line about one shop opens its task with that shop in the header; the System check line is quiet when all is well.
+
+**Service screens**
+
+- One freshness line with a summary chip ("8 of 9 groups fresh") instead of nine chips; the intro paragraph sits behind an (i); Refresh and Export to Excel moved to the title row.
+- Service today: eight fixed-width cards that say where they open, sub-lines in plain words, the cash book entry has its own card, and the repeat table is gone.
+- Pending board: numbered stage dots and counts, group headers with job count and oldest age, overdue shown as "+N d" with a row tint, 10 default columns that fit 1366 px (the rest stay in the Excel export, whose column order follows the screen; headers "Promised (EDD)" and "Overdue").
+- Service grids: numbers right-aligned, missing values shown as a dash, secondary Parts and Money tables collapsed with a count; the page scrolls at 125 % and 150 % Windows scaling.
+
+**Outputs (decision 45 #4, #7)**
+
+- DSR PDF: page 1 is the designed one-page summary again, page 2 the evening store tables (spelled-out labels, whole rupees, never below 7 pt, weekday/stores/generated time in the header), and a last portrait page sized for a phone.
+- Daily pack PDF starts with a cover page: verdict, sales today, tender/cash/stock differences and every check as OK / Check / Problem / Cannot run / Not checked yet.
+- Shared pack PDF is named `ETP-Pack-<shop>-<date>-g<id>.pdf` (no random code); the WhatsApp and e-mail text give the shop, day, verdict and sales instead of "attach the prepared PDF".
+- Excel exports print on A4 landscape one page wide with the header row repeated, page numbers in the footer, a filled header row, bold totals, coloured status words, the generation time and readable column widths. Status cells now say OK / Check / Problem (was Passed / Warning / Failed).
+- Staff daily sheet: title with the shop name and instructions, field codes hidden, bigger yellow boxes at 125 % zoom, the cash check under the boxes. The date moved to C8, the name to C9 and the figures start at row 10; sheets saved in the 1.10.1-1.11.2 layout still import (every key is found by its label), and an empty "Filled by" is refused in both layouts.
+
+**Numbers, dates and wording (decision 45 #5, #6)**
+
+- One number and date formatter: Indian grouping everywhere, rupee sign on headline figures, "(₹)" on money columns, "Sept", 24-hour local times; "All amounts in ₹, incl. GST" on the DSR.
+- Report status lines and grids use OK, Check, Problem, Cannot run, Not checked yet.
+- Report codes (R025, R022, R018) no longer appear in sentences; Help text updated (Service help: eight cards).
+- Owner and admin failures now show "Ref:"; "Operations Centre" spelling; one verb per button ("Refresh", "Back up now", "Test restoring a backup").
+
+**Engineering**
+
+- New shared controls: `StatusChip` (5 tones), `Notice`, `PageFrame` (List / Report / Form / Dashboard templates; `TaskBodyLayout` frozen for new screens), `DesignTokens`, `DesignIcon`; Service stage tokens.
+- New guard tests: no colour literals in Desktop views beyond a shrinking allowlist; no invariant-culture display dates or numbers; staff sheet old/new layout round trips.
+- Tests: unit projects and gate result filled in after the gate.
+
+## [1.11.2] - not released separately (decision 50: shipped in 1.11.3)
 
 Fixes from the 12 Oct 2026 audits (security and privacy, reconciliation, disaster recovery, performance, dependencies, usability, architecture), in ten lanes. Decision 41: a bill cancelled the same day does not count in the DSR invoice count. Decision 43: a daily-inputs sheet whose "Filled by" is empty is refused. Two migrations: 0059 (customer data permissions) and 0060 (report logic and speed). **Role permissions change** (decision Q16): `ExpectedRolePermissions.json` adds 119 DENY SELECT rows (tagged D37) and the grants of the new views `v_invoice_customer_names` (0059) and `v_sales_cancelled_same_day` (0060). **Breaking for shop PCs:** the 1.11.2 OneDrive receive script refuses unsigned (1.11.1) shop manifests; see OneDrive below.
 
