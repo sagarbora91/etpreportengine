@@ -208,8 +208,8 @@ internal static class UpdateRetention
         try
         {
             Directory.CreateDirectory(previousRoot);
-            var staged = Directory.EnumerateDirectories(updatesRoot).Select(Path.GetFileName).OfType<string>().ToList();
-            var previous = Directory.EnumerateDirectories(previousRoot).Select(Path.GetFileName).OfType<string>().ToList();
+            var staged = Directory.EnumerateDirectories(updatesRoot).Select(d => Path.GetFileName(d)).ToList();
+            var previous = Directory.EnumerateDirectories(previousRoot).Select(d => Path.GetFileName(d)).ToList();
             var (move, delete) = Plan(staged, previous, keep);
             foreach (var name in move)
             {
