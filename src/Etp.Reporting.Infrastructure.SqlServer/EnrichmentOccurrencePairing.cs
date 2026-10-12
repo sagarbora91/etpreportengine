@@ -7,6 +7,8 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// stale duplicate counted twice). Reports therefore pair R013 rows with sales lines here, live, by occurrence: the
 /// nth R013 row for (store, date, document, item) in source order goes to the nth R025 line for that key in sales
 /// line order. A sales line takes at most one R013 row; a surplus R013 row reads as Missing.
+/// L4 (1.11.2, AUDIT-1 fix 3): an R013 row identical in every content column to an earlier row for the same key is an exact duplicate
+/// in the Titan export; the importer already keeps one sales line for it, so the extra R013 row is dropped here and no longer reads Missing.
 /// R003 (All Discount Type) carries one row per discount applied to a line, so several R003 rows on one line are
 /// correct: R003 keeps its stored status and line.
 /// The date and store columns are window partition keys, so a filter on them reaches the enrichment table; the
@@ -29,7 +31,13 @@ internal static class EnrichmentOccurrencePairing
                 CASE WHEN pe.enrichment_type<>'R013' THEN pe.match_status WHEN pl.sales_line_id IS NULL THEN 'Missing' ELSE 'Matched' END effective_match_status
          FROM (SELECT x.*,ROW_NUMBER() OVER(PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code
                                             ORDER BY x.source_lineage_id,x.sales_line_enrichment_id) occurrence
-               FROM dbo.sales_line_enrichments x) pe
+               FROM (SELECT d.*,ROW_NUMBER() OVER(PARTITION BY d.enrichment_type,d.store_code,d.transaction_date,d.document_number,d.product_code,
+                                                           d.source_transaction_type,d.source_quantity,d.source_net_value,d.source_cro_number,
+                                                           d.scheme_discount,d.user_discount,d.pre_discount,d.other_charges,d.activation_details,d.user_discount_details,
+                                                           d.invoice_year,d.source_gross_value,d.staff_name
+                                                  ORDER BY d.source_lineage_id,d.sales_line_enrichment_id) same_content
+                     FROM dbo.sales_line_enrichments d) x
+               WHERE x.enrichment_type<>'R013' OR x.same_content=1) pe
          OUTER APPLY (SELECT q.sales_line_id
                       FROM (SELECT sl.sales_line_id,ROW_NUMBER() OVER(ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence
                             FROM dbo.sales_invoices si JOIN dbo.sales_lines sl ON sl.sales_invoice_id=si.sales_invoice_id

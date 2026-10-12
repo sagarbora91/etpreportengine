@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using System.IO.Compression;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Import.Tests;
@@ -114,6 +116,95 @@ public sealed class OpenXmlWorkbookReaderAsyncTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task Workbook_whose_zip_has_an_unsafe_compression_ratio_is_refused_before_parsing()
+    {
+        // 1.11.2 L4 (S-10): an xlsx is a zip; a part that expands by far more than the policy ratio is a bomb.
+        var path = CreateWorkbook();
+        try
+        {
+            using (var zip = ZipFile.Open(path, ZipArchiveMode.Update))
+            using (var stream = zip.CreateEntry("xl/padding.bin", CompressionLevel.SmallestSize).Open())
+                stream.Write(new byte[8 * 1024 * 1024]);
+            var ex = await Assert.ThrowsAsync<ImportSourceException>(() => new OpenXmlWorkbookReader().ReadAsync(path));
+            Assert.Equal("IMPORT_ARCHIVE_RATIO", ex.Code);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Workbook_with_an_oversized_part_is_refused_before_parsing()
+    {
+        var path = CreateWorkbook();
+        try
+        {
+            using (var zip = ZipFile.Open(path, ZipArchiveMode.Update))
+            using (var stream = zip.CreateEntry("xl/big.bin", CompressionLevel.NoCompression).Open())
+            {
+                var chunk = new byte[1024 * 1024];
+                new Random(7).NextBytes(chunk);
+                for (var i = 0; i < 101; i++) stream.Write(chunk); // above the 100 MB per-entry limit
+            }
+            var ex = await Assert.ThrowsAsync<ImportSourceException>(() => new OpenXmlWorkbookReader().ReadAsync(path));
+            Assert.Equal("IMPORT_ARCHIVE_ENTRY_SIZE", ex.Code);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Shared_strings_resolve_by_index_including_rich_text_and_out_of_range()
+    {
+        var path = CreateWorkbook();
+        try
+        {
+            using (var document = SpreadsheetDocument.Open(path, true))
+            {
+                var workbook = document.WorkbookPart!;
+                var table = workbook.AddNewPart<SharedStringTablePart>();
+                table.SharedStringTable = new SharedStringTable(
+                    new SharedStringItem(new Text("plain")),
+                    new SharedStringItem(new Run(new Text("rich ")), new Run(new Text("text"))),
+                    new SharedStringItem(new Text("third")));
+                table.SharedStringTable.Save();
+                var worksheet = workbook.WorksheetParts.Single();
+                var row = worksheet.Worksheet.Descendants<Row>().Single(r => r.RowIndex == 2);
+                row.RemoveAllChildren<Cell>();
+                row.Append(Shared("A2", 1), Shared("B2", 2), Shared("C2", 9));
+                worksheet.Worksheet.Save();
+            }
+            var snapshot = await new OpenXmlWorkbookReader().ReadAsync(path);
+            var cells = Assert.Single(snapshot.Sheets.Single().Rows).Cells;
+            Assert.Equal("rich text", cells[0].Value);
+            Assert.Equal("third", cells[1].Value);
+            Assert.Null(cells[2].Value);
+        }
+        finally { File.Delete(path); }
+    }
+
+    // Gate: the sample exports are tiny, so this proves the default limits do not reject the known-good set;
+    // the integrator also runs it against a real sparse daily export copy when one is at hand.
+    [Fact]
+    public async Task Every_etp_sample_export_passes_the_default_archive_policy_and_reads()
+    {
+        var folder = Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample");
+        var files = Directory.GetFiles(folder, "*.xlsx");
+        Assert.NotEmpty(files);
+        var policy = new ImportPathPolicy();
+        foreach (var file in files)
+        {
+            using (var zip = ZipFile.OpenRead(file)) policy.ValidateArchive(zip);
+            var snapshot = await new OpenXmlWorkbookReader().ReadAsync(file);
+            Assert.NotEmpty(snapshot.Sheets);
+        }
+    }
+
+    private static Cell Shared(string reference, int index) => new()
+    {
+        CellReference = reference,
+        DataType = CellValues.SharedString,
+        CellValue = new CellValue(index.ToString())
+    };
 
     private static string CreateWorkbook()
     {
