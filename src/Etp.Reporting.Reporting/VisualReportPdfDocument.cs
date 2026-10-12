@@ -42,46 +42,61 @@ internal sealed class VisualReportPdfDocument : IDisposable
         renderer.document.Save(path);
     }
 
-    // Decision 45 #4 (UIUX-OUTPUTS OUT-08): the pack's cover, a portrait page the width of the DSR phone page with 13 pt
-    // text, before the tables. It continues on another portrait page when a combined pack has many checks.
+    // Decision 45 #4 (UIUX-OUTPUTS OUT-08): the pack's cover, one portrait page the width of the DSR phone page with 13 pt
+    // text, before the tables. The page grows taller for a combined pack with many checks (a phone scrolls; it does not
+    // turn pages), so the layout runs twice: once to measure, once to draw.
     internal const double CoverWidth = DailySalesReportPdfExporter.PhonePageWidth, CoverHeight = DailySalesReportPdfExporter.PhonePageMinimumHeight, CoverMargin = 22;
     private void Cover(ReportPackCover cover)
     {
-        const double content = CoverWidth - 2 * CoverMargin, bottom = CoverHeight - 40;
+        graphics?.Dispose();
+        graphics = XGraphics.CreateMeasureContext(new XSize(CoverWidth, CoverHeight), XGraphicsUnit.Point, XPageDirection.Downwards);
+        y = CoverMargin; CoverLayout(cover, draw: false);
+        var height = Math.Max(CoverHeight, y + 40);
+        graphics.Dispose();
+        var page = document.AddPage(); page.Width = XUnit.FromPoint(CoverWidth); page.Height = XUnit.FromPoint(height);
+        graphics = XGraphics.FromPdfPage(page);
+        y = CoverMargin; CoverLayout(cover, draw: true);
+    }
+
+    private void CoverLayout(ReportPackCover cover, bool draw)
+    {
+        const double content = CoverWidth - 2 * CoverMargin;
         XFont F(double size, bool isBold = false) => new("Segoe UI", size, isBold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
         XSolidBrush B(string hex) => new(EveningDsrPdf.Colour(hex));
-        void Page() { graphics?.Dispose(); var page = document.AddPage(); page.Width = XUnit.FromPoint(CoverWidth); page.Height = XUnit.FromPoint(CoverHeight); graphics = XGraphics.FromPdfPage(page); y = CoverMargin; }
-        void Write(string text, XFont font, string colour, double before = 0, double x = CoverMargin, double width = content)
+        void Text(string value, XFont font, string colour, double x, double top) { if (draw) Line(value, font, B(colour), x, top); }
+        void Write(string text, XFont font, string colour, double before = 0)
         {
             y += before;
-            foreach (var line in Wrap(text, font, width)) { if (y + font.Size * 1.35 > bottom) Page(); Line(line, font, B(colour), x, y); y += font.Size * 1.35; }
+            foreach (var line in Wrap(text, font, content)) { Text(line, font, colour, CoverMargin, y); y += font.Size * 1.35; }
         }
-        Page();
         Write(cover.Heading, F(10, true), OutputPalette.SecondaryText);
         Write(cover.Subject, F(18, true), OutputPalette.PrimaryText, 2);
         Write(cover.Generated, F(10), OutputPalette.SecondaryText);
         var (verdictText, verdictFill) = OutputText.ToneColours(cover.VerdictTone);
         var pill = F(13, true); var pillWidth = Math.Min(content, graphics.MeasureString(cover.Verdict, pill).Width + 20);
-        y += 10; graphics.DrawRoundedRectangle(B(verdictFill), CoverMargin, y, pillWidth, 24, 12, 12); Line(cover.Verdict, pill, B(verdictText), CoverMargin + 10, y + 4); y += 30;
+        y += 10;
+        if (draw) graphics.DrawRoundedRectangle(B(verdictFill), CoverMargin, y, pillWidth, 24, 12, 12);
+        Text(cover.Verdict, pill, verdictText, CoverMargin + 10, y + 4); y += 30;
         if (!string.IsNullOrWhiteSpace(cover.Summary)) Write(cover.Summary, F(11), OutputPalette.SecondaryText);
         foreach (var figure in cover.Figures)
         {
-            if (y + 40 > bottom) Page();
-            y += 8; graphics.DrawLine(new XPen(EveningDsrPdf.Colour(OutputPalette.Divider), .6), CoverMargin, y, CoverMargin + content, y); y += 4;
-            Line(figure.Label, F(11), B(OutputPalette.SecondaryText), CoverMargin, y);
+            y += 8;
+            if (draw) graphics.DrawLine(new XPen(EveningDsrPdf.Colour(OutputPalette.Divider), .6), CoverMargin, y, CoverMargin + content, y);
+            y += 4;
+            Text(figure.Label, F(11), OutputPalette.SecondaryText, CoverMargin, y);
             var value = F(15, true); var colour = figure.Tone switch { OutputTone.Success => OutputPalette.Success, OutputTone.Critical => OutputPalette.Critical, OutputTone.Warning => OutputPalette.Warning, _ => OutputPalette.PrimaryText };
-            Line(figure.Value, value, B(colour), CoverMargin + content - graphics.MeasureString(figure.Value, value).Width, y);
-            y += 18; Line(figure.Meaning, F(9), B(OutputPalette.SecondaryText), CoverMargin, y); y += 12;
+            Text(figure.Value, value, colour, CoverMargin + content - graphics.MeasureString(figure.Value, value).Width, y);
+            y += 18; Text(figure.Meaning, F(9), OutputPalette.SecondaryText, CoverMargin, y); y += 12;
         }
         Write("CHECKS", F(10, true), OutputPalette.SecondaryText, 14);
         foreach (var check in cover.Checks)
         {
             var (text, fill) = OutputText.ToneColours(check.Tone); var chip = F(9, true);
-            if (y + 34 > bottom) Page();
             y += 6; var chipWidth = graphics.MeasureString(check.StatusWord, chip).Width + 12;
-            graphics.DrawRoundedRectangle(B(fill), CoverMargin, y, chipWidth, 16, 8, 8); Line(check.StatusWord, chip, B(text), CoverMargin + 6, y + 2);
-            var name = F(12, true); var top = y; y += 0;
-            foreach (var line in Wrap(check.Name, name, content - chipWidth - 8)) { Line(line, name, B(OutputPalette.PrimaryText), CoverMargin + chipWidth + 8, y); y += 16; }
+            if (draw) graphics.DrawRoundedRectangle(B(fill), CoverMargin, y, chipWidth, 16, 8, 8);
+            Text(check.StatusWord, chip, text, CoverMargin + 6, y + 2);
+            var name = F(12, true); var top = y;
+            foreach (var line in Wrap(check.Name, name, content - chipWidth - 8)) { Text(line, name, OutputPalette.PrimaryText, CoverMargin + chipWidth + 8, y); y += 16; }
             y = Math.Max(y, top + 18);
             if (!string.IsNullOrWhiteSpace(check.Message)) Write(check.Message, F(10), OutputPalette.SecondaryText);
         }

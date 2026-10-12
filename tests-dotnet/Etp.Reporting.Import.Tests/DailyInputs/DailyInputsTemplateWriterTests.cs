@@ -39,8 +39,9 @@ public sealed class DailyInputsTemplateWriterTests
         Assert.Equal(
             new (string, int, decimal?, string?)[]
             {
-                ("WALK_INS", 7, 18m, null), ("OPENING_CASH", 8, 5000m, null), ("EXPENSES", 9, 1250.75m, null),
-                ("CASH_DEPOSIT", 10, 0m, null), ("CASH_ADJUSTMENT", 11, -40m, null), ("OPERATIONAL_REMARK", 13, null, "Synthetic remark")
+                // 1.12 U4: the field rows start at row 10 (title and instructions above them); the figures are unchanged.
+                ("WALK_INS", 10, 18m, null), ("OPENING_CASH", 11, 5000m, null), ("EXPENSES", 12, 1250.75m, null),
+                ("CASH_DEPOSIT", 13, 0m, null), ("CASH_ADJUSTMENT", 14, -40m, null), ("OPERATIONAL_REMARK", 16, null, "Synthetic remark")
             },
             document.Values.Select(v => (v.FieldCode, v.RowNumber, v.NumericValue, v.TextValue)));
     }
@@ -84,16 +85,24 @@ public sealed class DailyInputsTemplateWriterTests
         Assert.Equal(1, sheet.HeaderRowNumber);
         Assert.Equal(DailyInputsTemplate.Headers, sheet.Headers);
         string? CellString(WorkbookRow row, int column) => row.Cells.Count > column ? row.Cells[column].Value as string : null;
+        // The keyed rows keep their order with the key in A and the value in C; the TEMPLATE row stays first under the header.
+        var keyed = sheet.Rows.Where(r => CellString(r, 0) is not null).ToArray();
         Assert.Equal(
             [DailyInputsTemplate.TemplateKey, DailyInputsTemplate.KindKey, DailyInputsTemplate.StoreKey,
              DailyInputsTemplate.BusinessDateKey, DailyInputsTemplate.FilledByKey,
              .. DailyInputsTemplate.FieldsFor(kind).Select(f => f.FieldCode)],
-            sheet.Rows.Select(r => CellString(r, 0)));
-        Assert.Equal(Enumerable.Range(2, 5 + DailyInputsTemplate.FieldsFor(kind).Count), sheet.Rows.Select(r => r.RowNumber));
-        Assert.Equal(DailyInputsTemplate.CurrentVersion, CellString(sheet.Rows[0], 2));
-        Assert.Equal(DailyInputsTemplate.KindText(kind), CellString(sheet.Rows[1], 2));
-        Assert.Equal("WLMHW", CellString(sheet.Rows[2], 2));
-        Assert.Equal("Synthetic store", CellString(sheet.Rows[2], 3));
+            keyed.Select(r => CellString(r, 0)));
+        Assert.Equal([2, 6, 7, 8, 9, .. Enumerable.Range(10, DailyInputsTemplate.FieldsFor(kind).Count)], keyed.Select(r => r.RowNumber));
+        Assert.Same(keyed[0], sheet.Rows[0]);
+        Assert.Equal(DailyInputsTemplate.CurrentVersion, CellString(keyed[0], 2));
+        Assert.Equal(DailyInputsTemplate.KindText(kind), CellString(keyed[1], 2));
+        Assert.Equal("WLMHW", CellString(keyed[2], 2));
+        Assert.Equal("Synthetic store", CellString(keyed[2], 3));
+        // 1.12 U4: the title, instruction and "when done" rows carry text in B only; A and C are empty, so the parser skips them.
+        var banners = sheet.Rows.Where(r => CellString(r, 0) is null).ToArray();
+        Assert.Equal([3, 4, 5, 10 + DailyInputsTemplate.FieldsFor(kind).Count + (kind == DailyInputsKind.Retail ? 1 : 0)], banners.Select(r => r.RowNumber));
+        Assert.All(banners, r => { Assert.NotNull(CellString(r, 1)); Assert.Null(r.Cells.Count > 2 ? r.Cells[2].Value : null); });
+        Assert.StartsWith("Synthetic store - daily figures", CellString(banners[0], 1));
 
         Assert.True(DailyInputsTemplate.IsDailyInputsWorkbook(workbook));
         var result = DailyInputsParser.Parse(workbook, Today);
@@ -122,21 +131,22 @@ public sealed class DailyInputsTemplateWriterTests
         bool Unlocked(Cell cell) => formats[(int)(cell.StyleIndex?.Value ?? 0)].Protection?.Locked?.Value == false;
         var unlocked = worksheet.Descendants<Cell>().Where(Unlocked).Select(c => c.CellReference!.Value!).ToArray();
         var fieldRows = DailyInputsTemplate.FieldsFor(DailyInputsKind.Retail).Count;
-        Assert.Equal(["C5", "C6", .. Enumerable.Range(7, fieldRows).Select(row => $"C{row}")], unlocked);
+        Assert.Equal(["C8", "C9", .. Enumerable.Range(10, fieldRows).Select(row => $"C{row}")], unlocked);
 
         var validations = worksheet.Descendants<DataValidation>().ToDictionary(v => v.SequenceOfReferences!.InnerText ?? "");
-        var dateRule = validations["C5"];
+        var dateRule = validations["C8"];
         Assert.Equal(DataValidationValues.Date, dateRule.Type!.Value);
         Assert.Equal($"TODAY()-{DailyInputsTemplate.LookbackDays}", dateRule.Formula1!.Text);
         Assert.Equal("TODAY()", dateRule.Formula2!.Text);
-        Assert.Equal(DataValidationValues.Whole, validations["C7"].Type!.Value);          // WALK_INS
-        Assert.Equal("0", validations["C8"].Formula1!.Text);                               // OPENING_CASH >= 0
-        Assert.Equal(DataValidationOperatorValues.Between, validations["C11"].Operator!.Value); // CASH_ADJUSTMENT may be negative
-        Assert.Equal(DataValidationValues.TextLength, validations["C13"].Type!.Value);     // OPERATIONAL_REMARK
+        Assert.Equal(DataValidationValues.TextLength, validations["C9"].Type!.Value);      // FILLED_BY
+        Assert.Equal(DataValidationValues.Whole, validations["C10"].Type!.Value);         // WALK_INS
+        Assert.Equal("0", validations["C11"].Formula1!.Text);                              // OPENING_CASH >= 0
+        Assert.Equal(DataValidationOperatorValues.Between, validations["C14"].Operator!.Value); // CASH_ADJUSTMENT may be negative
+        Assert.Equal(DataValidationValues.TextLength, validations["C16"].Type!.Value);    // OPERATIONAL_REMARK
     }
 
     [Fact]
-    public async Task An_optional_business_date_fills_C5_and_the_filled_sheet_imports_with_that_date()
+    public async Task An_optional_business_date_fills_the_date_cell_and_the_filled_sheet_imports_with_that_date()
     {
         var date = new DateOnly(2026, 10, 9);
         var folder = Path.Combine(Path.GetTempPath(), "etp-daily-inputs-tests", Guid.NewGuid().ToString("N"));
@@ -149,9 +159,9 @@ public sealed class DailyInputsTemplateWriterTests
 
             using (var document = SpreadsheetDocument.Open(path, false))
             {
-                var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
-                Assert.Equal(date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), c5.CellValue?.Text);
-                Assert.Null(c5.DataType);
+                var dateCell = document.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Cell>().Single(c => c.CellReference?.Value == "C8");
+                Assert.Equal(date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), dateCell.CellValue?.Text);
+                Assert.Null(dateCell.DataType);
             }
 
             var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
@@ -171,15 +181,106 @@ public sealed class DailyInputsTemplateWriterTests
     }
 
     [Fact]
-    public void Without_a_date_C5_stays_empty_and_unlocked()
+    public void Without_a_date_the_date_cell_stays_empty()
     {
         using var stream = new MemoryStream();
         DailyInputsTemplateWriter.Write(stream, DailyInputsKind.Service, "WLMHW", "Synthetic store");
         stream.Position = 0;
         using var document = SpreadsheetDocument.Open(stream, false);
-        var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
-        Assert.Null(c5.CellValue);
-        Assert.Null(c5.InlineString);
+        var dateCell = document.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Cell>().Single(c => c.CellReference?.Value == "C8");
+        Assert.Null(dateCell.CellValue);
+        Assert.Null(dateCell.InlineString);
+    }
+
+    [Fact]
+    public void Staff_see_labels_first_the_codes_and_key_rows_are_hidden_and_the_cash_check_sits_under_the_table()
+    {
+        using var stream = new MemoryStream();
+        DailyInputsTemplateWriter.Write(stream, DailyInputsKind.Retail, "HEMW", "Synthetic store", new DateOnly(2026, 10, 9));
+        stream.Position = 0;
+        using var document = SpreadsheetDocument.Open(stream, false);
+        var worksheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
+
+        // Decision 45 #7 (OUT-23): column A keeps the codes for the parser but is hidden; so are the header and key rows.
+        Assert.True(worksheet.Descendants<Column>().Single(c => c.Min!.Value == 1).Hidden?.Value);
+        var hidden = worksheet.Descendants<Row>().Where(r => r.Hidden?.Value == true).Select(r => r.RowIndex!.Value).ToArray();
+        Assert.Equal([1u, 2u, 6u, 7u], hidden);
+        Assert.DoesNotContain(worksheet.Descendants<Column>(), c => c.Min!.Value >= 5);
+
+        // OUT-24/26: title with the store name and the day, instructions, 125 % zoom, frozen above the boxes.
+        string? Text(string reference) => worksheet.Descendants<Cell>().SingleOrDefault(c => c.CellReference?.Value == reference)?.InnerText;
+        Assert.StartsWith("Synthetic store - daily figures for", Text("B3"));
+        Assert.Contains("yellow boxes", Text("B4"), StringComparison.Ordinal);
+        var view = worksheet.Descendants<SheetView>().Single();
+        Assert.Equal(125u, view.ZoomScale!.Value);
+        Assert.Equal(PaneStateValues.Frozen, view.Pane!.State!.Value);
+        Assert.Contains(worksheet.Descendants<MergeCell>(), m => m.Reference!.Value == "B3:D3");
+
+        // OUT-25: the cash check formula is in column B of the row under the last field, merged across B:D; nothing in A or C.
+        var lastField = 10 + DailyInputsTemplate.FieldsFor(DailyInputsKind.Retail).Count - 1;
+        var checkRow = worksheet.Descendants<Row>().Single(r => r.RowIndex!.Value == (uint)lastField + 1);
+        var formula = Assert.Single(worksheet.Descendants<CellFormula>());
+        Assert.Equal($"B{lastField + 1}", ((Cell)formula.Parent!).CellReference!.Value);
+        Assert.Contains("C15", formula.Text, StringComparison.Ordinal); // CLOSING_CASH_COUNTED
+        Assert.Contains("Cash check", formula.Text, StringComparison.Ordinal);
+        Assert.Single(checkRow.Elements<Cell>());
+        Assert.Contains(worksheet.Descendants<MergeCell>(), m => m.Reference!.Value == $"B{lastField + 1}:D{lastField + 1}");
+    }
+
+    [Fact]
+    public async Task The_new_layout_reads_the_same_figures_as_a_sheet_in_the_old_layout()
+    {
+        // Same input, same figures: the 1.11.2 layout (keys in rows 2-6, fields from row 7, as on the shop PCs today) and the
+        // 1.12 staff layout give the parser identical values; only the row numbers differ.
+        var date = new DateOnly(2026, 10, 10);
+        var values = new (string Code, object? Value)[]
+        {
+            ("WALK_INS", 18m), ("OPENING_CASH", 5000m), ("EXPENSES", 1250.75m), ("CASH_DEPOSIT", 0m), ("CASH_ADJUSTMENT", -40m),
+            ("CLOSING_CASH_COUNTED", 12345.5m), ("OPERATIONAL_REMARK", "Synthetic remark")
+        };
+        var filled = new Dictionary<string, object?> { ["BUSINESS_DATE"] = date.ToDateTime(TimeOnly.MinValue), ["FILLED_BY"] = "Synthetic staff" };
+        foreach (var (code, value) in values) filled[code] = value;
+        var fileName = DailyInputsTemplate.FileName("HEMW", DailyInputsKind.Retail, date);
+
+        var current = DailyInputsParser.Parse(await WriteFillAndReadAsync(DailyInputsKind.Retail, "HEMW", fileName, filled), Today);
+        var old = DailyInputsParser.Parse(Sheet(DailyInputsKind.Retail, "HEMW", date.ToDateTime(TimeOnly.MinValue), fileName, fields: values), Today);
+
+        Assert.True(current.Succeeded, string.Join(", ", current.Errors.Select(e => e.Code)));
+        Assert.True(old.Succeeded, string.Join(", ", old.Errors.Select(e => e.Code)));
+        Assert.Equal(old.Document!.Values.Select(v => (v.FieldCode, v.NumericValue, v.TextValue)), current.Document!.Values.Select(v => (v.FieldCode, v.NumericValue, v.TextValue)));
+        Assert.Equal((old.Document.StoreCode, old.Document.Kind, old.Document.BusinessDate, old.Document.FilledBy),
+            (current.Document.StoreCode, current.Document.Kind, current.Document.BusinessDate, current.Document.FilledBy));
+    }
+
+    [Fact]
+    public async Task A_cash_check_value_saved_by_Excel_under_the_table_is_skipped_by_the_parser()
+    {
+        // Excel stores the formula's text result in B; the row has no key in A and no value in C, so it is not a field.
+        var date = new DateOnly(2026, 10, 10);
+        var folder = Path.Combine(Path.GetTempPath(), "etp-daily-inputs-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, DailyInputsTemplate.FileName("HEMW", DailyInputsKind.Retail, date));
+            using (var stream = new MemoryStream())
+            {
+                DailyInputsTemplateWriter.Write(stream, DailyInputsKind.Retail, "HEMW", "Synthetic store", date);
+                stream.Position = 0;
+                using (var document = SpreadsheetDocument.Open(stream, true))
+                {
+                    var sheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
+                    var formulaCell = (Cell)sheet.Descendants<CellFormula>().Single().Parent!;
+                    formulaCell.CellValue = new CellValue("Cash check: cash taken today, from your count: ₹1,000.00");
+                    var name = sheet.Descendants<Cell>().Single(c => c.CellReference?.Value == "C9");
+                    name.DataType = CellValues.InlineString; name.InlineString = new InlineString(new Text("Synthetic staff"));
+                    sheet.Save();
+                }
+                await File.WriteAllBytesAsync(path, stream.ToArray());
+            }
+            var result = DailyInputsParser.Parse(await new OpenXmlWorkbookReader().ReadAsync(path), Today);
+            Assert.True(result.Succeeded, string.Join(", ", result.Errors.Select(e => e.Code)));
+        }
+        finally { Directory.Delete(folder, recursive: true); }
     }
 
     [Fact]

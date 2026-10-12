@@ -4,14 +4,14 @@ using PdfSharp.Pdf.IO;
 namespace Etp.Reporting.Reporting.Tests;
 
 /// <summary>
-/// 1.9.8, lane EXPORT-TESTS (RA-EXPORT-19): the DSR PDF exporter with sample data. One A4 landscape page whatever the
-/// document holds (two stores with full periods, evening sheets, or nothing), the title in the document info, and the
-/// exporter's own single-page validation.
+/// 1.9.8, lane EXPORT-TESTS (RA-EXPORT-19): the DSR PDF exporter with sample data. 1.12 lane U4 (decision 45 #4): page 1 is
+/// the A4 landscape summary, page 2 the evening matrix when the document has evening sheets, the last page the portrait
+/// phone page; the title in the document info, and the exporter's own layout validation.
 /// </summary>
 public sealed class DailySalesReportPdfExporterTests
 {
     [Fact]
-    public void Sample_document_exports_one_a4_landscape_page_with_the_title()
+    public void Sample_document_exports_the_summary_page_and_the_phone_page_with_the_title()
     {
         var path = OutputPath("dsr.pdf");
         try
@@ -24,17 +24,21 @@ public sealed class DailySalesReportPdfExporterTests
             new DailySalesReportPdfExporter().Export(path, report);
 
             Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(path), 0, 4));
-            DailySalesReportPdfExporter.ValidateSingleA4LandscapePage(path);
+            DailySalesReportPdfExporter.ValidateLayout(path);
             using var pdf = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+            Assert.Equal(2, pdf.PageCount); // no evening sheets: summary + phone page
             Assert.Equal(report.Title, pdf.Info.Title);
             Assert.Equal("ETP governed Daily Sales Report", pdf.Info.Subject);
             Assert.True(pdf.Pages[0].Contents.Elements.Count > 0);
+            Assert.True(pdf.Pages[0].Width.Point > pdf.Pages[0].Height.Point);
+            Assert.Equal(DailySalesReportPdfExporter.PhonePageWidth, pdf.Pages[1].Width.Point, 1);
+            Assert.True(pdf.Pages[1].Height.Point >= DailySalesReportPdfExporter.PhonePageMinimumHeight);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
 
     [Fact]
-    public void Evening_sheets_take_the_evening_layout_and_still_fit_one_page()
+    public void Evening_sheets_add_the_matrix_as_page_two_after_the_designed_summary()
     {
         var path = OutputPath("dsr-evening.pdf");
         try
@@ -52,8 +56,9 @@ public sealed class DailySalesReportPdfExporterTests
 
             new DailySalesReportPdfExporter().Export(path, report);
 
-            DailySalesReportPdfExporter.ValidateSingleA4LandscapePage(path);
+            DailySalesReportPdfExporter.ValidateLayout(path);
             using var pdf = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+            Assert.Equal(3, pdf.PageCount); // OUT-01: the card summary is page 1 even with evening sheets; the matrix is page 2
             Assert.Equal(report.Title, pdf.Info.Title);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -67,7 +72,7 @@ public sealed class DailySalesReportPdfExporterTests
         {
             var report = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), [], [], new Dictionary<string, decimal?>());
             new DailySalesReportPdfExporter().Export(path, report);
-            DailySalesReportPdfExporter.ValidateSingleA4LandscapePage(path);
+            DailySalesReportPdfExporter.ValidateLayout(path);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
@@ -81,7 +86,7 @@ public sealed class DailySalesReportPdfExporterTests
     }
 
     [Fact]
-    public void Validation_rejects_a_portrait_or_multi_page_file()
+    public void Validation_rejects_a_file_that_is_not_summary_matrix_and_phone_page()
     {
         var path = OutputPath("not-dsr.pdf");
         try
@@ -89,9 +94,72 @@ public sealed class DailySalesReportPdfExporterTests
             new SimplePdfReportExporter().Export(path,
                 new("Long report", new(2026, 7, 1), new(2026, 8, 25), "Passed", "test", "x", DateTimeOffset.UtcNow),
                 new([new("Item"), new("Units", "#,##0")], Enumerable.Range(1, 120).Select(i => (IReadOnlyList<object?>)[$"Item {i}", i]).ToArray()));
-            Assert.Throws<InvalidDataException>(() => DailySalesReportPdfExporter.ValidateSingleA4LandscapePage(path));
+            Assert.Throws<InvalidDataException>(() => DailySalesReportPdfExporter.ValidateLayout(path));
         }
         finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void Phone_page_prints_the_document_figures_unchanged()
+    {
+        // Same input, same figures: every number on the phone page is the document's own value in the DSR formats.
+        var report = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), SalesFacts(), ServiceFacts(),
+            new Dictionary<string, decimal?> { ["WLMHW"] = 2_900_000m, ["HEMW"] = 1_500_000m },
+            stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")]);
+        var text = string.Join("\n", DsrPhonePage.Lines(report, new DateTimeOffset(2026, 8, 26, 9, 14, 0, TimeSpan.FromHours(5.5))).Select(x => x.Text));
+
+        Assert.Contains("Tuesday 25 Aug 2026", text, StringComparison.Ordinal);
+        Assert.Contains("Titan World + Helios", text, StringComparison.Ordinal);
+        Assert.Equal("₹1,45,970", DsrDisplay.Currency(report.CombinedFtd));
+        Assert.Contains(DsrDisplay.Currency(report.CombinedFtd), text, StringComparison.Ordinal);
+        Assert.Contains($"{DsrDisplay.Percent(report.CombinedFtdGrowth)} vs last year", text, StringComparison.Ordinal);
+        Assert.Contains($"Bills {DsrDisplay.Number(report.CombinedInvoices, 0)}", text, StringComparison.Ordinal);
+        Assert.Contains($"Month so far {DsrDisplay.CompactCurrency(report.MtdSales)}", text, StringComparison.Ordinal);
+        Assert.Contains($"Year so far {DsrDisplay.CompactCurrency(report.YtdSales)}", text, StringComparison.Ordinal);
+        foreach (var store in report.Stores)
+        {
+            Assert.Contains(store.DisplayName, text, StringComparison.Ordinal);
+            Assert.Contains($"Today {DsrDisplay.Currency(store.Periods[0].TyValue)}", text, StringComparison.Ordinal);
+            Assert.Contains($"Month {DsrDisplay.Currency(store.Periods[1].TyValue)}", text, StringComparison.Ordinal);
+        }
+        Assert.Contains($"Today {DsrDisplay.Currency(report.Service.Total)}", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("INR", text, StringComparison.Ordinal);
+        Assert.All(DsrPhonePage.Lines(report, DateTimeOffset.Now).Where(x => !x.IsDivider), line => Assert.True(line.Size >= 10, line.Text));
+    }
+
+    [Fact]
+    public void Evening_matrix_spells_the_labels_and_prints_the_same_figures()
+    {
+        var value = new EveningMetricRow("VALUE", 34_215.4m, 46_797m, -26.9m, 938_197m, 2_143_453.75m, null, "currency");
+        var cells = EveningDsrPdf.Cells(value);
+        Assert.Equal(["Sales (₹)", "34,215", "46,797", "-26.9%", "9,38,197", "21,43,454", "—"], cells);
+        // Whole rupees are the same figure rounded for print; nothing else changes.
+        Assert.Equal(Math.Round(value.Ytd!.Value, MidpointRounding.AwayFromZero), decimal.Parse(cells[5], System.Globalization.NumberStyles.Number, OutputText.India));
+        Assert.Equal(["Units", "5", "—", "+12.5%", "196", "431", "—"], EveningDsrPdf.Cells(new("VOL", 5m, null, 12.5m, 196m, 431m, null, "number")));
+        Assert.Equal("Units per bill", EveningDsrPdf.Label("AUPT"));
+        Assert.Equal("Walk-ins (retail)", EveningDsrPdf.Label("RETAIL WALKIN"));
+        Assert.Equal("Titan", EveningDsrPdf.Label("Titan")); // a brand row keeps its name
+        Assert.Equal("67.03 L", EveningDsrPdf.Compact(6_703_290m, "currency"));
+        Assert.Equal("1.03 Cr", EveningDsrPdf.Compact(10_254_306m, "currency"));
+        Assert.Equal(7, EveningDsrPdf.MinimumFontSize);
+    }
+
+    [Fact]
+    public void The_same_document_exports_the_same_pages_twice()
+    {
+        var first = OutputPath("dsr-a.pdf"); var second = OutputPath("dsr-b.pdf");
+        try
+        {
+            var report = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), SalesFacts(), ServiceFacts(), new Dictionary<string, decimal?>());
+            var at = new DateTimeOffset(2026, 8, 26, 9, 14, 0, TimeSpan.FromHours(5.5));
+            new DailySalesReportPdfExporter().Export(first, report, at);
+            new DailySalesReportPdfExporter().Export(second, report, at);
+            using var a = PdfReader.Open(first, PdfDocumentOpenMode.Import);
+            using var b = PdfReader.Open(second, PdfDocumentOpenMode.Import);
+            Assert.Equal(a.PageCount, b.PageCount);
+            Assert.Equal(a.Pages[a.PageCount - 1].Height.Point, b.Pages[b.PageCount - 1].Height.Point);
+        }
+        finally { foreach (var path in new[] { first, second }) if (File.Exists(path)) File.Delete(path); }
     }
 
     private static DsrPeriodFact[] SalesFacts() =>
