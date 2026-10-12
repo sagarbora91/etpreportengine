@@ -288,11 +288,22 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         RememberContact(); SharingContactsGrid.SelectedItem = null; SelectContact(); ContactNameInput.Focus();
     }
 
+    /// <summary>
+    /// 1.11.2 (migration 0059): a Viewer is denied <c>dbo.sharing_contacts</c>, so the list stays blank for a Viewer and
+    /// no "could not be loaded" message is shown. Owner and Store Manager load it as before.
+    /// </summary>
+    internal static bool LoadsSharingContacts(AccessSession access) => access.Role is not AccessRole.Viewer;
+
     private async Task RefreshSharingContactsAsync()
     {
         try
         {
             RequireViewAccess();
+            if (!LoadsSharingContacts(accessProvider()))
+            {
+                ApplyContacts([]);
+                return;
+            }
             ApplyContacts(await session.LoadContactsAsync(connectionStringProvider()));
         }
         catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACTS_LOAD_FAILED", "Sharing contacts could not be loaded"); }
