@@ -30,6 +30,9 @@ public static partial class DailyInputsParser
     [GeneratedRegex(@"^ETP-Daily-Inputs-([A-Z0-9]+)-(RETAIL|SERVICE)-(\d{4}-\d{2}-\d{2})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex FileNamePattern();
 
+    [GeneratedRegex(@"(?<![A-Za-z])sept(?![A-Za-z])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SeptSpelling();
+
     public static DailyInputsParseResult Parse(WorkbookSnapshot workbook, DateOnly today)
     {
         ArgumentNullException.ThrowIfNull(workbook);
@@ -164,7 +167,8 @@ public static partial class DailyInputsParser
             case DateOnly dateOnly:
                 return dateOnly;
             case string text:
-                var trimmed = text.Trim();
+                // en-IN spells September "Sept"; the invariant culture says "Sep". Accept either spelling.
+                var trimmed = SeptSpelling().Replace(text.Trim(), "Sep");
                 foreach (var culture in DateCultures)
                     if (DateTime.TryParseExact(trimmed, TextDateFormats, culture, DateTimeStyles.AllowWhiteSpaces, out var parsed))
                         return DateOnly.FromDateTime(parsed);

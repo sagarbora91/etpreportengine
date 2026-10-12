@@ -75,6 +75,29 @@ public sealed class BlankDailySheetTests
         Assert.False(BlankDailySheet.IsDateAllowed(Day.AddDays(1), Day));
     }
 
+    [Fact]
+    public void SaveAll_writes_one_recognised_file_per_option_into_the_folder()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpBlankSheetAll_" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var written = BlankDailySheet.SaveAll(folder, Options, Day);
+            Assert.Equal(Options.Count, written.Count);
+            Assert.Equal(
+                Options.Select(o => DailyInputsTemplate.FileName(o.StoreCode, o.Kind, Day)).Order(),
+                written.Select(Path.GetFileName).Order());
+            Assert.All(written, path => Assert.True(File.Exists(path)));
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
+    public void A_bad_date_has_a_message_that_names_the_earliest_day()
+    {
+        var text = BlankDailySheet.BadDateMessage(Day);
+        Assert.Contains(Day.AddDays(-DailyInputsTemplate.LookbackDays).ToString("dd MMM yyyy", System.Globalization.CultureInfo.CurrentCulture), text);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(2)]

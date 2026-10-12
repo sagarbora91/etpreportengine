@@ -8,7 +8,7 @@ using FolderImportFileResult = EtpApplication::Etp.Reporting.Application.Imports
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
 
-public sealed record ImportProblem(string File, string Status, string Store, string Period, string Detail);
+public sealed record ImportProblem(string File, string Status, string Store, string Period, string Detail, string NextStep = "");
 
 /// <summary>
 /// What counts as a problem, defined once. The Problems tab reads persisted outcomes
@@ -34,7 +34,24 @@ public static class ImportProblems
             result.ConflictRows > 0 ? "Conflict" : result.Status,
             result.StoreCode ?? "",
             result.Period,
-            $"{result.NewRows} new rows; {result.AlreadyPresentRows} present; {result.ConflictRows} conflicts");
+            $"{result.NewRows} new rows; {result.AlreadyPresentRows} present; {result.ConflictRows} conflicts",
+            NextStep(result));
+    }
+
+    /// <summary>The one thing to do about a problem row (a fix hint; the Retry failed button above does the retry).</summary>
+    public static string NextStep(FolderImportFileResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var code = result.Failure?.Code ?? "";
+        if (code.Contains("DAY_FINALISED", StringComparison.OrdinalIgnoreCase))
+            return "Reopen the day (Today > Close day), then press Retry failed.";
+        if (result.ConflictRows > 0)
+            return "Compare with the saved figures in History, then decide which file is right.";
+        if (result.Status.Contains("Duplicate", StringComparison.OrdinalIgnoreCase))
+            return "Nothing to do - this file was imported before.";
+        if (result.Status == "Unknown layout")
+            return "Check this is the right report and re-export it; the file stays in the folder.";
+        return "Press Retry failed. If it fails again, open the import folder and check the file.";
     }
 
     public static IReadOnlyList<ImportProblem> From(IEnumerable<FolderImportFileResult>? results) =>
