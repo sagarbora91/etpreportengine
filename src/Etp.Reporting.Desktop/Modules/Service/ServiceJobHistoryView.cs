@@ -18,7 +18,7 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// A header card (job, booking, brand/model/product, guarantee, customer type, stage, days open or TAT, labour/spares)
 /// above a timeline grid with one row per reading of every family that holds the job. The job number comes from the
 /// search box or from another Service grid through the route argument (ServiceScreens.JobHistoryRoute).
-/// The customer name is shown as before; never a phone, e-mail or address.
+/// The customer name is shown (decision 37; "—" for a Viewer, whom v_service_job gives no name); never a phone, e-mail or address.
 /// </summary>
 public sealed class ServiceJobHistoryView : ServiceScreenView
 {

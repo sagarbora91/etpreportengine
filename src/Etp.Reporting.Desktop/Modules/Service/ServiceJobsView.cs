@@ -19,6 +19,8 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// choices are the open jobs and one stage at a time (S036/S037 are job lists, so there is no "delivery report" list, Q10).
 /// TAT is booking to delivered; the status line gives the Booking median as the headline and Quick Billing beside it (Q2).
 /// A row opens Service job history (double-click or the button) through <c>openJob</c>.
+/// The "Customer name" column (and the Excel export, which takes the grid's columns) is decision 37 (R-UI-21, 1.11.1): the
+/// name of the job's most recent reading, blank for a Viewer (v_service_job, migration 0056); never a phone, e-mail or address.
 /// </summary>
 public sealed class ServiceJobsView : ServiceScreenView
 {

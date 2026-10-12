@@ -8,7 +8,9 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// migrations 0048/0050 (and the manual Service entries through v_service_manual_money); the rules that are not SQL
 /// (overdue with the per-stage limits, age bands, TAT medians, the board and Today counts, claim and parts grouping,
 /// freshness colours) are the pure classes of ServiceUiRules.cs, so each screen reads its rows once and the unit tests
-/// pin the arithmetic. No statement names a phone, e-mail or address column.
+/// pin the arithmetic. No statement names a phone, e-mail or address column. v_service_job is migration 0056's (1.11.1):
+/// customer_name is the job's most recent reading for Owner and Store Manager and NULL for a Viewer (decided in the view,
+/// per caller; the cached rows are per connection string, i.e. per signed-in Windows user of this process).
 /// </summary>
 public sealed partial class SqlServerServiceReportQuery
 {

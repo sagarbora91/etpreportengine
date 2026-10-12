@@ -304,6 +304,55 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
+    public void A_viewer_gets_no_customer_name_so_the_Jobs_list_and_export_cell_is_blank_and_the_history_header_shows_a_dash()
+    {
+        // Decision 37 (R-UI-21, 1.11.1): v_service_job (migration 0056) gives a Viewer a NULL customer_name; Owner and Store
+        // Manager rows carry it. The screens show what the row carries: an empty cell, "—" on the history header.
+        RunSta(() =>
+        {
+            var viewerRows = FakeServiceQuery.Jobs.Select(job => job with { CustomerName = null }).ToArray();
+            var query = new FakeServiceQuery { JobList = viewerRows };
+            (string Path, ExcelReportMetadata Metadata, ExcelReportData Data)? captured = null;
+            var jobs = new ServiceJobsView(() => query, (path, metadata, data) => { captured = (path, metadata, data); return Task.CompletedTask; });
+            jobs.ActivateAsync().GetAwaiter().GetResult();
+            var column = jobs.ColumnHeaders.ToList().IndexOf("Customer name");
+            Assert.Equal(12, column);
+            Assert.NotEmpty(jobs.Rows);
+            Assert.All(jobs.Rows, row => Assert.Null(row.Cells[column]));
+            jobs.ExportToPathAsync("synthetic.xlsx").GetAwaiter().GetResult();
+            var export = Assert.NotNull(captured);
+            Assert.Equal("Customer name", export.Data.Columns[column].Header);
+            Assert.All(export.Data.Rows, row => Assert.Null(row[column]));
+
+            var history = new ServiceJobHistoryView(() => query, NoExport) { JobNumber = "JOAW330SYN0101" };
+            history.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(("Customer name", "—"), history.HeaderItems[5]);
+        });
+    }
+
+    [Fact]
+    public void An_owner_or_store_manager_row_shows_the_customer_name_on_the_Jobs_list_its_export_and_the_history_header()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery();
+            (string Path, ExcelReportMetadata Metadata, ExcelReportData Data)? captured = null;
+            var jobs = new ServiceJobsView(() => query, (path, metadata, data) => { captured = (path, metadata, data); return Task.CompletedTask; });
+            jobs.ActivateAsync().GetAwaiter().GetResult();
+            var column = jobs.ColumnHeaders.ToList().IndexOf("Customer name");
+            var row = jobs.Rows.Single(candidate => (string)candidate.Cells[0]! == "JOAW330SYN0101");
+            Assert.Equal("Sample Customer 01", row.Cells[column]);
+            jobs.ExportToPathAsync("synthetic.xlsx").GetAwaiter().GetResult();
+            var export = Assert.NotNull(captured);
+            Assert.Contains(export.Data.Rows, cells => Equals(cells[0], "JOAW330SYN0101") && Equals(cells[column], "Sample Customer 01"));
+
+            var history = new ServiceJobHistoryView(() => query, NoExport) { JobNumber = "JOAW330SYN0101" };
+            history.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(("Customer name", "Sample Customer 01"), history.HeaderItems[5]);
+        });
+    }
+
+    [Fact]
     public void Job_history_header_describes_an_open_job_with_days_open_and_stage_facts()
     {
         var items = ServiceJobHistoryView.DescribeHeader(FakeServiceQuery.Jobs.Single(job => job.JobOrderNumber == "JOAW330SYN0105"));
@@ -786,7 +835,7 @@ public sealed class ServiceScreenViewTests
         public Task<ServiceJobDetail?> LoadJobAsync(string jobOrderNumber, CancellationToken cancellationToken = default)
         {
             BodyCalls++; LastJob = jobOrderNumber;
-            var header = Jobs.FirstOrDefault(job => job.JobOrderNumber == jobOrderNumber);
+            var header = JobList.FirstOrDefault(job => job.JobOrderNumber == jobOrderNumber);
             if (header is null) return Task.FromResult<ServiceJobDetail?>(null);
             // Deliberately out of order: the screen sorts snapshot desc, event date desc, report code.
             IReadOnlyList<ServiceJobTimelineRow> timeline =
