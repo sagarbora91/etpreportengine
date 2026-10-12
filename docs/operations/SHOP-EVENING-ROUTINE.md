@@ -41,7 +41,7 @@ If a report has no rows that day, still save it.
 
 ### B. Fill the daily sheet
 
-1. **Get the blank sheet.** Open the file `ETP-Daily-Inputs-WLMHW-RETAIL` from `C:\ETP-DailyInputs`. If you do not have a blank one, the Owner or a Store Manager gets it from ETP: open **Import**, press **Get blank daily sheet**, pick the store and sheet (here: Titan World, retail), keep today's date, press **Choose where to save** and save it. It is saved in the Exports folder by default, already named for the day. Copy it to this PC's `C:\ETP-DailyInputs` (for example on a USB stick or through OneDrive).
+1. **Get the blank sheet.** Open the file `ETP-Daily-Inputs-WLMHW-RETAIL` from `C:\ETP-DailyInputs`. If you do not have a blank one, the Owner or a Store Manager gets it from ETP: open **Import**, press **Get blank daily sheet**, pick the store and sheet (here: Titan World, retail), keep today's date, press **Choose where to save** and save it; the date is already filled in on the sheet. It is saved in the Exports folder by default, already named for the day. Copy it to this PC's `C:\ETP-DailyInputs` (for example on a USB stick or through OneDrive).
 2. Type **today's date** in the Business date box (example 11-Oct-2026). Only dates from the last 31 days up to today are accepted.
 3. Type your name in "Filled by" (optional).
 4. Fill the white boxes in the Value column:
@@ -142,7 +142,7 @@ Do not combine or edit the reports. Save them exactly as the system gives them.
 
 ### B. Fill the daily sheet
 
-Open `ETP-Daily-Inputs-WLMHW-SERVICE`. If you need a blank sheet, get it as in Page 1 step 1, choosing the Service Centre sheet. (The Service money is counted under Titan World, so the code in the name is WLMHW. This is correct.) Type the date, then fill the seven boxes:
+Open `ETP-Daily-Inputs-WLMHW-SERVICE`. If you need a blank sheet, get it as in Page 1 step 1, choosing the Service Centre sheet. (The Service money is counted under Titan World, so the code in the name is WLMHW. This is correct.) Type the date (a sheet from ETP already has it; check it is the right day), then fill the seven boxes:
 
 - Service cash, Service card, Service UPI, Service WDC: the day's service money, by how it was paid.
 - WCC walk-ins: number of walk-ins to the Service Centre (a whole number).
