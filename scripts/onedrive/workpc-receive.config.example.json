@@ -1,8 +1,11 @@
 {
   "oneDriveRoot": "",
   "roles": ["TITAN", "HELIOS", "SERVICE"],
-  "inboundFolder": "C:\ProgramData\EtpReporting\Inbound",
-  "workFolder": "C:\ProgramData\EtpReporting\OneDriveReceive",
+  "pcNames": { "TITAN": "", "HELIOS": "", "SERVICE": "" },
+  "shopKeysFolder": "C:\\ProgramData\\EtpReporting\\Operations\\shop-keys",
+  "inboundFolder": "C:\\ProgramData\\EtpReporting\\Inbound",
+  "workFolder": "C:\\ProgramData\\EtpReporting\\OneDriveReceive",
   "lookbackDays": 3,
-  "stableSeconds": 10
+  "stableSeconds": 10,
+  "checkOneDriveClient": true
 }
