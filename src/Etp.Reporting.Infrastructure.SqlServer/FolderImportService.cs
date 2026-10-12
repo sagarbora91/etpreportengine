@@ -428,7 +428,7 @@ public sealed class FolderImportService(
     {
         var parsed = DailyInputsParser.Parse(workbook, DateOnly.FromDateTime(DateTime.Today));
         var document = parsed.Document;
-        var notes = parsed.Notes.Select(note => AsDailyIssue(ImportIssueSeverity.Information, note)).ToArray();
+        var notes = parsed.Notes.Select(note => AsDailyIssue(DailyInputsCodes.IsWarning(note.Code) ? ImportIssueSeverity.Warning : ImportIssueSeverity.Information, note)).ToArray();
         var result = new FolderImportFileResult(Path.GetFileName(path), DailyInputsTemplate.FamilyCode, document?.StoreCode,
             document?.BusinessDate, document?.BusinessDate, "Importing", RowsProcessed: document?.Values.Count ?? 0, Diagnostics: notes)
             { SourcePath = path, SourceSha256 = workbook.Sha256, Evidence = EvidenceState.NotAttempted };

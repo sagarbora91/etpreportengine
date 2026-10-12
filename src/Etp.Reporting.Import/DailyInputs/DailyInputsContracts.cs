@@ -53,6 +53,11 @@ public static class DailyInputsCodes
     public const string NameMismatch = "DAILY_INPUTS_NAME_MISMATCH";
     /// <summary>Information only: the file still imports.</summary>
     public const string NameUnusual = "DAILY_INPUTS_NAME_UNUSUAL";
+    /// <summary>Decision 44 #4, a warning: the file name's store and sheet type match but its date differs from the sheet's. The sheet's date is used.</summary>
+    public const string NameDateDiffers = "DAILY_INPUTS_NAME_DATE_DIFFERS";
+
+    /// <summary>Codes in <see cref="DailyInputsParseResult.Notes"/> that are warnings (the rest of the notes are information).</summary>
+    public static bool IsWarning(string code) => code == NameDateDiffers;
     public const string NoValues = "DAILY_INPUTS_NO_VALUES";
     /// <summary>Decision 43 (12 Oct 2026): the Filled by cell is empty, so nothing proves a person filled the sheet.</summary>
     public const string FilledByMissing = "DAILY_INPUTS_FILLED_BY_MISSING";
@@ -70,7 +75,7 @@ public static class DailyInputsCodes
     [
         TemplateVersion, KindInvalid, StoreMissing, DateMissing, DateInvalid, DateInFuture, DateTooOld,
         UnknownField, FieldNotForSheet, DuplicateField, ValueInvalid, ValueNegative, TextTooLong,
-        NameMismatch, NameUnusual, NoValues, FilledByMissing,
+        NameMismatch, NameUnusual, NameDateDiffers, NoValues, FilledByMissing,
         NoPermission, UnknownStore, FieldInactive, FieldKindMismatch, DayFinalised, NotAvailable
     ];
 }

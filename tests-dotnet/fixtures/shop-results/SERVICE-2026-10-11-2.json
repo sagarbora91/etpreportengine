@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "role": "SERVICE",
+  "businessDate": "2026-10-11",
+  "etpVersion": "1.12.0.0",
+  "producedUtc": "2026-10-12T02:10:00Z",
+  "sequence": 2,
+  "overall": "AcceptedWithWarning",
+  "files": [
+    { "name": "ETP-Daily-Inputs-HEMW-SERVICE-2026-10-10.xlsx", "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "verdict": "AcceptedWithWarning", "code": "DAILY_INPUTS_NAME_DATE_DIFFERS", "message": "The date in the file name differs from the date on the sheet, so the sheet was imported under its own date.", "whatToDo": "Next time save the file under a name with the sheet's date." }
+  ]
+}

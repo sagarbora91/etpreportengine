@@ -180,6 +180,102 @@ try {
     $v1 = Join-Path $root 'EtpReporting-20261001-010101-old.bak.enc'; [IO.File]::WriteAllBytes($v1, [byte[]]($body + $mac))
     Assert-True ((Invoke-Script 'Copy-EtpBackupToOneDrive.ps1' @('-ConfigPath', $backupConfig, '-Decrypt', '-InputFile', $v1, '-OutputFile', (Join-Path $root 'v1.bak'))) -eq 0 -and (Get-FileHash (Join-Path $root 'v1.bak') -Algorithm SHA256).Hash -eq $sha) 'An older ETPBAK01 backup still decrypts'
 
+    # ---- Shop results loop (decision 44 #3): ETP writes, Workpc signs and publishes, the shop verifies and shows ----
+    $repoRoot = (Resolve-Path (Join-Path $scripts '..\..')).Path
+    $fixtureFolder = Join-Path $repoRoot 'tests-dotnet\fixtures\shop-results'
+    Assert-True ((Test-Path $fixtureFolder) -and @(Get-ChildItem $fixtureFolder -Filter '*.json').Count -eq 3) 'The shared shop-result fixtures (written by the C# builder test) are present'
+    $serviceKey = Join-Path $root 'shopkeys\service.key'
+    $serviceConfigKeys = Join-Path $root 'send-service.json'
+    Write-Json $serviceConfigKeys @{ role = 'SERVICE'; sourceFolder = $source; oneDriveRoot = $oneDrive; signingKeyFile = $serviceKey; checkOneDriveClient = $false }
+    [void](Invoke-Script 'Send-ShopDailyFiles.ps1' @('-ConfigPath', $serviceConfigKeys, '-NewSigningKey'))
+    Copy-Item $serviceKey (Join-Path $wpKeys 'SERVICE.key')
+
+    $resultsRoot = Join-Path $root 'ShopResults'; $pendingFolder = Join-Path $resultsRoot 'pending'
+    [void](New-Item -ItemType Directory -Path $pendingFolder -Force)
+    foreach ($f in Get-ChildItem $fixtureFolder -Filter '*.json') { Copy-Item $f.FullName $pendingFolder }
+    $publishConfig = Join-Path $root 'publish.json'
+    Write-Json $publishConfig @{ oneDriveRoot = $oneDrive; roles = @('TITAN', 'HELIOS', 'SERVICE'); shopKeysFolder = $wpKeys; resultsFolder = $resultsRoot; workFolder = (Join-Path $root 'publish-work'); checkOneDriveClient = $false }
+
+    $code = Invoke-Script 'Publish-ShopResults.ps1' @('-ConfigPath', $publishConfig, '-WhatIf')
+    Assert-True ($code -eq 0 -and @(Get-ChildItem $pendingFolder -Filter '*.json').Count -eq 3 -and -not (Test-Path (Join-Path $oneDrive 'ETP-Inbound\TITAN\Results'))) 'Publish -WhatIf publishes nothing and leaves pending alone'
+    $code = Invoke-Script 'Publish-ShopResults.ps1' @('-ConfigPath', $publishConfig)
+    Assert-True ($code -eq 0 -and $script:LastOutput -match 'Published 3 shop result') 'Publish signs and publishes the three fixtures'
+    $titanResults = Join-Path $oneDrive 'ETP-Inbound\TITAN\Results'; $heliosResults = Join-Path $oneDrive 'ETP-Inbound\HELIOS\Results'; $serviceResults = Join-Path $oneDrive 'ETP-Inbound\SERVICE\Results'
+    Assert-True ((Test-Path (Join-Path $titanResults '2026-10-11.result.json')) -and (Test-Path (Join-Path $heliosResults '2026-10-11.result.json')) -and (Test-Path (Join-Path $serviceResults '2026-10-11-2.result.json'))) 'Each result lands in its own shop folder (sequence 2 carries -2 in its name)'
+    Assert-True (@(Get-ChildItem $pendingFolder -Filter '*.json').Count -eq 0 -and @(Get-ChildItem (Join-Path $resultsRoot 'published') -Filter '*.json').Count -eq 3) 'Published files move from pending to published'
+    Assert-True (@(Get-ChildItem $oneDrive -Recurse -Filter '*.tmp').Count -eq 0 -and @(Get-ChildItem $titanResults).Count -eq 1) 'The atomic write leaves no temp file in OneDrive'
+    $envelope = Get-Content -Raw (Join-Path $titanResults '2026-10-11.result.json') | ConvertFrom-Json
+    Assert-True ($envelope.format -eq 'ETP-RESULT' -and $envelope.hmac -match '^[0-9A-F]{64}$' -and $envelope.keyId -match '^[0-9A-F]{16}$') 'A published result is an ETP-RESULT envelope with keyId and HMAC'
+    Assert-True ((Get-Content -Raw (Join-Path $titanResults '2026-10-11.result.json')) -notmatch 'amount|customer|phone') 'A published result carries no amounts or customer data (spot check)'
+
+    # Shop side: each PC verifies with its OWN key.
+    function New-ShopShowConfig($name, $role, $keyPath, $oneDriveRoot) {
+        $path = Join-Path $root "show-$name.json"
+        Write-Json $path @{ role = $role; oneDriveRoot = $oneDriveRoot; signingKeyFile = $keyPath; logFolder = (Join-Path $root "showlogs-$name"); checkOneDriveClient = $false }
+        return $path
+    }
+    $showTitan = New-ShopShowConfig 'titan' 'TITAN' $titanKey $oneDrive
+    $showHelios = New-ShopShowConfig 'helios' 'HELIOS' $heliosKey $oneDrive
+    $showService = New-ShopShowConfig 'service' 'SERVICE' $serviceKey $oneDrive
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showTitan, '-NoWindow')
+    Assert-True ($code -eq 0 -and $script:LastOutput -match 'Sheet for 2026-10-11: accepted\.') 'Show: an accepted result is shown green (exit 0)'
+    Assert-True ((Get-Content -Raw (Join-Path $root 'showlogs-titan\last-result.txt')) -match 'accepted') 'Show writes last-result.txt'
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showHelios, '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'REFUSED' -and $script:LastOutput -match 'Fix: Reopen the day') 'Show: a refused result names the file, the reason and the fix (exit 2)'
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showService, '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'accepted, with a warning' -and $script:LastOutput -match 'imported under its own date') 'Show: a file-name date that differs from the sheet is a warning, not a refusal'
+
+    # A tampered result is never a verdict.
+    $helioPath = Join-Path $heliosResults '2026-10-11.result.json'
+    $tamper = Get-Content -Raw $helioPath | ConvertFrom-Json
+    $tamper.payload = $tamper.payload.Replace('"Refused"', '"Accepted"')
+    Write-Json $helioPath $tamper
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showHelios, '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'could not be checked' -and $script:LastOutput -match 'signature does not match' -and $script:LastOutput -notmatch 'Sheet for 2026-10-11: accepted') 'A tampered result says "could not be checked", never a verdict'
+
+    # One shop's result cannot pass as another's, and a manifest signature cannot pass as a result.
+    Copy-Item (Join-Path $serviceResults '2026-10-11-2.result.json') (Join-Path $titanResults '2026-10-12.result.json')
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showTitan, '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'different key') 'A result signed with another shop''s key is not trusted'
+    Remove-Item (Join-Path $titanResults '2026-10-12.result.json')
+    $manifestExpression = "`$k = [Convert]::FromBase64String((Get-Content -Raw '$titanKey').Trim()); Get-EtpManifestHmac -Manifest ([pscustomobject]@{ schemaVersion = 2; role = 'TITAN'; day = '2026-10-11'; pcName = 'X'; keyId = 'k'; createdLocal = 'c'; files = @() }) -Key `$k"
+    $manifestHmac = Invoke-Common $manifestExpression
+    Assert-True ($manifestHmac -match '^[0-9A-F]{64}$') 'A genuine manifest signature for the TITAN key was produced for the replay test'
+    $titanPayload = (Get-Content -Raw (Join-Path $fixtureFolder 'TITAN-2026-10-11-1.json'))
+    $keyIdOfTitan = (Invoke-Common ("`$k = [Convert]::FromBase64String((Get-Content -Raw '{0}').Trim()); Get-EtpKeyId -KeyBytes `$k" -f $titanKey))
+    Write-Json (Join-Path $titanResults '2026-10-12.result.json') ([ordered]@{ format = 'ETP-RESULT'; schemaVersion = 1; keyId = $keyIdOfTitan; payload = $titanPayload.Replace('2026-10-11', '2026-10-12'); hmac = $manifestHmac })
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showTitan, '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'could not be checked' -and $script:LastOutput -match 'signature does not match') 'A manifest signature reused as a result is refused (domain prefix)'
+    Remove-Item (Join-Path $titanResults '2026-10-12.result.json')
+    $domainExpression = ". '{0}'; `$k = [Convert]::FromBase64String((Get-Content -Raw '{1}').Trim()); `$m = [pscustomobject]@{{ schemaVersion = 2; role = 'TITAN'; day = '2026-10-11'; pcName = 'X'; keyId = 'k'; createdLocal = 'c'; files = @() }}; (Get-EtpResultHmac -PayloadText (Get-EtpManifestCanonicalText -Manifest `$m) -Key `$k) -ne (Get-EtpManifestHmac -Manifest `$m -Key `$k)" -f (Join-Path $scripts 'ShopResultCommon.ps1'), $titanKey
+    Assert-True ((Invoke-Common $domainExpression) -eq 'True') 'The result and manifest signatures use different domains (same text, same key, different HMAC)'
+
+    # Nothing published yet for a shop: no verdict, no alarm.
+    $emptyDrive = Join-Path $root 'OneDrive-empty'; [void](New-Item -ItemType Directory -Path $emptyDrive)
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', (New-ShopShowConfig 'empty' 'TITAN' $titanKey $emptyDrive), '-NoWindow')
+    Assert-True ($code -eq 0 -and $script:LastOutput -match 'No result from ETP yet') 'Show: no result yet is not an error'
+    # A shop PC without its key cannot check anything.
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', (New-ShopShowConfig 'nokey' 'TITAN' (Join-Path $root 'nokey\none.key') $oneDrive), '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'no signing key') 'Show: without this PC''s key the result is "could not be checked"'
+    # Send shows the last verdict first and still sends.
+    $code = Invoke-Script 'Send-ShopDailyFiles.ps1' @('-ConfigPath', $sendConfig)
+    Assert-True ($code -eq 0 -and $script:LastOutput -match 'Sheet for 2026-10-11: accepted' -and (Test-Path (Join-Path $root 'logs\last-result.txt'))) 'Send shows ETP''s last verdict before sending (and still sends)'
+
+    # Publish edge cases: a role without a key waits in pending; a result that disagrees with its name is rejected.
+    $edgeRoot = Join-Path $root 'ShopResults2'; $edgePending = Join-Path $edgeRoot 'pending'; [void](New-Item -ItemType Directory -Path $edgePending -Force)
+    Copy-Item (Join-Path $fixtureFolder 'HELIOS-2026-10-11-1.json') (Join-Path $edgePending 'HELIOS-2026-10-11-1.json')
+    Copy-Item (Join-Path $fixtureFolder 'TITAN-2026-10-11-1.json') (Join-Path $edgePending 'TITAN-2026-10-11-3.json')
+    $emptyKeys = Join-Path $root 'no-keys'; [void](New-Item -ItemType Directory -Path $emptyKeys)
+    $edgeConfig = Join-Path $root 'publish-edge.json'
+    Write-Json $edgeConfig @{ oneDriveRoot = $emptyDrive; roles = @('TITAN', 'HELIOS', 'SERVICE'); shopKeysFolder = $emptyKeys; resultsFolder = $edgeRoot; workFolder = (Join-Path $root 'publish-work2'); checkOneDriveClient = $false }
+    $code = Invoke-Script 'Publish-ShopResults.ps1' @('-ConfigPath', $edgeConfig)
+    Assert-True ($code -eq 2 -and (Test-Path (Join-Path $edgePending 'HELIOS-2026-10-11-1.json')) -and -not (Test-Path (Join-Path $emptyDrive 'ETP-Inbound'))) 'A role without a key stays in pending and nothing unsigned is published'
+    Assert-True ((Test-Path (Join-Path $edgeRoot 'rejected\TITAN-2026-10-11-3.json')) -and -not (Test-Path (Join-Path $edgePending 'TITAN-2026-10-11-3.json'))) 'A pending file whose sequence differs from its name is rejected, not published'
+    $edgeConfig2 = Join-Path $root 'publish-edge2.json'
+    Write-Json $edgeConfig2 @{ oneDriveRoot = $emptyDrive; roles = @('HELIOS'); shopKeysFolder = $wpKeys; resultsFolder = $edgeRoot; workFolder = (Join-Path $root 'publish-work2'); checkOneDriveClient = $false }
+    $code = Invoke-Script 'Publish-ShopResults.ps1' @('-ConfigPath', $edgeConfig2)
+    Assert-True ($code -eq 0 -and (Test-Path (Join-Path $emptyDrive 'ETP-Inbound\HELIOS\Results\2026-10-11.result.json')) -and @(Get-ChildItem $edgePending -Filter '*.json').Count -eq 0) 'Once the key is there, the held result is published'
+
     foreach ($file in @(Get-ChildItem $scripts -Filter '*.ps1') + @(Get-ChildItem $PSScriptRoot -Filter '*.ps1')) {
         $tokens = $null; $errors = $null
         [void][Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors)

@@ -278,7 +278,6 @@ public sealed class DailyInputsParserTests
     }
 
     [Theory]
-    [InlineData("ETP-Daily-Inputs-HEMW-RETAIL-2026-10-10.xlsx")] // yesterday's file re-saved without changing the date
     [InlineData("ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx")] // other store
     [InlineData("ETP-Daily-Inputs-HEMW-SERVICE-2026-10-11.xlsx")] // other sheet type
     [InlineData("ETP-Daily-Inputs-HEMW-RETAIL-2026-13-45.xlsx")]  // not a date
@@ -290,6 +289,29 @@ public sealed class DailyInputsParserTests
         Assert.Equal(DailyInputsCodes.NameMismatch, error.Code);
         Assert.Null(error.RowNumber);
         Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public void A_file_name_date_that_differs_from_the_sheet_date_is_a_warning_and_the_sheet_date_is_used()
+    {
+        // Decision 44 #4: yesterday's file re-saved without changing its name still imports, under the SHEET's date.
+        var result = Parse(Sheet(fileName: "ETP-Daily-Inputs-HEMW-RETAIL-2026-10-10.xlsx", fields: [("WALK_INS", 3m)]));
+
+        Assert.True(result.Succeeded, string.Join(", ", ErrorCodes(result)));
+        var note = Assert.Single(result.Notes);
+        Assert.Equal(DailyInputsCodes.NameDateDiffers, note.Code);
+        Assert.True(DailyInputsCodes.IsWarning(note.Code));
+        Assert.False(DailyInputsCodes.IsWarning(DailyInputsCodes.NameUnusual));
+        Assert.Equal(new DateOnly(2026, 10, 11), result.Document!.BusinessDate);
+    }
+
+    [Fact]
+    public void A_wrong_store_and_a_different_date_together_is_still_a_refusal()
+    {
+        var result = Parse(Sheet(fileName: "ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-10.xlsx", fields: [("WALK_INS", 3m)]));
+
+        Assert.Equal(DailyInputsCodes.NameMismatch, Assert.Single(result.Errors).Code);
+        Assert.Empty(result.Notes);
     }
 
     [Theory]

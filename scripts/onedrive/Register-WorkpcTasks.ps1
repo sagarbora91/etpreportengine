@@ -25,8 +25,9 @@
     powershell -ExecutionPolicy Bypass -File .\Register-WorkpcTasks.ps1
 
 .PARAMETER ReceiveAt / BackupCopyAt  24-hour "HH:mm". The copy must start after ETP's nightly backup (default 22:00).
-.PARAMETER SkipReceive / SkipBackupCopy  Register only one of the two.
-.PARAMETER Unregister  Remove both tasks.
+.PARAMETER PublishAt  24-hour "HH:mm" for 'ETP Publish Shop Results' (default 07:40, after the 07:00 receive and ETP's import). It uses the receive config.
+.PARAMETER SkipReceive / SkipBackupCopy / SkipPublish  Leave that task out.
+.PARAMETER Unregister  Remove the tasks.
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -34,8 +35,10 @@ param(
     [ValidatePattern('^([01]\d|2[0-3]):[0-5]\d$')][string]$BackupCopyAt = '23:30',
     [string]$ReceiveConfigPath = (Join-Path $PSScriptRoot 'workpc-receive.config.json'),
     [string]$BackupConfigPath = (Join-Path $PSScriptRoot 'workpc-backup.config.json'),
+    [ValidatePattern('^([01]\d|2[0-3]):[0-5]\d$')][string]$PublishAt = '07:40',
     [switch]$SkipReceive,
     [switch]$SkipBackupCopy,
+    [switch]$SkipPublish,
     [switch]$Unregister
 )
 $ErrorActionPreference = 'Stop'
@@ -43,6 +46,7 @@ $ErrorActionPreference = 'Stop'
 
 $receiveTask = 'ETP Receive Shop Daily Files'
 $backupTask = 'ETP Copy Backup To OneDrive'
+$publishTask = 'ETP Publish Shop Results'
 
 function Assert-EtpElevated {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -108,7 +112,7 @@ function Register-EtpWorkpcTask {
 }
 
 if ($Unregister) {
-    foreach ($name in @($receiveTask, $backupTask)) {
+    foreach ($name in @($receiveTask, $backupTask, $publishTask)) {
         if ((Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) -and $PSCmdlet.ShouldProcess($name, 'Unregister scheduled task')) {
             Unregister-ScheduledTask -TaskName $name -Confirm:$false
             Write-Host "Removed '$name'."
@@ -139,5 +143,10 @@ if (-not $SkipBackupCopy) {
     if (-not (Test-Path -LiteralPath $keyFile -PathType Leaf)) { throw "Backup key not found: $keyFile. Create it first: Copy-EtpBackupToOneDrive.ps1 -NewKey (then two USB copies)." }
     Register-EtpWorkpcTask -TaskName $backupTask -Script (Join-Path $PSScriptRoot 'Copy-EtpBackupToOneDrive.ps1') -ConfigPath $BackupConfigPath -At $BackupCopyAt -LimitMinutes 120 `
         -Description 'Encrypts the newest verified ETP backup into OneDrive\ETP-Backups and waits for the upload.'
+}
+if (-not $SkipPublish) {
+    $config = Assert-EtpConfigForTask -Path $ReceiveConfigPath -Example 'workpc-receive.config.example.json'
+    Register-EtpWorkpcTask -TaskName $publishTask -Script (Join-Path $PSScriptRoot 'Publish-ShopResults.ps1') -ConfigPath $ReceiveConfigPath -At $PublishAt -LimitMinutes 30 `
+        -Description 'Signs ETP''s verdict files with each shop''s key and puts them in that shop''s OneDrive Results folder.'
 }
 Write-Host 'Done. Check each task''s "Last Run Result" in Task Scheduler the next morning (0 = done, 2 = something missing; read the log).'
