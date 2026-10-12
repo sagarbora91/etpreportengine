@@ -177,7 +177,7 @@ public static partial class DailyInputsParser
                         return DateOnly.FromDateTime(parsed);
                 return null;
             default:
-                // A bare number is not accepted: a date typed into the template's C5 is a date-styled cell.
+                // A bare number is not accepted: a date typed into the template's date cell (C8 since 1.11.3, C5 before) is a date-styled cell.
                 return null;
         }
     }

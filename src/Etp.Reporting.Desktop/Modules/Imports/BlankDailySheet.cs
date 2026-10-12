@@ -7,7 +7,7 @@ namespace Etp.Reporting.Desktop.Modules.Imports;
 /// <summary>One sheet the "Get blank daily sheet" button can write: a store and a kind (decision 31: Service money sits under the service-money shop).</summary>
 public sealed record BlankDailySheetOption(string Label, string StoreCode, string StoreLabel, DailyInputsKind Kind);
 
-/// <summary>What the person chose: the sheet and the business date (file name and the sheet's Business date cell C5). <c>AllSheets</c> (1.11.2): save one file for every sheet offered, into one folder.</summary>
+/// <summary>What the person chose: the sheet and the business date (file name and the sheet's business date cell: C8 since 1.11.3, C5 before; the parser finds it by its BUSINESS_DATE key). <c>AllSheets</c> (1.11.2): save one file for every sheet offered, into one folder.</summary>
 public sealed record BlankDailySheetRequest(BlankDailySheetOption Option, DateOnly BusinessDate, bool AllSheets = false);
 
 /// <summary>
