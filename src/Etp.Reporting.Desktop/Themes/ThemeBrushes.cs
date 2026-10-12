@@ -23,7 +23,8 @@ public static class ThemeBrushes
     // CS-09: every fill token (including the 1.12 zebra, pressed, disabled and progress-track fills that used to be hex
     // literals in Controls.xaml) maps to Window, every text and edge token to WindowText, selection to Highlight.
     private static readonly string[] WindowKeys = ["Surface", "SurfaceSecondary", "AppBackground", "AccentSoft", "SuccessSoft", "WarningSoft", "CriticalSoft", "InformationSoft",
-        "NavigationBackground", "NavigationHover", "DarkSurface", "ZebraRow", "PressedFill", "DisabledFill", "ProgressTrack"];
+        "NavigationBackground", "NavigationHover", "DarkSurface", "ZebraRow", "PressedFill", "DisabledFill", "ProgressTrack",
+        "StageIntakeSoft", "StageWorkshopSoft", "StageOutSoft", "StageClosingSoft", "StageClaimSoft", "StageClosedSoft"];
     private static readonly string[] WindowTextKeys = ["PrimaryText", "SecondaryText", "Divider", "InputBorder", "NavigationMuted", "Success", "Critical", "Warning", "Information"];
     private static readonly HashSet<string> Applied = new(StringComparer.Ordinal);
     private static ResourceDictionary? watched;
@@ -37,7 +38,8 @@ public static class ThemeBrushes
         if (!SystemParameters.HighContrast) return;
         foreach (var key in WindowKeys) Set(resources, key, SystemColors.WindowBrush);
         foreach (var key in WindowTextKeys) Set(resources, key, SystemColors.WindowTextBrush);
-        foreach (var key in new[] { "Accent", "AccentDark", "NavigationSelected", "SelectedRow" }) Set(resources, key, SystemColors.HighlightBrush);
+        foreach (var key in new[] { "Accent", "AccentDark", "NavigationSelected", "SelectedRow",
+            "StageIntake", "StageWorkshop", "StageOut", "StageClosing", "StageClaim", "StageClosed" }) Set(resources, key, SystemColors.HighlightBrush);
         Set(resources, "OnAccent", SystemColors.HighlightTextBrush);
         Set(resources, "OnSelectedRow", SystemColors.HighlightTextBrush);
         Set(resources, "DisabledText", SystemColors.GrayTextBrush);

@@ -157,6 +157,6 @@ public static class ServiceUi
     public static Brush StageBrush(string stage)
     {
         var style = StageFor(stage);
-        return Find(style.StrongKey) ?? Find(style.FallbackKey) ?? Brushes.Transparent;
+        return Find(style.StrongKey) ?? Find(style.FallbackKey) ?? new SolidColorBrush();
     }
 }

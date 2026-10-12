@@ -144,7 +144,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         hover.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension("AccentSoft")));
         style.Triggers.Add(hover);
         var selected = new Trigger { Property = DataGridRow.IsSelectedProperty, Value = true };
-        selected.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension("AccentSoft")));
+        selected.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension("SelectedRow")));
         style.Triggers.Add(selected);
         return style;
     }

@@ -31,6 +31,20 @@
     <Color x:Key="DisabledTextColor">#5F6E73</Color>
     <Color x:Key="DisabledFillColor">#F0F5F5</Color>
     <Color x:Key="InputBorderColor">#7F8F93</Color>
+    <!-- Service stage groups (UIUX-SERVICE SVC-12, MOCK-SVC-13; integrator 1.11.3): the numbered stage dot and its band.
+         Stage is never red or green - lateness is Critical, stage is not. Soft = the band behind a group header. -->
+    <Color x:Key="StageIntakeColor">#8A979B</Color>
+    <Color x:Key="StageWorkshopColor">#B8741A</Color>
+    <Color x:Key="StageOutColor">#3C6FB5</Color>
+    <Color x:Key="StageClosingColor">#008D78</Color>
+    <Color x:Key="StageClaimColor">#7A4FB0</Color>
+    <Color x:Key="StageClosedColor">#5C6B70</Color>
+    <Color x:Key="StageIntakeSoftColor">#EEF1F2</Color>
+    <Color x:Key="StageWorkshopSoftColor">#FAF1E3</Color>
+    <Color x:Key="StageOutSoftColor">#EAF0FB</Color>
+    <Color x:Key="StageClosingSoftColor">#E3F3F0</Color>
+    <Color x:Key="StageClaimSoftColor">#F1ECF8</Color>
+    <Color x:Key="StageClosedSoftColor">#EDF0F1</Color>
     <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}"/>
     <SolidColorBrush x:Key="Surface" Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="SurfaceSecondary" Color="{StaticResource SurfaceSecondaryColor}"/>
@@ -66,4 +80,16 @@
     <!-- Edge of a box you type in or tick (TextBox, ComboBox, DatePicker, CheckBox, RadioButton): 3.4:1 on Surface, so the
          input stays findable (WCAG 1.4.11) now that cards and buttons use the light Divider (C4). Not for containers. -->
     <SolidColorBrush x:Key="InputBorder" Color="{StaticResource InputBorderColor}"/>
+    <SolidColorBrush x:Key="StageIntake" Color="{StaticResource StageIntakeColor}"/>
+    <SolidColorBrush x:Key="StageWorkshop" Color="{StaticResource StageWorkshopColor}"/>
+    <SolidColorBrush x:Key="StageOut" Color="{StaticResource StageOutColor}"/>
+    <SolidColorBrush x:Key="StageClosing" Color="{StaticResource StageClosingColor}"/>
+    <SolidColorBrush x:Key="StageClaim" Color="{StaticResource StageClaimColor}"/>
+    <SolidColorBrush x:Key="StageClosed" Color="{StaticResource StageClosedColor}"/>
+    <SolidColorBrush x:Key="StageIntakeSoft" Color="{StaticResource StageIntakeSoftColor}"/>
+    <SolidColorBrush x:Key="StageWorkshopSoft" Color="{StaticResource StageWorkshopSoftColor}"/>
+    <SolidColorBrush x:Key="StageOutSoft" Color="{StaticResource StageOutSoftColor}"/>
+    <SolidColorBrush x:Key="StageClosingSoft" Color="{StaticResource StageClosingSoftColor}"/>
+    <SolidColorBrush x:Key="StageClaimSoft" Color="{StaticResource StageClaimSoftColor}"/>
+    <SolidColorBrush x:Key="StageClosedSoft" Color="{StaticResource StageClosedSoftColor}"/>
 </ResourceDictionary>

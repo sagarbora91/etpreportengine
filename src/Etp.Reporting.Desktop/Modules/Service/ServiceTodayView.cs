@@ -161,9 +161,8 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
         }
         face.Children.Add(footer);
         var button = new Button { Content = face, Tag = card, Width = CardWidth, Margin = ServiceUi.Gap(ServiceUi.S4), Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch };
-        // K3: the TileButton style owns the border at rest and the Accent hover/focus border; without it (older theme) the button is flat.
-        if (System.Windows.Application.Current?.TryFindResource("TileButton") is Style tile) button.Style = tile;
-        else { button.Padding = ServiceUi.Gap(0); button.BorderThickness = ServiceUi.Gap(0); button.Background = Brushes.Transparent; }
+        // K3: the TileButton style (U1) owns the border at rest and the Accent hover/focus border.
+        button.SetResourceReference(StyleProperty, "TileButton");
         AutomationProperties.SetName(button, $"{card.Label}: {card.Value}. {card.Detail}. Open the list.");
         button.Click += (_, _) => navigate?.Invoke(card.Target);
         return button;
