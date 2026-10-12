@@ -1,15 +1,75 @@
 # Changelog
 
-## [Unreleased]
+## [1.11.2] - (date after the 1.11.2 gate)
 
-**Documentation (1.11.2, lane L8)**
+Fixes from the 12 Oct 2026 audits (security and privacy, reconciliation, disaster recovery, performance, dependencies, usability, architecture), in ten lanes. Decision 41: a bill cancelled the same day does not count in the DSR invoice count. Decision 43: a daily-inputs sheet whose "Filled by" is empty is refused. Two migrations: 0059 (customer data permissions) and 0060 (report logic and speed). **Role permissions change** (decision Q16): `ExpectedRolePermissions.json` adds 119 DENY SELECT rows (tagged D37) and the grants of the new views `v_invoice_customer_names` (0059) and `v_sales_cancelled_same_day` (0060). **Breaking for shop PCs:** the 1.11.2 OneDrive receive script refuses unsigned (1.11.1) shop manifests; see OneDrive below.
 
-- `USER-GUIDE.md` now describes 1.11.1: the daily inputs sheet, the Get blank daily sheet button and the shop evening routine.
-- `SHOP-EVENING-ROUTINE.md`: one rule, type 0 when a figure is zero; a table of the three sheet file names (the Service one ends SERVICE); open items for the Service export list and Titan menu names.
-- `ONEDRIVE-DAILY-FILES.md`: scripts in a protected folder, shop PCs sync only `ETP-Inbound`, key custody, two-step sign-in on the Microsoft account.
+**Security and privacy**
+
+- Security (AUDIT-2 S-01, decision 37): migration 0059 denies a Viewer every raw landing table, the customer columns of the R003/R013/R018/R022/R024/R025 tables, sharing contacts and the user history. A Viewer now sees only its own row of the application users list. A Store Manager can no longer read customers' phone, mobile, e-mail, contact number or address columns directly (names stay). Views and reports are unchanged for every role.
+- New view `v_invoice_customer_names` gives the invoice customer name by role (Owner and Store Manager see it; a Viewer gets NULL).
+- Archive: for a Viewer the sharing contacts list stays blank (0059 denies the table) and no "could not be loaded" message is shown.
+- Privacy (AUDIT-2 S-07; migration 0060): the Customer-wise / invoice summary gives customer names to Owner and Store Manager only. The daily pack leaves the Customer column blank unless the Owner ticks **Show customer names in shared packs** (Settings > Sharing, Owner only, off by default, saved with a reason and audited).
+- Accepted risk recorded (AUDIT-2 S-17): the Owner's login stays db_owner with server ALTER ANY LOGIN.
+- E-mail (S-15): SMTP always uses TLS unless the server is on this PC.
+- Import (S-10): workbook files are checked for unsafe expansion before reading, and large shared-string tables read quickly.
+
+**Reports (decision 41, AUDIT-1, AUDIT-4)**
+
+- DSR: a bill cancelled the same day no longer counts in INVOICE (decision 41; WLMHW Aug 2026: 254 -> 253, ATV 6,009.60). Other screens (Sales Summary, Management trend, Customer-wise, staff unique invoices) still count it.
+- Reports: the Staff / CRO report takes each sale's value and quantity from the R025 line it is paired with, so staff totals equal the store total. Before, returns made them differ by up to Rs 10,702 a month (AUDIT-1 D6).
+- Reports: a duplicated Titan R013 staff row no longer shows as a missing staff match (AUDIT-1 fix 3).
+- Daily exceptions and pack: a tender shortfall that is in the R022 export itself is labelled "Source tender shortfall", not an import fault (AUDIT-1 fix 4).
+- Speed: the Sales reports' brand lookup and the invoice summary's name lookup are set-based (2 years of sales: 2.8 s -> 0.12 s). Migration 0060 adds indexes for the staff pairing, R024 and R025 (AUDIT-4 spots 2-4).
+
+**Daily sheet and imports (decision 43)**
+
+- Daily sheet: a sheet whose "Filled by" is empty is refused (`DAILY_INPUTS_FILLED_BY_MISSING`, decision 43), because the blank sheet's zeros prove nothing; the template's note says the name is required.
+- Daily sheet: counts and amounts start at 0 (opening cash and counted closing cash stay blank); a cash check line; "Sept" accepted in the date.
+- Blank sheet: remembers the last choice, says why a date is refused, "Save all sheets", "Open folder".
+- Import History: local times and a one-line verdict per row; Problems shows what to do next.
+
+**Shell, Today and Health check**
+
+- ETP opens on the last business day (yesterday) instead of today.
+- Today > System check (Owner): click opens the Health check and the top finding is shown in words.
+- A "Ref:" in the status line can now be selected, copied (Copy Ref) and opened in the Error register.
+- Today checklist: grouped by shop name, plain wording, separates files you wait for from entries you can make, month targets listed apart; refreshes when you return to ETP.
+- The 23 Help topics no longer clutter the screen list and Ctrl+K (F1 still opens them); Ctrl+K shows pinned and recent screens first and knows more everyday words.
+- "Needs attention" in the rail can be reached by keyboard and opens the Health check; each "Where to fix" button has its own name for screen readers.
+- Health check: the Known buttons are now "Accept selected warning (Known)..." and "End acceptance"; a Known applies from the next health check.
+- Health check: 54 checks (was 51). New DB-06 (slow Service views), SEC-04 (another database holding imported customer data), OPS-10 (off-PC backup copy older than 36 h, backup key inside OneDrive, OneDrive not running); database size warns from 6 GB on Express 10 GB.
+- Health check: a PC whose computer name has an apostrophe, ampersand, spaces or non-English letters is now recorded (name stored with underscores).
+
+**OneDrive (breaking for shop PCs)**
+
+- OneDrive: shop PCs now sign each day's manifest with their own key (kept off OneDrive), and Workpc refuses files whose signature or sending PC does not match. **A 1.11.1 shop PC's unsigned manifest is quarantined.** Each shop PC needs the 1.11.2 scripts, a one-time key (`Send-ShopDailyFiles.ps1 -NewSigningKey`), a USB copy of the key on Workpc and its PC name in `pcNames` before "shops on" (`docs\operations\ONEDRIVE-DAILY-FILES.md`).
+- OneDrive: Workpc checks a local copy of each shop file and zips that same copy, so a file changed in OneDrive after the check cannot reach ETP.
+- Backup copy: new encrypted format that seals the file name and key id. A renamed (older) backup is refused at restore, and old backups still open. The key fingerprint is shown and recorded with each copy, `-VerifyKey` checks a USB copy, and `-Decrypt -KeyFile` works on a new PC without a config.
+- Backup copy: 3 daily copies plus the first copy of each of the last 6 months. The copy fails when OneDrive is not running and waits until OneDrive reports the file uploaded.
+- New `Register-WorkpcTasks.ps1` sets up the Workpc receive and backup-copy tasks under Sagar's account, and refuses unsafe set-ups. Uninstall also removes the OneDrive tasks registered from the installed scripts.
+- Shop send now reports "Sent N, skipped M" (skipped files in red) and leaves `last-send.txt` for staff.
+- The OneDrive example config files are now valid JSON.
+
+**Installer, CI and dependencies**
+
+- Installer now includes the OneDrive shop/Workpc scripts under the program folder (`scripts\onedrive`) and third-party licence notices; native libraries are no longer unpacked into the user's Temp folder.
+- Setup applies a SQL Server cumulative update when the installer's SQL media carries one.
+- New read-only `Test-EtpRestoredPc.ps1` lists what a restored or new PC is still missing and the command to fix each item.
+- Updated MailKit (4.18.1) and Open XML SDK (3.5.1).
+- CI: GitHub Actions pinned to commit SHAs; weekly vulnerable-package check (`vulnerable-packages` workflow).
+- Tests: architecture guard tests pin allowed project references and stop new SqlClient use in Desktop outside the composition root.
+
+**Documentation**
+
+- `USER-GUIDE.md` now describes 1.11.1: the daily inputs sheet, the Get blank daily sheet button and the shop evening routine; the renamed Known buttons.
+- `SHOP-EVENING-ROUTINE.md`: one rule, type 0 when a figure is zero; "Filled by" is required; a table of the three sheet file names (the Service one ends SERVICE); open items for the Service export list and Titan menu names.
+- `ONEDRIVE-DAILY-FILES.md`: signed manifests and shop keys, `Register-WorkpcTasks.ps1`, scripts from the installer in a protected folder, shop PCs sync only `ETP-Inbound`, key custody and fingerprints, two-step sign-in on the Microsoft account.
 - `OPERATIONS.md`: deployment status refreshed (Workpc, 1.9.6 live, 1.11.1 next); upgrade step to remove old PRE_MIGRATION backups.
 - New: `operations\DR-RUNBOOK-USB.md` (disaster-recovery runbook for the USB stick) and `operations\DPDP-BREACH-AND-COUNTER-NOTICE-DRAFT.md` (breach procedure and counter notice, drafts for the CA, not legal advice).
 - `audit\D14-FONT-DECISION-2026-09-22.md` closed (Segoe UI accepted by default).
+
+- Tests: unit projects and gate result filled in after the gate.
 
 ## [1.11.1] - (date after the 1.11.1 gate)
 
