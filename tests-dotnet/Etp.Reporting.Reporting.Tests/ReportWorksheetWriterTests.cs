@@ -33,10 +33,10 @@ public sealed class ReportWorksheetWriterTests
 
             using var document = SpreadsheetDocument.Open(path, false);
             var book = document.WorkbookPart!;
-            var worksheet = book.WorksheetParts.Single().Worksheet;
+            var worksheet = book.WorksheetParts.Single().Worksheet!;
             var byRow = worksheet.Descendants<Row>().ToDictionary(row => row.RowIndex!.Value, row => row.Elements<Cell>().ToArray());
-            var formats = book.WorkbookStylesPart!.Stylesheet.CellFormats!.Elements<CellFormat>().ToArray();
-            var numbering = book.WorkbookStylesPart.Stylesheet.NumberingFormats!.Elements<NumberingFormat>().ToDictionary(x => x.NumberFormatId!.Value, x => x.FormatCode!.Value);
+            var formats = book.WorkbookStylesPart!.Stylesheet!.CellFormats!.Elements<CellFormat>().ToArray();
+            var numbering = book.WorkbookStylesPart.Stylesheet!.NumberingFormats!.Elements<NumberingFormat>().ToDictionary(x => x.NumberFormatId!.Value, x => x.FormatCode!.Value);
             string FormatOf(Cell cell) => formats[(int)(cell.StyleIndex?.Value ?? 0)].NumberFormatId?.Value is { } id && numbering.TryGetValue(id, out var code) ? code! : "General";
 
             Assert.Equal("Brand Sales", byRow[1][0].InnerText);
@@ -87,8 +87,8 @@ public sealed class ReportWorksheetWriterTests
                 new([new("Items", "#,##0"), new("Value incl. GST", "#,##0.00"), new("Plain")], [[1234567, 1234567.5m, 1234567.5m]]));
             using var document = SpreadsheetDocument.Open(path, false);
             var book = document.WorkbookPart!;
-            var cells = book.WorksheetParts.Single().Worksheet.Descendants<Row>().Single(row => row.RowIndex!.Value == 9).Elements<Cell>().ToArray();
-            var formats = book.WorkbookStylesPart!.Stylesheet.CellFormats!.Elements<CellFormat>().ToArray();
+            var cells = book.WorksheetParts.Single().Worksheet!.Descendants<Row>().Single(row => row.RowIndex!.Value == 9).Elements<Cell>().ToArray();
+            var formats = book.WorkbookStylesPart!.Stylesheet!.CellFormats!.Elements<CellFormat>().ToArray();
             uint NumberFormat(Cell cell) => formats[(int)cell.StyleIndex!.Value].NumberFormatId!.Value;
             Assert.Equal(167u, NumberFormat(cells[0]));
             Assert.Equal(164u, NumberFormat(cells[1]));
@@ -112,7 +112,7 @@ public sealed class ReportWorksheetWriterTests
                 new(reportName, new(2026, 7, 1), new(2026, 7, 1), "Passed", "v1", "x", DateTimeOffset.UtcNow),
                 new([new("Store")], [["WLMHW"]]));
             using var document = SpreadsheetDocument.Open(path, false);
-            Assert.Equal(expected, document.WorkbookPart!.Workbook.Sheets!.Elements<Sheet>().Single().Name!.Value);
+            Assert.Equal(expected, document.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Single().Name!.Value);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

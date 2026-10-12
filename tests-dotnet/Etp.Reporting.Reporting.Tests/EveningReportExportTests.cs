@@ -70,13 +70,13 @@ public sealed class EveningReportExportTests
                 new([new("Date"),new("Amount","#,##0.00"),new("Growth","0.00%"),new("Missing")],[[new DateOnly(2026,8,25),-12345678.90m,25.5m,null]]));
             using var doc=SpreadsheetDocument.Open(path,false);
             Assert.Empty(new OpenXmlValidator().Validate(doc));
-            var worksheet=doc.WorkbookPart!.WorksheetParts.Single().Worksheet;
+            var worksheet=doc.WorkbookPart!.WorksheetParts.Single().Worksheet!;
             Cell Cell(string address)=>worksheet.Descendants<Cell>().Single(x=>x.CellReference==address);
             Assert.Equal(CellValues.Number,Cell("A9").DataType!.Value);
             Assert.Equal("-12345678.90",Cell("B9").CellValue!.Text);
             Assert.Equal("25.5",Cell("C9").CellValue!.Text);
             Assert.Equal("—",Cell("D9").InnerText);
-            Assert.Contains(doc.WorkbookPart.WorkbookStylesPart!.Stylesheet.Descendants<NumberingFormat>(),x=>x.FormatCode=="0.00\"%\"");
+            Assert.Contains(doc.WorkbookPart.WorkbookStylesPart!.Stylesheet!.Descendants<NumberingFormat>(),x=>x.FormatCode=="0.00\"%\"");
             Assert.Equal("A8:D9",worksheet.GetFirstChild<AutoFilter>()!.Reference!.Value);
             Assert.Equal(8,worksheet.SheetViews!.Elements<SheetView>().Single().Pane!.VerticalSplit!.Value);
         }

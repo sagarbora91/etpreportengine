@@ -70,7 +70,7 @@ internal static class DailyInputsTestSheets
                 stream.Position = 0;
                 using (var document = SpreadsheetDocument.Open(stream, true))
                 {
-                    var sheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet;
+                    var sheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
                     foreach (var (key, value) in values) SetValue(sheet, key, value);
                     sheet.Save();
                 }

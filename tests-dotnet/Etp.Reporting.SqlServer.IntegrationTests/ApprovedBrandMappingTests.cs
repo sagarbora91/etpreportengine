@@ -78,7 +78,7 @@ public sealed class ApprovedBrandMappingTests(ITestOutputHelper output)
                 new("Daily Sales Report", Day, Day, "Passed", RetailReportingPolicy.Version, scope, DateTimeOffset.UtcNow),
                 EveningReportTables.Dsr(document.EveningSheets));
             using var workbook = SpreadsheetDocument.Open(path, false);
-            var rows = workbook.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Row>().ToArray();
+            var rows = workbook.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Row>().ToArray();
             Assert.Contains(rows, row => row.InnerText.Contains(scope, StringComparison.Ordinal));
             foreach (var sheet in document.EveningSheets.Where(x => x.StoreCode != "COMBINED"))
             {

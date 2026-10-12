@@ -43,7 +43,7 @@ public sealed class TaskNavigationTests
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
         Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
         // 1.11.2 (UX audit 5.1): the 23 Help topics left the task list (105 -> 82 for the Owner); they are still found by id.
-        Assert.Empty(TaskNavigation.All.Where(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.DoesNotContain(TaskNavigation.All, task => task.Id.StartsWith("help:", StringComparison.Ordinal));
         Assert.Equal(23, TaskNavigation.HelpTasks.Count);
         Assert.All(TaskNavigation.HelpTasks, task => Assert.Same(task, TaskNavigation.Find(task.Id)));
         Assert.Equal(60, TaskNavigation.All.Count(task => task.ReportCode is null));

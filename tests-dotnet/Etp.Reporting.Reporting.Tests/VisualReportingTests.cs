@@ -53,7 +53,7 @@ public sealed class VisualReportingTests
         {
             new OpenXmlVisualReportExporter().Export(xlsx, model); new SimplePdfVisualReportExporter().Export(pdf, model);
             using var book = SpreadsheetDocument.Open(xlsx, false);
-            Assert.Equal(["Brand Sales"], book.WorkbookPart!.Workbook.Sheets!.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>().Select(x => x.Name!.Value));
+            Assert.Equal(["Brand Sales"], book.WorkbookPart!.Workbook!.Sheets!.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>().Select(x => x.Name!.Value));
             Assert.Empty(book.WorkbookPart.WorksheetParts.SelectMany(x => x.DrawingsPart?.ChartParts ?? []));
             Assert.StartsWith("%PDF-1.4", File.ReadAllText(pdf)[..8]);
         }

@@ -60,18 +60,18 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         snapshot.Position = 0;
         using var document = SpreadsheetDocument.Open(snapshot, false, new OpenSettings { MaxCharactersInPart = 200_000_000 });
         var workbookPart = document.WorkbookPart ?? throw new InvalidDataException("Workbook part is missing.");
-        var shared = workbookPart.SharedStringTablePart?.SharedStringTable
+        var shared = workbookPart.SharedStringTablePart?.SharedStringTable?
             .Elements<SharedStringItem>().Select(x => x.InnerText).ToArray();
         var dateStyles = DateStyleIndexes(workbookPart);
         var sheets = new List<WorkbookSheet>();
-        foreach (var sheet in workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? [])
+        foreach (var sheet in workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (sheet.Id?.Value is null) continue;
             if (workbookPart.GetPartById(sheet.Id.Value) is not WorksheetPart part) continue;
 
             // Enumerating Row/Cell XML is intentional: ETP files can declare a false A1 worksheet dimension.
-            var sourceRows = part.Worksheet.GetFirstChild<SheetData>()?.Elements<Row>().ToArray() ?? [];
+            var sourceRows = part.Worksheet?.GetFirstChild<SheetData>()?.Elements<Row>().ToArray() ?? [];
             if (sourceRows.Length == 0)
             {
                 sheets.Add(new WorkbookSheet(sheet.Name?.Value ?? string.Empty, 1, [], []));

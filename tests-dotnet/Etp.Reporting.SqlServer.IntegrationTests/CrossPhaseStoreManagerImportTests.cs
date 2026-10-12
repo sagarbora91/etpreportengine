@@ -180,7 +180,7 @@ public sealed class CrossPhaseStoreManagerImportTests
                 columnName = (char)('A' + (number - 1) % 26) + columnName;
             using (var workbook = SpreadsheetDocument.Open(binPath, true))
             {
-                var sheet = workbook.WorkbookPart!.WorksheetParts.First().Worksheet;
+                var sheet = workbook.WorkbookPart!.WorksheetParts.First().Worksheet!;
                 foreach (var row in bin.Sheets[0].Rows)
                 {
                     var cell = sheet.Descendants<Cell>().Single(c => c.CellReference?.Value == columnName + row.RowNumber);

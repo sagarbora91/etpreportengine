@@ -125,7 +125,7 @@ public sealed class ReportFilterClosureTests(SqlDatabaseFixture database) : ICla
             Await(view.ExportReportToPathAsync(pdf, true));
             using (var book = SpreadsheetDocument.Open(excel, false))
             {
-                var rows = book.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Row>().ToArray();
+                var rows = book.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Row>().ToArray();
                 Assert.Empty(new DocumentFormat.OpenXml.Validation.OpenXmlValidator().Validate(book));
                 Assert.Contains(rows.SelectMany(row => row.Elements<Cell>()), cell => cell.InnerText == scopeLine);
                 Assert.Equal(segment, decimal.Parse(rows.Last().Elements<Cell>().ElementAt(2).CellValue!.Text, CultureInfo.InvariantCulture));

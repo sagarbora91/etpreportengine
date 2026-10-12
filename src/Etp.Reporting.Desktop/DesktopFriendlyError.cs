@@ -191,6 +191,9 @@ public static class DesktopFriendlyError
         (51045, null, "Generated reports are kept as they are and cannot be changed or deleted. Generate the pack again to get a new version."),
         (51046, null, HistoryKept),
         (51047, null, HistoryKept),
+        // 1.11.2 (AUDIT-2 S-07): Settings > Sharing, "Show customer names in shared packs".
+        (51060, null, "Only the Owner can change whether shared packs include customer names."),
+        (51061, null, "The product settings row is missing, so the setting was not saved. Run Settings > Database > Create/update database, then try again."),
         (51200, null, "A saved report package cannot be changed. Create a new package instead."),
         (51201, null, HistoryKept),
         (51311, null, HistoryKept),

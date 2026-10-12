@@ -25,10 +25,10 @@ public sealed class OpenXmlWorkbookReaderAsyncTests
                 var styles = workbook.AddNewPart<WorkbookStylesPart>();
                 styles.Stylesheet = new Stylesheet(new CellFormats(new CellFormat { NumberFormatId = 14 }));
                 var worksheet = workbook.WorksheetParts.Single();
-                var cell = worksheet.Worksheet.Descendants<Cell>().Single(c => c.CellReference == "B2");
+                var cell = worksheet.Worksheet!.Descendants<Cell>().Single(c => c.CellReference == "B2");
                 cell.CellValue = new CellValue(raw); cell.StyleIndex = 0;
                 cell.DataType = raw.Contains('/') ? CellValues.String : CellValues.Number;
-                worksheet.Worksheet.Save(); styles.Stylesheet.Save();
+                worksheet.Worksheet!.Save(); styles.Stylesheet!.Save();
             }
             var snapshot = await new OpenXmlWorkbookReader().ReadAsync(path);
             var converted = new Etp.Reporting.Import.Conversion.TypedCellConverter().Convert(
@@ -166,12 +166,12 @@ public sealed class OpenXmlWorkbookReaderAsyncTests
                     new SharedStringItem(new Text("plain")),
                     new SharedStringItem(new Run(new Text("rich ")), new Run(new Text("text"))),
                     new SharedStringItem(new Text("third")));
-                table.SharedStringTable.Save();
+                table.SharedStringTable!.Save();
                 var worksheet = workbook.WorksheetParts.Single();
-                var row = worksheet.Worksheet.Descendants<Row>().Single(r => r.RowIndex == 2);
+                var row = worksheet.Worksheet!.Descendants<Row>().Single(r => r.RowIndex?.Value == 2);
                 row.RemoveAllChildren<Cell>();
                 row.Append(Shared("A2", 1), Shared("B2", 2), Shared("C2", 9));
-                worksheet.Worksheet.Save();
+                worksheet.Worksheet!.Save();
             }
             var snapshot = await new OpenXmlWorkbookReader().ReadAsync(path);
             var cells = Assert.Single(snapshot.Sheets.Single().Rows).Cells;

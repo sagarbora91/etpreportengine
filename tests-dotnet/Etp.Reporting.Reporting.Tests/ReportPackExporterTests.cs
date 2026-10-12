@@ -31,11 +31,11 @@ public sealed class ReportPackExporterTests
         {
             new OpenXmlReportPackExporter().Export(path, Pack());
             using var document = SpreadsheetDocument.Open(path, false);
-            Assert.Equal(["Invoice Summary", "Daily Exceptions"], document.WorkbookPart!.Workbook.Sheets!.Elements<Sheet>().Select(x => x.Name!.Value));
+            Assert.Equal(["Invoice Summary", "Daily Exceptions"], document.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Select(x => x.Name!.Value));
             Assert.All(document.WorkbookPart.WorksheetParts, part =>
             {
-                Assert.NotNull(part.Worksheet.GetFirstChild<AutoFilter>());
-                Assert.Empty(part.Worksheet.Descendants<CellFormula>());
+                Assert.NotNull(part.Worksheet!.GetFirstChild<AutoFilter>());
+                Assert.Empty(part.Worksheet!.Descendants<CellFormula>());
             });
         }
         finally { if (File.Exists(path)) File.Delete(path); }

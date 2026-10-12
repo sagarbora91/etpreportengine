@@ -141,11 +141,14 @@ public sealed partial class TaskNavigator(MainWindow window)
                 if (dialog.Choice != DraftNavigationChoice.Discard) return;
                 draft.Discard();
             }
+            // 1.11.2: when only the date moved (for example a focused report run moving the header to its To date, now that
+            // the header opens on yesterday), the Reports store filter keeps its own choice, such as a custom subset.
+            var storeChanged = nextStore != appliedStore;
             appliedStore = nextStore;
             ApplyBusinessDate(nextDate);
             RestoreHeader(nextDate, nextStore);
             window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom, nextDate,
-                HeaderStore);
+                storeChanged ? HeaderStore : window.reportsWorkspaceView.StoreScope);
             window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
             ApplyHiddenScope(window.registersWorkspaceView);
             ApplyHiddenScope(window.accountingWorkspaceView);

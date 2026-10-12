@@ -24,7 +24,7 @@ public sealed class DailyInputsTemplateWriterTests
                 ["EXPENSES"] = "1,250.75",
                 ["CASH_ADJUSTMENT"] = -40m,
                 ["OPERATIONAL_REMARK"] = "Synthetic remark"
-                // CASH_DEPOSIT and CLOSING_CASH_COUNTED stay blank: left unchanged.
+                // CASH_DEPOSIT keeps the template's 0 (1.11.2); CLOSING_CASH_COUNTED stays blank: left unchanged.
             });
 
         Assert.True(DailyInputsTemplate.IsDailyInputsWorkbook(workbook));
@@ -40,7 +40,7 @@ public sealed class DailyInputsTemplateWriterTests
             new (string, int, decimal?, string?)[]
             {
                 ("WALK_INS", 7, 18m, null), ("OPENING_CASH", 8, 5000m, null), ("EXPENSES", 9, 1250.75m, null),
-                ("CASH_ADJUSTMENT", 11, -40m, null), ("OPERATIONAL_REMARK", 13, null, "Synthetic remark")
+                ("CASH_DEPOSIT", 10, 0m, null), ("CASH_ADJUSTMENT", 11, -40m, null), ("OPERATIONAL_REMARK", 13, null, "Synthetic remark")
             },
             document.Values.Select(v => (v.FieldCode, v.RowNumber, v.NumericValue, v.TextValue)));
     }
@@ -112,13 +112,13 @@ public sealed class DailyInputsTemplateWriterTests
         var book = document.WorkbookPart!;
 
         Assert.Null(book.VbaProjectPart);
-        var worksheet = book.WorksheetParts.Single().Worksheet;
+        var worksheet = book.WorksheetParts.Single().Worksheet!;
         var protection = Assert.Single(worksheet.Elements<SheetProtection>());
         Assert.True(protection.Sheet?.Value);
         Assert.Null(protection.Password);
         Assert.Null(protection.HashValue);
 
-        var formats = book.WorkbookStylesPart!.Stylesheet.CellFormats!.Elements<CellFormat>().ToArray();
+        var formats = book.WorkbookStylesPart!.Stylesheet!.CellFormats!.Elements<CellFormat>().ToArray();
         bool Unlocked(Cell cell) => formats[(int)(cell.StyleIndex?.Value ?? 0)].Protection?.Locked?.Value == false;
         var unlocked = worksheet.Descendants<Cell>().Where(Unlocked).Select(c => c.CellReference!.Value!).ToArray();
         var fieldRows = DailyInputsTemplate.FieldsFor(DailyInputsKind.Retail).Count;
@@ -149,7 +149,7 @@ public sealed class DailyInputsTemplateWriterTests
 
             using (var document = SpreadsheetDocument.Open(path, false))
             {
-                var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
+                var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
                 Assert.Equal(date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), c5.CellValue?.Text);
                 Assert.Null(c5.DataType);
             }
@@ -158,8 +158,10 @@ public sealed class DailyInputsTemplateWriterTests
             var dateRow = workbook.Sheets.Single().Rows.Single(r => r.Cells[0].Value as string == DailyInputsTemplate.BusinessDateKey);
             Assert.Equal(date.ToDateTime(TimeOnly.MinValue), dateRow.Cells[2].Value);
             var result = DailyInputsParser.Parse(workbook, Today);
-            Assert.True(result.Succeeded, string.Join(", ", result.Errors.Select(e => e.Code)));
-            Assert.All(result.Document!.Values.Where(v => v.NumericValue is not null), v => Assert.Equal(0m, v.NumericValue));
+            // Decision 43 (1.11.2): saved untouched, the sheet is refused only for its empty Filled by; the date and zeros read.
+            Assert.Equal([DailyInputsCodes.FilledByMissing], result.Errors.Select(e => e.Code));
+            Assert.Equal(date, result.Document!.BusinessDate);
+            Assert.All(result.Document.Values.Where(v => v.NumericValue is not null), v => Assert.Equal(0m, v.NumericValue));
             Assert.DoesNotContain(result.Document.Values, v => v.FieldCode is "OPENING_CASH" or "CLOSING_CASH_COUNTED");
         }
         finally
@@ -175,7 +177,7 @@ public sealed class DailyInputsTemplateWriterTests
         DailyInputsTemplateWriter.Write(stream, DailyInputsKind.Service, "WLMHW", "Synthetic store");
         stream.Position = 0;
         using var document = SpreadsheetDocument.Open(stream, false);
-        var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
+        var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
         Assert.Null(c5.CellValue);
         Assert.Null(c5.InlineString);
     }

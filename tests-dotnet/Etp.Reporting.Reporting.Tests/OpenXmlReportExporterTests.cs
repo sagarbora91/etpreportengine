@@ -17,7 +17,7 @@ public sealed class OpenXmlReportExporterTests
                 new([new("Date"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00")],
                     [["2026-07-01", 2m, 236m], ["2026-07-02", -1m, -118m]], ["Total", 1m, 118m]));
             using var document = SpreadsheetDocument.Open(path, false);
-            var worksheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet;
+            var worksheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
             Assert.Contains(worksheet.Descendants<Cell>(), x=>x.CellReference=="A1" && x.InnerText=="Daily Sales");
             Assert.Equal("A8:C10", worksheet.GetFirstChild<AutoFilter>()!.Reference!.Value);
             Assert.Equal(PaneStateValues.Frozen, worksheet.SheetViews!.Elements<SheetView>().Single().Pane!.State!.Value);

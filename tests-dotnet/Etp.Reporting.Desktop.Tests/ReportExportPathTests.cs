@@ -256,7 +256,7 @@ public sealed class ReportExportPathTests
 
                 Assert.Equal($"Excel report saved to {path}", Status(view));
                 using var workbook = SpreadsheetDocument.Open(path, false);
-                var rows = workbook.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Row>().ToDictionary(row => row.RowIndex!.Value);
+                var rows = workbook.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<Row>().ToDictionary(row => row.RowIndex!.Value);
                 var headers = rows[8].Elements<Cell>().Select(cell => cell.InnerText).ToArray();
                 Assert.Equal(data.Columns.Select(column => column.Header), headers);
                 Assert.DoesNotContain(headers, header => header.Contains('₹'));

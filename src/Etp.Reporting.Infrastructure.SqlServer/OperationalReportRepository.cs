@@ -418,7 +418,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// paired R025 line's (sales_lines, GST-inclusive NETAMOUNT), and the type is the line's; R013 gives only the CRO, the
     /// staff name and the discounts. For a sales return R013 states a different value than R025 (R013 SR NETAMOUNT is
     /// positive while its quantity is negative), so the old sum of R013's own value left staff totals Rs 435 to Rs 10,702 a
-    /// month off the store total in 18 of 25 WLMHW and 8 of 25 HEMW months; now the two agree whenever every line has a CRO.
+    /// month off the store total in 18 of 25 months at the Titan store and 8 of 25 at the Helios store; now the two agree whenever every line has a CRO.
     /// </summary>
     internal static readonly string StaffSql = $"""
         SELECT e.store_code,e.source_cro_number,COALESCE(SUM(l.source_gross_amount),0),COALESCE(SUM(l.source_quantity),0),
@@ -770,7 +770,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// lines are gift cards still reads 0, not missing.
     /// Decision 41 (12 Oct 2026, AUDIT-1 D7): a bill cancelled the same day is not an invoice. An INV document that a BC row of
     /// a current R025 file cancels on its own date (dbo.v_sales_cancelled_same_day, 0060) is left out of INVOICE; its value and
-    /// units already net to zero with the BC lines, so VALUE and VOL do not change. WLMHW Aug 2026: 254 becomes 253.
+    /// units already net to zero with the BC lines, so VALUE and VOL do not change. Titan store, Aug 2026: 254 becomes 253.
     /// </summary>
     internal static readonly string DsrFactsSql = $"""
         SELECT i.store_code,

@@ -119,7 +119,7 @@ public static class SqlReportingQueries
     /// AUDIT-1 fix 4 (D2): documents whose tender shortfall is in the source export, not made by the import. The R022 row's
     /// own tender columns (plus any R020 TC fill, as the tender reconciliation counts them) pay less than its NetValue, and
     /// every tender row imported for the document is reporting-eligible (none excluded), so nothing ETP did explains the gap.
-    /// WLMHW shows 1 to 7 such documents a month (Aug 2026: 100001211 on 25 Aug, Rs 129). Columns: store_code,
+    /// The Titan store shows 1 to 7 such documents a month (Aug 2026: 100001211 on 25 Aug, Rs 129). Columns: store_code,
     /// document_number, shortfall (positive, the control minus the tenders).
     /// </summary>
     public static readonly string TenderSourceShortfalls = """
