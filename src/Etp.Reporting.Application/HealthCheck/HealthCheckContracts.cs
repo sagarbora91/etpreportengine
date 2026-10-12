@@ -36,7 +36,7 @@ public enum HealthCheckTrigger
     Nightly
 }
 
-/// <summary>The 51 check ids (design 5.2). The id text is what is stored and exported.</summary>
+/// <summary>The 54 check ids (design 5.2; DB-06, SEC-04 and OPS-10 added in 1.11.2). The id text is what is stored and exported.</summary>
 public static class HealthCheckId
 {
     public const string Db01 = "DB-01";
@@ -44,10 +44,12 @@ public static class HealthCheckId
     public const string Db03 = "DB-03";
     public const string Db04 = "DB-04";
     public const string Db05 = "DB-05";
+    public const string Db06 = "DB-06";
 
     public const string Sec01 = "SEC-01";
     public const string Sec02 = "SEC-02";
     public const string Sec03 = "SEC-03";
+    public const string Sec04 = "SEC-04";
 
     public const string Rpt01 = "RPT-01";
     public const string Rpt02 = "RPT-02";
@@ -91,22 +93,23 @@ public static class HealthCheckId
     public const string Ops07 = "OPS-07";
     public const string Ops08 = "OPS-08";
     public const string Ops09 = "OPS-09";
+    public const string Ops10 = "OPS-10";
 
     public const string Err01 = "ERR-01";
     public const string Err02 = "ERR-02";
     public const string Err03 = "ERR-03";
     public const string Err04 = "ERR-04";
 
-    /// <summary>All 51 ids in catalogue order (DB, SEC, RPT, IMP, DATA, OPS, ERR). Run order is the runner's (design 5.3).</summary>
+    /// <summary>All 54 ids in catalogue order (DB, SEC, RPT, IMP, DATA, OPS, ERR). Run order is the runner's (design 5.3).</summary>
     public static IReadOnlyList<string> All { get; } =
     [
-        Db01, Db02, Db03, Db04, Db05,
-        Sec01, Sec02, Sec03,
+        Db01, Db02, Db03, Db04, Db05, Db06,
+        Sec01, Sec02, Sec03, Sec04,
         Rpt01, Rpt02, Rpt03, Rpt04, Rpt05, Rpt06, Rpt07, Rpt08, Rpt09, Rpt10, Rpt11,
         Rpt12, Rpt13, Rpt14, Rpt15, Rpt16, Rpt17, Rpt18, Rpt19, Rpt20, Rpt21, Rpt22,
         Imp01, Imp02, Imp03,
         Data01, Data02, Data03, Data04, Data05,
-        Ops01, Ops02, Ops03, Ops04, Ops05, Ops06, Ops07, Ops08, Ops09,
+        Ops01, Ops02, Ops03, Ops04, Ops05, Ops06, Ops07, Ops08, Ops09, Ops10,
         Err01, Err02, Err03, Err04
     ];
 

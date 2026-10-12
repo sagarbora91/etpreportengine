@@ -5,18 +5,8 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 
-/// <summary>
-/// 1.11.2 lane L9. The ids of the three new lines. They are NOT yet in <c>HealthCheckId.All</c> (an Application file
-/// outside this lane): the runner ignores a probe id that is not in the catalogue, so the integrator adds
-/// <see cref="Db06"/>, <see cref="Sec04"/> and <see cref="Ops10"/> to <c>HealthCheckId</c> / <c>All</c> and the
-/// composition root registers the probes (see 1112-l9-health-NOTE.md). Each id fits <c>diag.is_check_id</c>.
-/// </summary>
-public static class L9CheckIds
-{
-    public const string Db06 = "DB-06";
-    public const string Sec04 = "SEC-04";
-    public const string Ops10 = "OPS-10";
-}
+// 1.11.2 lane L9: DB-06, SEC-04 and OPS-10 are HealthCheckId constants in the catalogue (54 ids) and the composition
+// root registers these probes (integration, 12 Oct 2026).
 
 /// <summary>
 /// The computer name as a <c>diag.is_token</c> value (<c>diag.health_check_runs.machine_name</c>: 1 to 64 characters
@@ -46,7 +36,7 @@ public static class HealthMachineName
 /// </summary>
 public sealed class LandingCopyProbe(string connectionString) : IHealthProbe
 {
-    public IReadOnlyList<string> CheckIds { get; } = [L9CheckIds.Sec04];
+    public IReadOnlyList<string> CheckIds { get; } = [HealthCheckId.Sec04];
 
     internal const string OtherDatabasesSql =
         "SELECT d.name FROM sys.databases AS d WHERE d.database_id > 4 AND d.database_id <> DB_ID() AND d.state = 0 ORDER BY d.name;";
@@ -60,7 +50,7 @@ public sealed class LandingCopyProbe(string connectionString) : IHealthProbe
     public async Task<IReadOnlyList<HealthCheckResult>> RunAsync(HealthCheckContext context, CancellationToken cancellationToken)
     {
         var timer = Stopwatch.StartNew();
-        var result = await ImportDataProbeSupport.GuardAsync(L9CheckIds.Sec04, async () =>
+        var result = await ImportDataProbeSupport.GuardAsync(HealthCheckId.Sec04, async () =>
         {
             var names = new List<string>();
             var counts = new List<int?>();
@@ -101,13 +91,13 @@ public sealed class LandingCopyProbe(string connectionString) : IHealthProbe
         var unread = subs.Count(sub => sub.Outcome == HealthOutcome.Skipped);
         var detail = copies > 0 || unread > 0 ? subs.Where(sub => sub.Outcome != HealthOutcome.Pass).ToList() : null;
         if (copies > 0)
-            return ImportDataProbeSupport.Make(L9CheckIds.Sec04, HealthOutcome.Warning, "LANDING_COPY_ELSEWHERE",
+            return ImportDataProbeSupport.Make(HealthCheckId.Sec04, HealthOutcome.Warning, "LANDING_COPY_ELSEWHERE",
                 ImportDataProbeSupport.Text($"{copies} other database(s) on this SQL Server hold a copy of imported customer data (etp_landing tables). Take an encrypted backup if still needed, then drop them."),
                 null, duration, copies, detail);
         if (unread > 0 && unread == subs.Count)
-            return ImportDataProbeSupport.Make(L9CheckIds.Sec04, HealthOutcome.Skipped, "NOT_READABLE",
+            return ImportDataProbeSupport.Make(HealthCheckId.Sec04, HealthOutcome.Skipped, "NOT_READABLE",
                 "Other databases on this SQL Server could not be read with this account.", null, duration, null, detail);
-        return ImportDataProbeSupport.Make(L9CheckIds.Sec04, HealthOutcome.Pass, HealthCheckTexts.Ok,
+        return ImportDataProbeSupport.Make(HealthCheckId.Sec04, HealthOutcome.Pass, HealthCheckTexts.Ok,
             "No other database on this SQL Server holds imported customer data.", null, duration, 0, detail);
     }
 }
@@ -131,14 +121,14 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
         ("PARTS", "dbo.v_service_parts")
     ];
 
-    public IReadOnlyList<string> CheckIds { get; } = [L9CheckIds.Db06];
+    public IReadOnlyList<string> CheckIds { get; } = [HealthCheckId.Db06];
 
     internal static string CountSql(string view) => "SELECT COUNT(*) FROM " + view + ";";
 
     public async Task<IReadOnlyList<HealthCheckResult>> RunAsync(HealthCheckContext context, CancellationToken cancellationToken)
     {
         var timer = Stopwatch.StartNew();
-        var result = await ImportDataProbeSupport.GuardAsync(L9CheckIds.Db06, async () =>
+        var result = await ImportDataProbeSupport.GuardAsync(HealthCheckId.Db06, async () =>
         {
             var timings = new List<(string Key, TimeSpan? Elapsed)>();
             await using var connection = await DatabaseProbeSql.OpenAsync(connectionString, cancellationToken).ConfigureAwait(false);
@@ -170,15 +160,15 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
             .ToList();
         var read = subs.Where(sub => sub.Outcome != HealthOutcome.Skipped).ToList();
         if (read.Count == 0)
-            return ImportDataProbeSupport.Make(L9CheckIds.Db06, HealthOutcome.Skipped, "NOT_READABLE",
+            return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Skipped, "NOT_READABLE",
                 "The Service views could not be read here (not installed or not permitted).", null, duration, null, subs);
         var slowest = read.Max(sub => sub.MetricValue ?? 0);
         var slow = read.Count(sub => sub.Outcome == HealthOutcome.Warning);
         if (slow > 0)
-            return ImportDataProbeSupport.Make(L9CheckIds.Db06, HealthOutcome.Warning, "SERVICE_VIEW_SLOW",
+            return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Warning, "SERVICE_VIEW_SLOW",
                 ImportDataProbeSupport.Text($"{slow} Service view(s) took over 1 second to count (slowest {slowest:0} ms). Time to plan a faster Service job index."),
                 null, duration, slowest, subs);
-        return ImportDataProbeSupport.Make(L9CheckIds.Db06, HealthOutcome.Pass, HealthCheckTexts.Ok,
+        return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Pass, HealthCheckTexts.Ok,
             ImportDataProbeSupport.Text($"The Service views answer quickly (slowest {slowest:0} ms)."), null, duration, slowest, subs);
     }
 }
@@ -231,7 +221,7 @@ public sealed class OffPcCopyProbe(IOffPcCopyEnvironment environment, TimeProvid
 
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
-    public IReadOnlyList<string> CheckIds { get; } = [L9CheckIds.Ops10];
+    public IReadOnlyList<string> CheckIds { get; } = [HealthCheckId.Ops10];
 
     public Task<IReadOnlyList<HealthCheckResult>> RunAsync(HealthCheckContext context, CancellationToken cancellationToken)
     {
@@ -311,8 +301,8 @@ public sealed class OffPcCopyProbe(IOffPcCopyEnvironment environment, TimeProvid
     }
 
     private static HealthCheckResult Make(HealthOutcome outcome, string code, string text, TimeSpan duration, decimal? metric, IReadOnlyList<HealthCheckSubResult> subs) =>
-        ImportDataProbeSupport.Make(L9CheckIds.Ops10, outcome, code, text, null, duration, metric, subs);
+        ImportDataProbeSupport.Make(HealthCheckId.Ops10, outcome, code, text, null, duration, metric, subs);
 
     private static HealthCheckResult Skipped(string code, string text, TimeSpan duration) =>
-        ImportDataProbeSupport.Skipped(L9CheckIds.Ops10, code, text, duration);
+        ImportDataProbeSupport.Skipped(HealthCheckId.Ops10, code, text, duration);
 }

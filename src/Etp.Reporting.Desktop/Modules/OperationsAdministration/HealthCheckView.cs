@@ -191,7 +191,7 @@ public sealed class HealthCheckView : UserControl
         heading.Children.Add(new TextBlock { Text = ScreenTitle, FontSize = 18, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock
         {
-            Text = "51 read-only checks of the database, security, reports, imports, data, operations and errors. The nightly run is at 02:30; this screen shows the latest run.",
+            Text = "54 read-only checks of the database, security, reports, imports, data, operations and errors. The nightly run is at 02:30; this screen shows the latest run.",
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 4)
         });

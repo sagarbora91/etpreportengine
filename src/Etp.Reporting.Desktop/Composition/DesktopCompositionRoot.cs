@@ -408,9 +408,12 @@ public sealed class DesktopCompositionRoot
         ErrorProbes? errorProbes = null) =>
     [
         .. DatabaseProbes.Create(targetConnectionString, migrationDirectory),                                   // L4: DB-01..05
+        new ServiceScreenTimingProbe(targetConnectionString),                                                   // 1.11.2 L9: DB-06
         new SecurityProbes(healthStore, automationPrincipal),                                                   // L4: SEC-01..03
+        new LandingCopyProbe(targetConnectionString),                                                           // 1.11.2 L9: SEC-04
         OperationsProbes.CreateDefault(targetConnectionString,                                                  // L7: OPS-01..09
             OperationsProbeSettings.ForThisMachine(automationPrincipal), new DelegateSqlBuildAssessor(AssessSqlBuild)),
+        new OffPcCopyProbe(new WindowsOffPcCopyEnvironment()),                                                  // 1.11.2 L9: OPS-10
         new DataProbes(targetConnectionString),                                                                 // L6: DATA-01..05
         new ImportProbes(targetConnectionString),                                                               // L6: IMP-01..03
         ReportProbes.ForConnection(targetConnectionString),                                                     // L5: RPT-01..22
