@@ -103,6 +103,15 @@ public static class IndianFormat
     public static string LocalDateTime(DateTime utc) =>
         DateAndTime(System.DateTime.SpecifyKind(utc, utc.Kind == DateTimeKind.Local ? DateTimeKind.Local : DateTimeKind.Utc).ToLocalTime());
 
+    /// <summary>A report metric by the kind of figure it is: "currency" (cell under a (₹) label), "percent", "ratio" (2 decimals), otherwise a count that shows decimals only when it has some.</summary>
+    public static string Metric(decimal? value, string? kind) => value is null ? Missing : kind switch
+    {
+        "currency" => MoneyCell(value),
+        "percent" => Percent(value),
+        "ratio" => Quantity(value, 2),
+        _ => Quantity(value, value == decimal.Truncate(value.Value) ? 0 : 2)
+    };
+
     // ---- sentences ----
 
     /// <summary>"1 invoice", "3 invoices". The plural adds "s" unless one is given.</summary>

@@ -110,5 +110,5 @@ public sealed class TodaySalesView : Grid
         AutomationProperties.SetHeadingLevel(text,AutomationHeadingLevel.Level2);
         return text;
     }
-    internal static string Format(decimal? value,string? format) => value is null ? "—" : value.Value.ToString(format is "currency" or "ratio" ? "N2" : "0.##",CultureInfo.GetCultureInfo("en-IN")) + (format=="percent"?"%":"");
+    internal static string Format(decimal? value,string? format) => Etp.Reporting.Reporting.IndianFormat.Metric(value,format);
 }
