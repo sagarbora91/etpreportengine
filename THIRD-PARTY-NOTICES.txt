@@ -1,0 +1,55 @@
+ETP Reporting Engine - third-party notices
+==========================================
+
+ETP Reporting Engine is a Saagar Traders internal application. It includes or
+can install the third-party software listed below. Each item is used under its
+own licence; the full licence text is in the package named, and in the NuGet
+package page for the version shown.
+
+1. Software built into ETP (NuGet packages, compiled into the release)
+-----------------------------------------------------------------------
+Direct packages (versions as of release 1.11.x; the build records the exact
+versions in each project file):
+
+  DocumentFormat.OpenXml     MIT licence   (Microsoft)
+  MailKit                    MIT licence   (Jeffrey Stedfast / .NET Foundation)
+    MimeKit                  MIT licence   (installed with MailKit)
+    BouncyCastle.Cryptography  MIT-style licence (installed with MimeKit)
+  Microsoft.Data.SqlClient   MIT licence   (Microsoft)
+  PDFsharp                   MIT licence   (empira Software)
+
+Indirect packages (installed by the packages above) are MIT or Apache-2.0
+licensed Microsoft and .NET Foundation components. The complete list for any
+build is printed by:  dotnet list Etp.Reporting.slnx package --include-transitive
+
+2. .NET runtime (self-contained release)
+----------------------------------------
+The release folder contains the Microsoft .NET 10 runtime and Windows
+Presentation Foundation libraries, licensed under the MIT licence
+(https://github.com/dotnet/runtime, https://github.com/dotnet/wpf).
+The native Visual C++ runtime file shipped beside the program
+(vcruntime140_cor3.dll) is redistributed under Microsoft's redistribution terms
+for the Visual C++ runtime.
+
+3. Optional database software (only when the installer was built with it)
+-------------------------------------------------------------------------
+When the installer carries the SQL media and "Install Microsoft SQL Server 2025
+Express..." is ticked, setup installs, unmodified:
+
+  Microsoft SQL Server 2025 Express
+  Microsoft ODBC Driver 17 for SQL Server
+  Microsoft Command Line Utilities 15 for SQL Server (Sqlcmd)
+
+These are Microsoft products under Microsoft's own licence terms, shown by
+their setup programs and accepted by the person who ticks the option. They are
+not licensed under the terms above and are not part of ETP.
+
+4. Build and test tools (not shipped)
+-------------------------------------
+Inno Setup (installer compiler, Jordan Russell / Martijn Laan licence), xUnit
+and related test packages are used to build and test ETP and are not part of
+the installed program.
+
+No source-code licence terms of any package above are changed by ETP. To
+regenerate this list from the build, use the command in section 1 and check
+each package's licence expression on nuget.org.

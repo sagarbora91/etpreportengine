@@ -112,6 +112,27 @@ function Install-EtpSqlEngineFromPayload {
     finally { if ($extract -and (Test-Path -LiteralPath $extract)) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue } }
 
     if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { throw 'SQL Server Express was installed but its service did not appear.' }
+    Install-EtpSqlCumulativeUpdateFromPayload -PayloadDirectory $PayloadDirectory -InstanceName $instance
+}
+
+function Install-EtpSqlCumulativeUpdateFromPayload {
+    # Dependency 4. SQL Server 2025 RTM crashed once on the owner PC (access violation, error 3449), so a
+    # payload that carries a cumulative update (SQLServer2025-KB<n>-x64.exe, taken from Microsoft and put in the
+    # payload folder by Prepare-SqlPayload.ps1) has it applied straight after the engine is installed, with the
+    # same command Install-SqlCu.ps1 used on Workpc. No CU file in the payload = nothing to do (older media).
+    # The file must carry a valid Microsoft Authenticode signature; the payload sits in the protected
+    # installation folder, so it cannot have been swapped by an unelevated user.
+    param([Parameter(Mandatory)][string]$PayloadDirectory,[Parameter(Mandatory)][string]$InstanceName)
+    $updates = @(Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLServer2025-KB*-x64.exe' -File)
+    if ($updates.Count -eq 0) { return }
+    if ($updates.Count -gt 1) { throw 'The SQL Server media holds more than one cumulative update; setup will not guess which to apply. Nothing was patched.' }
+    $update = $updates[0]
+    $signature = Get-AuthenticodeSignature -LiteralPath $update.FullName
+    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+        throw "The SQL Server cumulative update $($update.Name) does not carry a valid Microsoft signature (status $($signature.Status)). It was not run."
+    }
+    Start-EtpProcess -FilePath $update.FullName -Description "apply the SQL Server cumulative update $($update.Name)" `
+        -Arguments @('/q','/IAcceptSQLServerLicenseTerms','/Action=Patch',"/InstanceName=$InstanceName")
 }
 
 function Get-EtpInstalledOdbcDrivers {

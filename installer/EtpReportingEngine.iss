@@ -1,6 +1,9 @@
 ﻿#define AppName "ETP Reporting Engine"
+; Dependency 10. No default version: the build script (build-windows-installer.ps1) always passes
+; /DAppVersion from Directory.Build.props, and a hand-run compile without it must fail, not label
+; the installer 1.1.0.
 #ifndef AppVersion
-#define AppVersion "1.1.0"
+#error AppVersion is not defined. Build with scripts\build-windows-installer.ps1 (it passes /DAppVersion=<VersionPrefix>), or pass /DAppVersion=x.y.z.
 #endif
 #define AppPublisher "Saagar Traders"
 #define AppExeName "Etp.Reporting.Desktop.exe"
