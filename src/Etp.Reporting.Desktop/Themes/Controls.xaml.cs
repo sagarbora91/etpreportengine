@@ -71,15 +71,17 @@ public partial class ControlsTheme : ResourceDictionary
         if (sender is not DatePicker picker || picker.Template.FindName("PART_Popup", picker) is not Popup { Child: Calendar calendar }) return;
         calendar.MinWidth = 350; calendar.FontSize = 14;
         calendar.ApplyTemplate(); calendar.UpdateLayout();
-        ResizeCalendarTargets(calendar);
+        // S4 / DS-13: the day buttons follow the density setting (44 Touch, 36 Desktop) instead of a fixed 44.
+        ResizeCalendarTargets(calendar, picker.TryFindResource("ActiveTargetHeight") is double height ? height : 44);
     }
-    public static void ResizeCalendarTargets(DependencyObject root)
+    public static void ResizeCalendarTargets(DependencyObject root) => ResizeCalendarTargets(root, 44);
+    public static void ResizeCalendarTargets(DependencyObject root, double targetHeight)
     {
         for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
         {
             var child = VisualTreeHelper.GetChild(root, index);
-            if (child is ButtonBase button) { button.MinWidth = 44; button.MinHeight = 44; button.FontSize = 14; }
-            ResizeCalendarTargets(child);
+            if (child is ButtonBase button) { button.MinWidth = targetHeight; button.MinHeight = targetHeight; button.FontSize = 14; }
+            ResizeCalendarTargets(child, targetHeight);
         }
     }
 }
