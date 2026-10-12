@@ -30,7 +30,7 @@ public sealed class MailKitReportEmailTransport(Func<SmtpConnection, SmtpCredent
         var sending = false;
         try
         {
-            var security = settings.UseTls ? settings.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls : SecureSocketOptions.None;
+            var security = SecurityFor(settings);
             await smtp.ConnectAsync(settings.Host, settings.Port, security, token).ConfigureAwait(false);
             var credential = (loadCredential ?? WindowsSmtpCredentials.Load)(settings);
             if (credential is not null)
@@ -57,6 +57,28 @@ public sealed class MailKitReportEmailTransport(Func<SmtpConnection, SmtpCredent
                 try { await smtp.DisconnectAsync(true, CancellationToken.None).ConfigureAwait(false); }
                 catch (Exception ex) when (ex is not OutOfMemoryException) { /* Acceptance is unaffected by QUIT failure. */ }
         }
+    }
+
+    /// <summary>
+    /// S-15: TLS is always used (SSL on connect for port 465, otherwise STARTTLS required). The only exception is a
+    /// server on this PC (localhost, 127.0.0.1, ::1) with <c>UseTls=false</c>, where nothing crosses a network.
+    /// </summary>
+    internal static SecureSocketOptions SecurityFor(SmtpConnection settings)
+    {
+        if (!settings.UseTls)
+        {
+            if (IsLoopbackHost(settings.Host)) return SecureSocketOptions.None;
+            throw new InvalidOperationException("SMTP without TLS is only allowed for a server on this PC.");
+        }
+        return settings.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
+    }
+
+    internal static bool IsLoopbackHost(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return false;
+        var value = host.Trim().Trim('[', ']');
+        if (value.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        return System.Net.IPAddress.TryParse(value, out var address) && System.Net.IPAddress.IsLoopback(address);
     }
 
     public static MailboxAddress ParseAddress(string value)

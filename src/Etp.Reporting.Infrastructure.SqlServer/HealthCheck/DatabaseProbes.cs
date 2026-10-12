@@ -22,6 +22,9 @@ public static class DatabaseProbes
     /// <summary>DB-05 Fail at or above this share of the Express limit (the Warning share is the operations threshold, 80%).</summary>
     public const decimal DatabaseSizeCriticalPercent = 95m;
 
+    /// <summary>DB-05 Warning from this size on a 10 GB Express limit (Architecture audit 7: warn at 6 GB, long before 10 GB).</summary>
+    public const decimal DatabaseSizeWarningMegabytes = 6m * 1024m;
+
     /// <summary>
     /// The five Database probes in run order. <paramref name="migrationDirectory"/> is the installation's
     /// <c>database\migrations</c> folder; null or missing makes DB-02 Skipped.
@@ -316,7 +319,7 @@ public static class DatabaseProbes
         var percent = sizeMb / limit * 100m;
         if (percent >= DatabaseSizeCriticalPercent)
             return Line(HealthCheckId.Db05, HealthOutcome.Fail, "DB_SIZE_CRITICAL", HealthCheckTexts.DbSizeCritical(sizeMb, limit), "health", TimeSpan.Zero, sizeMb);
-        if (percent >= warningPercent)
+        if (percent >= warningPercent || (limit <= 10m * 1024m && sizeMb >= DatabaseSizeWarningMegabytes))
             return Line(HealthCheckId.Db05, HealthOutcome.Warning, "DB_SIZE_HIGH", HealthCheckTexts.DbSizeHigh(sizeMb, limit), "health", TimeSpan.Zero, sizeMb);
         return Line(HealthCheckId.Db05, HealthOutcome.Pass, HealthCheckTexts.Ok, HealthCheckTexts.DbSizeOk(sizeMb, limit), null, TimeSpan.Zero, sizeMb);
     }
