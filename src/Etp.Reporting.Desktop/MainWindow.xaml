@@ -10,14 +10,15 @@
   <Border Background="{DynamicResource NavigationBackground}">
    <StackPanel x:Name="RailPanel" Margin="4,8" automation:AutomationProperties.Name="Main sections">
     <TextBlock Text="ETP" Foreground="{DynamicResource NavigationMuted}" FontWeight="Bold" FontSize="22" Margin="10,4,0,16"/>
-    <Button Content="Today" Tag="Today" Click="Section_Click" Margin="0,3" Padding="4"/>
-    <Button Content="Import" Tag="Import" Click="Section_Click" Margin="0,3" Padding="4"/>
-    <Button Content="Reports" Tag="Reports" Click="Section_Click" Margin="0,3" Padding="4"/>
-    <Button Content="Stock" Tag="Stock" Click="Section_Click" Margin="0,3" Padding="4"/>
-    <Button Content="Service" Tag="Service" Click="Section_Click" Margin="0,3" Padding="4"/>
-    <Button Content="Settings" Tag="Settings" Click="Section_Click" Margin="0,3" Padding="4"/>
-    <Button Content="⌕ Search" Click="OpenGlobalSearch_Click" Margin="0,16,0,0" Padding="4" automation:AutomationProperties.Name="Find a screen"/>
-    <Button Content="More details" Click="StatusDetails_Click" Margin="0,4" Padding="4" automation:AutomationProperties.Name="Read full status"/>
+    <Button Content="Today" Tag="Today" Click="Section_Click" Style="{DynamicResource RailItem}"/>
+    <Button Content="Import" Tag="Import" Click="Section_Click" Style="{DynamicResource RailItem}"/>
+    <Button Content="Reports" Tag="Reports" Click="Section_Click" Style="{DynamicResource RailItem}"/>
+    <Button Content="Stock" Tag="Stock" Click="Section_Click" Style="{DynamicResource RailItem}"/>
+    <Button Content="Service" Tag="Service" Click="Section_Click" Style="{DynamicResource RailItem}"/>
+    <Button Content="Settings" Tag="Settings" Click="Section_Click" Style="{DynamicResource RailItem}"/>
+    <!-- 1.11.3 (Sys DS-07 / B2, B4): rail items use the RailItem style; no glyph in a button label. -->
+    <Button Content="Search" Click="OpenGlobalSearch_Click" Style="{DynamicResource RailItem}" automation:AutomationProperties.Name="Find a screen"/>
+    <Button Content="More details" Click="StatusDetails_Click" Style="{DynamicResource RailItem}" automation:AutomationProperties.Name="Read full status"/>
     <TextBlock x:Name="AttentionBadge" Foreground="{DynamicResource NavigationMuted}" TextWrapping="Wrap" Margin="6" Visibility="Collapsed" automation:AutomationProperties.LiveSetting="Polite"/>
    </StackPanel>
   </Border>

@@ -395,9 +395,10 @@ public sealed class DailySalesReportWorkspace : Grid
         actions.Children.Add(BusinessDatePicker); actions.Children.Add(ScopeSelector);
         ScopeSelector.Visibility = Visibility.Collapsed;
         actions.Children.Add(new TextBlock { Text = StoreScopeCatalog.AllStores, FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,12,0) });
+        // 1.11.3 (Sys DS-07 / B1): one primary per toolbar - Refresh Preview; Export PDF and Share are standard buttons.
         actions.Children.Add(ActionButton("Refresh Preview", ReportWorkspaceAction.Refresh, true));
-        actions.Children.Add(ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf, true));
-        actions.Children.Add(ActionButton("Share", ReportWorkspaceAction.Share, true));
+        actions.Children.Add(ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf));
+        actions.Children.Add(ActionButton("Share", ReportWorkspaceAction.Share));
         actions.Children.Add(ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel));
         var matrix = new Button { Content = "Full matrix", Margin = new Thickness(0,0,8,0), IsEnabled = false };
         exportActions.Add(matrix);

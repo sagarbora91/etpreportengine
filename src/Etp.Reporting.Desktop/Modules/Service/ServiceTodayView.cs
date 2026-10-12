@@ -152,13 +152,8 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
         var face = new StackPanel();
         face.Children.Add(new KpiCard(card.Label, card.Value, card.Detail, card.Accent) { Margin = ServiceUi.Gap(0) });
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Margin = ServiceUi.Gap(ServiceUi.S12, ServiceUi.S4, 0, 0) };
+        // The TileButton template (U1) draws the trailing chevron; the footer only says where the card opens.
         footer.Children.Add(ServiceUi.Text(OpenText(card.Target), "CaptionText", "Accent"));
-        if (System.Windows.Application.Current?.TryFindResource("IconChevronRight") is Geometry chevron)
-        {
-            var icon = new System.Windows.Shapes.Path { Data = chevron, Width = 20, Height = 20, StrokeThickness = 1.5, VerticalAlignment = VerticalAlignment.Center };
-            icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "Accent");
-            footer.Children.Add(icon);
-        }
         face.Children.Add(footer);
         var button = new Button { Content = face, Tag = card, Width = CardWidth, Margin = ServiceUi.Gap(ServiceUi.S4), Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         // K3: the TileButton style (U1) owns the border at rest and the Accent hover/focus border.

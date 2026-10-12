@@ -112,8 +112,10 @@ public partial class MainWindow
         }
         else foreach (var group in groups)
         {
-            var button = new Button { Content = group, Tag = group, Margin = new Thickness(0,0,4,0), Padding = new Thickness(8,4,8,4), MinWidth = 44 };
-            if (group == task.Tab) button.SetResourceReference(StyleProperty, "PrimaryButton");
+            // 1.11.3 (Sys DS-07 / B2): selection is shown with TabButtonSelected (Accent underline), never with PrimaryButton.
+            var button = new Button { Content = group, Tag = group, Margin = new Thickness(0,0,4,0) };
+            button.SetResourceReference(StyleProperty, group == task.Tab ? "TabButtonSelected" : "TabButton");
+            AutomationProperties.SetItemStatus(button, group == task.Tab ? "Selected" : "");
             AutomationProperties.SetName(button, group + " tab");
             button.Click += (_,_) => OpenSection(task.Rail, group);
             SectionTabs.Children.Add(button);
@@ -129,7 +131,7 @@ public partial class MainWindow
         }
         foreach (var button in RailPanel.Children.OfType<Button>().Where(b => b.Tag is string))
         {
-            button.SetResourceReference(StyleProperty, (string)button.Tag == activeSection ? "PrimaryButton" : typeof(Button));
+            button.SetResourceReference(StyleProperty, (string)button.Tag == activeSection ? "RailItemSelected" : "RailItem");
             AutomationProperties.SetItemStatus(button, (string)button.Tag == activeSection ? "Selected" : "");
         }
     }
