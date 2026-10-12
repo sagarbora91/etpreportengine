@@ -194,7 +194,7 @@ public sealed class SqlServerHealthCheckStore : IHealthCheckStore
             writer.WriteString("completedUtc", DiagStoreSupport.Instant(run.CompletedUtc));
             writer.WriteNumber("durationMs", (long)Math.Max(0, (run.CompletedUtc - run.StartedUtc).TotalMilliseconds));
             writer.WriteString("appVersion", run.AppVersion);
-            writer.WriteString("machineName", run.MachineName);
+            writer.WriteString("machineName", HealthMachineName.ToToken(run.MachineName));
             writer.WriteString("runByRole", run.RunByRole);
             writer.WriteString("overall", run.Overall.ToString());
             writer.WriteStartObject("counts");
