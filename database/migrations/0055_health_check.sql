@@ -20,6 +20,8 @@
 --   51820 malformed run JSON   51821 more than 80 results   51822 Owner only
 --   51823 Known: bad check id / finding code, until date in the past or more than 90 days ahead, reason missing or not safe
 --   51824 run not found
+-- LIKE classes put the hyphen first ([^-A-Z0-9], [^-A-Za-z0-9._:<>+]): a trailing "+-]" in an N'' pattern is the
+-- range + to ] (0054 header; 1.11.0 gate 2: a sub-result field value "C:\Users" was recorded). Amended in place.
 -- The migration runner applies this script in one transaction: no BEGIN, COMMIT or GO.
 SET XACT_ABORT ON;
 
@@ -46,8 +48,8 @@ EXEC(N'CREATE TABLE diag.health_check_runs
  CONSTRAINT CK_health_check_runs_role CHECK(run_by_role IN(''Owner'',''StoreManager'',''Viewer'',''Automation'',''Unknown'')),
  CONSTRAINT CK_health_check_runs_times CHECK(started_utc<=completed_utc AND duration_ms>=0),
  CONSTRAINT CK_health_check_runs_counts CHECK(pass_count>=0 AND warning_count>=0 AND fail_count>=0 AND known_count>=0 AND skipped_count>=0),
- CONSTRAINT CK_health_check_runs_tokens CHECK(machine_name NOT LIKE ''%[^A-Za-z0-9._:<>+-]%''
-   AND (export_file_name IS NULL OR export_file_name NOT LIKE N''%[^A-Za-z0-9._:<>+-]%''))
+ CONSTRAINT CK_health_check_runs_tokens CHECK(machine_name NOT LIKE ''%[^-A-Za-z0-9._:<>+]%''
+   AND (export_file_name IS NULL OR export_file_name NOT LIKE N''%[^-A-Za-z0-9._:<>+]%''))
 );');
 EXEC(N'CREATE INDEX IX_health_check_runs_recent ON diag.health_check_runs(trigger_kind,started_utc DESC)');
 
@@ -64,11 +66,11 @@ EXEC(N'CREATE TABLE diag.health_check_results
  metric_value decimal(19,4) NULL,
  detail_json nvarchar(2000) NULL,
  CONSTRAINT PK_health_check_results PRIMARY KEY(health_check_run_id,check_id),
- CONSTRAINT CK_health_check_results_check CHECK(check_id LIKE ''[A-Z][A-Z]%-[0-9][0-9]'' AND check_id NOT LIKE ''%[^A-Z0-9-]%''),
+ CONSTRAINT CK_health_check_results_check CHECK(check_id LIKE ''[A-Z][A-Z]%-[0-9][0-9]'' AND check_id NOT LIKE ''%[^-A-Z0-9]%''),
  CONSTRAINT CK_health_check_results_area CHECK(area IN(''Database'',''Security'',''Reports'',''Imports'',''Data'',''Operations'',''Errors'')),
  CONSTRAINT CK_health_check_results_outcome CHECK(outcome IN(''Pass'',''Warning'',''Fail'',''Known'',''Skipped'')),
  CONSTRAINT CK_health_check_results_finding CHECK(LEN(finding_code)>0 AND finding_code NOT LIKE ''%[^A-Z0-9_]%''),
- CONSTRAINT CK_health_check_results_task CHECK(fix_task_id IS NULL OR fix_task_id NOT LIKE ''%[^A-Za-z0-9._:<>+-]%''),
+ CONSTRAINT CK_health_check_results_task CHECK(fix_task_id IS NULL OR fix_task_id NOT LIKE ''%[^-A-Za-z0-9._:<>+]%''),
  CONSTRAINT CK_health_check_results_duration CHECK(duration_ms>=0),
  CONSTRAINT CK_health_check_results_detail CHECK(detail_json IS NULL OR ISJSON(detail_json)=1)
 );');
@@ -82,7 +84,7 @@ EXEC(N'CREATE TABLE diag.health_check_known
  set_by nvarchar(128) NOT NULL,
  set_utc datetime2(3) NOT NULL,
  CONSTRAINT PK_health_check_known PRIMARY KEY(check_id,finding_code),
- CONSTRAINT CK_health_check_known_check CHECK(check_id LIKE ''[A-Z][A-Z]%-[0-9][0-9]'' AND check_id NOT LIKE ''%[^A-Z0-9-]%''),
+ CONSTRAINT CK_health_check_known_check CHECK(check_id LIKE ''[A-Z][A-Z]%-[0-9][0-9]'' AND check_id NOT LIKE ''%[^-A-Z0-9]%''),
  CONSTRAINT CK_health_check_known_finding CHECK(LEN(finding_code)>0 AND finding_code NOT LIKE ''%[^A-Z0-9_]%''),
  -- 90 days from the server''s local date, which is at most one day ahead of the UTC date of set_utc.
  CONSTRAINT CK_health_check_known_until CHECK(until_date<=DATEADD(day,91,CONVERT(date,set_utc)))
@@ -95,7 +97,7 @@ BEGIN
  -- DB-01, SEC-03, RPT-22, DATA-05 ...: 2-4 capital letters, a dash, two digits.
  IF @value IS NULL OR LEN(@value) NOT BETWEEN 5 AND 7 OR DATALENGTH(@value)<>2*LEN(@value) RETURN 0;
  IF @value COLLATE Latin1_General_100_BIN2 NOT LIKE N''[A-Z][A-Z]%-[0-9][0-9]''
-    OR @value COLLATE Latin1_General_100_BIN2 LIKE N''%[^A-Z0-9-]%''
+    OR @value COLLATE Latin1_General_100_BIN2 LIKE N''%[^-A-Z0-9]%''
     OR @value COLLATE Latin1_General_100_BIN2 LIKE N''%[0-9]%-%''
     OR LEN(@value)-LEN(REPLACE(@value,N''-'',N''''))<>1 RETURN 0;
  RETURN 1;

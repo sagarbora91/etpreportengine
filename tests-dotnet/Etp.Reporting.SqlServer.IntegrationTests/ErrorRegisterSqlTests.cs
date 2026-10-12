@@ -124,7 +124,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
             Item(good[..63], time),                                            // and 64 characters
             Item(good, time, eventBase: "report_store_required"),              // event codes are A-Z 0-9 _
             Item(good, time, site: "Some Site With Spaces"),                   // not a token
-            Item(good, time, reference: "AB@CD"),                              // not a token
+            Item(good, time, reference: "AB@CD"),                              // not a token (gate 2: passed is_token, then aborted the batch on the CHECK)
             Item(good, time, reference: "ABCDEFABCDEF0"),                      // longer than 12
             Item(good, time, severity: "Warning"),                             // warnings are never registered (Q7)
             Item(good, time, applicationVersion: "1.11"),                      // valid version, kept below
