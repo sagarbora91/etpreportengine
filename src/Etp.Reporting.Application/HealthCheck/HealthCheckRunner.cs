@@ -376,7 +376,7 @@ public sealed class HealthCheckRunner
 
         if (line.Outcome != HealthOutcome.Warning) return knownSubs > 0 ? line with { SubResults = subs } : line;
 
-        // "Mark selected warning as Known" stores the line's own code (1.11.0 review finding 3). When that code is a
+        // "Accept selected warning (Known)" (named "Mark selected warning as Known" before 1.11.2) stores the line's own code (1.11.0 review finding 3). When that code is a
         // summary no sub-result carries (DATA-01 DAY_INCOMPLETE over EXPORTS_MISSING, INPUTS_MISSING, ...; IMP-02
         // IMPORT_FAILURES_OPEN over IMPORT_FAILED; ERR-02 subs without a code), the line's Known covers its Warning
         // sub-results, never a Fail one. When a sub-result carries the line's code, Known stays per kind (below).

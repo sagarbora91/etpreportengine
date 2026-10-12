@@ -7,7 +7,7 @@ Migrations: **0054_error_register.sql** and **0055_health_check.sql** (1.10.1 us
 ## 1. What it is
 
 1. **Error register.** Every Error or Critical diagnostics entry is grouped by a fingerprint into one register entry with first and last seen, count, app versions, sample Refs and a status. It lives in the database so that the errors of every Windows account (Owner, Store Managers, automation) are in one place. No customer data, no message text.
-2. **Health check.** 51 read-only checks in 7 areas, run by the Owner on demand and by the automation task nightly. Each line: Pass, Warning, Fail, Known or Skipped, a plain explanation and the screen that fixes it.
+2. **Health check.** 51 read-only checks in 7 areas (54 from 1.11.2: DB-06, SEC-04, OPS-10), run by the Owner on demand and by the automation task nightly. Each line: Pass, Warning, Fail, Known or Skipped, a plain explanation and the screen that fixes it.
 3. **Fix loop.** Each run writes a privacy-checked JSON export. The weekly audit turns Fails, New and Recurred entries into numbered fix tickets; Sagar approves; fixes go through code-only lanes and the gate; the release manifest marks the register entry Fixed; a repeat after the fix turns it Recurred. Claude never changes the software or the database unattended.
 
 Goals: one list of every distinct error and whether a fix held; one button and one nightly run that prove every function; every finding says what is wrong and where to fix it; a machine-readable export; strictly read-only towards business data; rare warnings (Known with reason and expiry).
@@ -40,12 +40,12 @@ Business date checked: yesterday, in manual and nightly runs. Rules against cryi
 
 | Area | Checks |
 |---|---|
-| Database (5) | DB-01 reachable; DB-02 migrations complete (checksums match); DB-03 quick integrity (suspect pages, page verify, last good CHECKDB within 35 days); DB-04 database options (AUTO_CLOSE, state, read-write); DB-05 size headroom |
-| Security (3) | SEC-01 role permission matrix against the expected matrix; SEC-02 role membership; SEC-03 Owner grant option |
+| Database (6) | DB-01 reachable; DB-02 migrations complete (checksums match); DB-03 quick integrity (suspect pages, page verify, last good CHECKDB within 35 days); DB-04 database options (AUTO_CLOSE, state, read-write); DB-05 size headroom (1.11.2: also warns from 6 GB on a 10 GB Express cap); DB-06 Service screen view timings (1.11.2, Warning over 1 s) |
+| Security (4) | SEC-01 role permission matrix against the expected matrix; SEC-02 role membership; SEC-03 Owner grant option; SEC-04 another database on this SQL Server holds `etp_landing_*` tables (1.11.2, AUDIT-2 S-08) |
 | Reports (22) | RPT-01 to RPT-22, one per catalogue report, through the same query classes the Reports screen uses; rows are counted and dropped; Pass under 10 s, Warning 10 to 30 s or more than 3 times the 7-run median, Fail on exception or timeout |
 | Imports (3) | IMP-01 all 72 export families still recognised from built-in synthetic samples; IMP-02 recent import failures; IMP-03 automatic import state |
 | Data (5) | DATA-01 yesterday is complete; DATA-02 sales against tender; DATA-03 closing-stock snapshot freshness; DATA-04 Service freshness; DATA-05 open critical data-quality issues |
-| Operations (9) | OPS-01 last verified backup; OPS-02 recovery drill; OPS-03 scheduled tasks; OPS-04 disk space; OPS-05 protected folder permissions; OPS-06 SQL Server build; OPS-07 unattended runs; OPS-08 backup and drill failure logs; OPS-09 Windows event log |
+| Operations (10) | OPS-01 last verified backup; OPS-02 recovery drill; OPS-03 scheduled tasks; OPS-04 disk space; OPS-05 protected folder permissions; OPS-06 SQL Server build; OPS-07 unattended runs; OPS-08 backup and drill failure logs; OPS-09 Windows event log; OPS-10 off-PC backup copy (1.11.2, DR G11: newest `ETP-Backups\*.bak.enc` under 36 h, key file outside OneDrive, OneDrive running; Skipped on a PC without OneDrive backups) |
 | Errors (4) | ERR-01 register ingest; ERR-02 new errors; ERR-03 recurred after fix; ERR-04 crash-like errors |
 
 **Known:** a Warning accepted by the Owner for a check id and finding code, with reason and end date of at most 90 days (decision 33). Greyed, not counted, not ticketed, never hides a Fail.
@@ -82,7 +82,7 @@ Inside the five-minute automation task, after the import step: due when local ti
 
 ## 7. Screens
 
-Settings → Database, Owner only: **Health check** (Run, Cancel, grouped lines with Where to fix, Compare with, Mark as Known, Open export folder; confirmation between 09:00 and 21:00, decision Q13) and **Error register** (Find Ref, status filter, details with latest stack, versions and 20 occurrences, Mark seen, Mark expected, Link ticket, Mark fixed in version, Merge, Copy summary). Store Managers and Viewers see only a dashboard tile with last night's result.
+Settings → Database, Owner only: **Health check** (Run, Cancel, grouped lines with Where to fix, Compare with, Accept selected warning (Known) / End acceptance (named so in 1.11.2), Open export folder; confirmation between 09:00 and 21:00, decision Q13) and **Error register** (Find Ref, status filter, details with latest stack, versions and 20 occurrences, Mark seen, Mark expected, Link ticket, Mark fixed in version, Merge, Copy summary). Store Managers and Viewers see only a dashboard tile with last night's result.
 
 ## 8. Privacy
 

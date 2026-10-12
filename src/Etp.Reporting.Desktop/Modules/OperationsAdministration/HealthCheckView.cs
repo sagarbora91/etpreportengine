@@ -116,7 +116,7 @@ public sealed record HealthChange(string CheckId, HealthOutcome From, HealthOutc
 
 /// <summary>
 /// Settings &gt; Database &gt; Health check (design 9.1): the lines of the latest run, Fails first, with Run health check,
-/// Compare with, Mark as Known and Open export folder. Owner only; every action re-checks the role. The data comes only
+/// Compare with, Accept selected warning (Known) / End acceptance and Open export folder. Owner only; every action re-checks the role. The data comes only
 /// from <see cref="IHealthCheckStore"/>, and a run is started through the delegate the composition root gives it.
 /// </summary>
 public sealed class HealthCheckView : UserControl

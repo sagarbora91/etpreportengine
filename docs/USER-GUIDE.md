@@ -54,7 +54,7 @@ Each line shows one of:
 
 Every line has a plain explanation and a **Where to fix** button that opens the right screen, or says what to do ("run ETP setup as administrator"). A report that opens but says Blocked because a file is missing is still a Pass: the report works, and the missing file is reported once, on the "Yesterday is complete" line. A line that has not changed since the last run says "unchanged since" with the date. **Compare with** shows what changed against an earlier run.
 
-**Mark as Known.** Select a warning and choose **Mark selected warning as Known**. Enter a reason and an end date, at most 90 days ahead. The line turns grey and stops counting as a warning until the date passes. A Known never hides a Fail. Use it for things you have not started yet, for example daily manual inputs or staff targets.
+**Accept a warning (Known).** Select a warning and choose **Accept selected warning (Known)**. Enter a reason and an end date, at most 90 days ahead. From the next health check (run it again, or wait for the nightly run) the line turns grey and stops counting as a warning until the date passes. **End acceptance** stops it early. A Known never hides a Fail. Use it for things you have not started yet, for example daily manual inputs or staff targets.
 
 **Error register.** Every Error or Critical entry in ETP's diagnostics log is grouped into one register entry: how many times, first and last seen, which versions, and a status:
 
