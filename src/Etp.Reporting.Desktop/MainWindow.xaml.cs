@@ -142,6 +142,18 @@ public partial class MainWindow : Window
         {
             ApplicationStatus.Text = status;
         };
+        // 1.11.3 (U3 FR-07): the hand-offs after an import. An explicit click, so moving the header date is allowed here
+        // (imports themselves never retarget it).
+        importWorkspaceView.ShowDailySalesReportRequested += (_, date) =>
+        {
+            if (TaskNavigation.Find("report-dsr") is not { } dsr || !taskNavigator!.TryNavigateTask(dsr)) return;
+            var target = date.ToDateTime(TimeOnly.MinValue);
+            if (ShellBusinessDateSelector.SelectedDate != target) ShellBusinessDateSelector.SelectedDate = target;
+        };
+        importWorkspaceView.ShowImportHistoryRequested += (_, _) =>
+        {
+            if (TaskNavigation.Find("import-history") is { } history) taskNavigator!.NavigateTask(history);
+        };
 
         accountingWorkspaceView.AttachHost(() => currentAccess, DesktopFriendlyError.Describe);
         accountingWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;

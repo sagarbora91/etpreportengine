@@ -168,7 +168,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     {
         lastImportedDate = latestResults.Where(result => !result.Failed && result.PeriodEnd is not null).Select(result => result.PeriodEnd).Max();
         ShowDsrButton.Visibility = lastImportedDate is not null && ShowDailySalesReportRequested is not null ? Visibility.Visible : Visibility.Collapsed;
-        if (lastImportedDate is { } date) ShowDsrButton.Content = $"Show the Daily Sales Report for {date:dd MMM yyyy}";
+        if (lastImportedDate is { } date) ShowDsrButton.Content = $"Show the Daily Sales Report for {Etp.Reporting.Reporting.IndianFormat.Date(date)}";
         ShowHistoryButton.Visibility = ShowImportHistoryRequested is not null ? Visibility.Visible : Visibility.Collapsed;
         HandOffPanel.Visibility = ShowDsrButton.Visibility == Visibility.Visible || ShowHistoryButton.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
     }

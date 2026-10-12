@@ -22,7 +22,11 @@ public partial class MainWindow
 
     private TodayChecklistPanel CreateTodayChecklist()
     {
-        var panel = new TodayChecklistPanel(() => dailyReadinessQuery(), OpenChecklistTask, () => CurrentShellAccess, ShopNameFor);
+        var panel = new TodayChecklistPanel(() => dailyReadinessQuery(), OpenChecklistTask, () => CurrentShellAccess, ShopNameFor)
+        {
+            // 1.11.3 (U3 ST-08): a line about one shop opens its task with that shop in the header.
+            OpenTaskForStore = OpenChecklistTaskForStore
+        };
         // 1.11.2: a file that arrived while the Owner was in another program leaves the list when he comes back.
         Activated += (_, _) => { if (panel.IsVisible) _ = panel.RefreshLastAsync(); };
         return panel;
@@ -43,6 +47,22 @@ public partial class MainWindow
         var date = ShellBusinessDateSelector.SelectedDate ?? TaskNavigator.InitialBusinessDate;
         var store = (ShellStoreSelector.SelectedItem as ComboBoxItem)?.Tag?.ToString();
         _ = TodayChecklistPanel.RefreshAsync(date, store);
+    }
+
+    private void OpenChecklistTaskForStore(string taskId, string storeCode)
+    {
+        if (string.IsNullOrWhiteSpace(storeCode)) { OpenChecklistTask(taskId); return; }
+        if (TaskNavigation.Find(taskId) is not { } task || !taskNavigator!.TryNavigateTask(task)) return;
+        if (taskId == "masters") TodayChecklist.SelectTab(FocusedWorkspaceHost.Content as System.Windows.DependencyObject, TodayChecklist.MonthlyTargetsTab);
+        SelectHeaderStore(storeCode);
+    }
+
+    /// <summary>Moves the header store to <paramref name="storeCode"/>; the header's own scope change then re-shows the
+    /// current task for that shop (and asks about drafts first, as any header change does).</summary>
+    internal void SelectHeaderStore(string storeCode)
+    {
+        var item = ShellStoreSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals(x.Tag?.ToString(), storeCode, StringComparison.OrdinalIgnoreCase));
+        if (item is not null && !ReferenceEquals(ShellStoreSelector.SelectedItem, item)) ShellStoreSelector.SelectedItem = item;
     }
 
     private void OpenChecklistTask(string taskId)

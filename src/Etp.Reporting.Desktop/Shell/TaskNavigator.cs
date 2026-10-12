@@ -404,6 +404,15 @@ public sealed partial class TaskNavigator(MainWindow window)
         NavigateSafely(() => window.shell.Navigate(task.Route, window.CurrentShellAccess));
     }
 
+    /// <summary>1.11.3 hand-offs (U3 FR-07, ST-08): opens a task and reports whether the shell is now on it, so the caller
+    /// only moves the header date or store after an explicit, completed navigation (never while drafts are being resolved).</summary>
+    public bool TryNavigateTask(TaskDestination task)
+    {
+        if (task.Section == "profile") return false;
+        return NavigateSafely(() => window.shell.Navigate(task.Route, window.CurrentShellAccess))
+            && string.Equals(window.shell.CurrentRoute.TaskId, task.Id, StringComparison.Ordinal);
+    }
+
     /// <summary>Opens a task with a route argument (1.11.2: the Error register finds this Ref when it opens).</summary>
     public void NavigateTaskWithArgument(TaskDestination task, string argument) =>
         NavigateSafely(() => window.shell.Navigate(task.RouteWith(argument), window.CurrentShellAccess));

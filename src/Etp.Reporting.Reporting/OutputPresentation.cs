@@ -44,7 +44,8 @@ public enum OutputTone { Neutral, Success, Warning, Critical }
 /// </summary>
 public static class OutputText
 {
-    public static readonly CultureInfo India = CultureInfo.GetCultureInfo("en-IN");
+    // 1.11.3 integration: the same culture as the shared formatter (U5 IndianFormat), so outputs and screens both say "Sept".
+    public static readonly CultureInfo India = IndianFormat.Culture;
 
     /// <summary>"— / blank = not available (never zero)": the one legend line on every output.</summary>
     public const string MissingLegend = "— = not available (never zero).";
