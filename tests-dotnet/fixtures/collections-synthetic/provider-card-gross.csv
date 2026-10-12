@@ -1,0 +1,5 @@
+Txn Date Time,MID,TID,RRN,Invoice,Type,Status,Gross Amount,MDR,GST on MDR,Net Amount,Settlement Date,Customer Name,VPA
+01/08/2026 10:15:00,MID-SYN-1,T1,RRN0001,INV1,SALE,SUCCESS,"1,000.00",18.00,3.24,978.76,02/08/2026,Synthetic Payer One,payer1@synthetic
+01/08/2026 11:20:00,MID-SYN-1,T1,RRN0002,INV2,SALE,FAILED,500.00,0,0,0,02/08/2026,Synthetic Payer Two,payer2@synthetic
+01/08/2026 12:00:00,MID-SYN-1,T1,RRN0003,INV3,REFUND,SUCCESS,-200.00,0,0,-200.00,02/08/2026,Synthetic Payer Three,payer3@synthetic
+02/08/2026 09:00:00,MID-SYN-2,T9,RRN0004,INV4,SALE,SUCCESS,"2,000.00",36.00,6.48,1957.52,03/08/2026,Synthetic Payer Four,payer4@synthetic
