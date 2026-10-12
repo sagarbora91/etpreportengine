@@ -34,7 +34,7 @@ public sealed class PropertyChangeWatcherTests
             TablePresentation.Configure(grid);
             Assert.Empty(grid.Columns);
             grid.ItemsSource = new[] { new { StoreCode = "WLMHW", NetAmount = 10m } };
-            Assert.Equal(new[] { "Store", "Net Amount ₹" }, grid.Columns.Select(column => column.Header));
+            Assert.Equal(new[] { "Store", "Net Amount (₹)" }, grid.Columns.Select(column => column.Header));
             grid.ItemsSource = new[] { new { Invoice = "00123", Quantity = 2 } };
             Assert.Equal(new[] { "Invoice", "Quantity" }, grid.Columns.Select(column => column.Header));
         });

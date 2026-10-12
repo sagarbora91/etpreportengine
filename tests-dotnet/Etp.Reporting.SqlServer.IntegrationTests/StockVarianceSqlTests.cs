@@ -117,7 +117,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         var result = await Executor().ExecuteStockReconciliationAsync(new(new(2026, 8, 1), sep29, [store]));
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("Ledger covers to 25 Aug 2026 for SV-SHORT (sales on 03 Sep 2026 are not in it), before the To date 29 Sep 2026.", result.Message);
+        Assert.StartsWith("Ledger covers to 25 Aug 2026 for SV-SHORT (sales on 03 Sept 2026 are not in it), before the To date 29 Sept 2026.", result.Message);
         Assert.Equal(ReconciliationStatus.Passed, Assert.Single(result.Items).Status);
     }
 

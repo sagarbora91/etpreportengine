@@ -47,7 +47,7 @@ public sealed class ReportGridPresentationTests
             var export = latest().ExportData!.Columns.Select(column => column.Header).ToArray();
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
-            var headers = grid.Columns.Select(column => ((string)column.Header).Replace(" ₹", string.Empty, StringComparison.Ordinal)).ToArray();
+            var headers = grid.Columns.Select(column => ((string)column.Header).Replace(" (₹)", string.Empty, StringComparison.Ordinal)).ToArray();
             Assert.True(IsSubsequence(export, headers), $"{code}: export [{string.Join(" | ", export)}] is not shown in order by grid [{string.Join(" | ", headers)}]");
             Assert.All(headers.Except(export), header => Assert.Contains(header, ScreenOnlyHeaders));
             Assert.DoesNotContain(headers, header => header.Contains("Source Signed", StringComparison.Ordinal) || header is "Key" or "Cro Number" or "Upi" or "Wdc" or "Invoice Year" or "Source Rows");
@@ -85,7 +85,7 @@ public sealed class ReportGridPresentationTests
             var tender = new DataGrid { ItemsSource = new[] { new TenderDocumentRecord("WLMHW", "D1", 118m, 118m, 0m, ReportStatus.Passed, 2027) } };
             TablePresentation.Configure(tender);
             Assert.DoesNotContain(tender.Columns, column => ((string)column.Header).Contains("Year", StringComparison.OrdinalIgnoreCase));
-            Assert.Equal("Passed", Cell(tender, "Status", ReportStatus.Passed));
+            Assert.Equal("OK", Cell(tender, "Status", ReportStatus.Passed));
 
             var year = new DataGrid { ItemsSource = new[] { new { FinancialYear = 2027, Rows = 1234 } } };
             TablePresentation.Configure(year);
@@ -109,15 +109,15 @@ public sealed class ReportGridPresentationTests
     public void Row_details_use_the_grid_headers_and_formats_and_hide_internal_columns()
     {
         var staff = TablePresentation.DescribeRow(new StaffPerformanceRecord("WLMHW", "001", 1234567.125m, null, null, "MissingSource", 3m, 0m, 2, 1.5m, 100m, 1m, null, null, 1, "Synthetic CRO"));
-        Assert.Equal(["Store", "CRO", "CRO name", "Value incl. GST ₹"], staff.Take(4).Select(item => item.Label).ToArray());
-        Assert.Equal("12,34,567.13", staff.Single(item => item.Label == "Value incl. GST ₹").Value);
-        Assert.Equal("—", staff.Single(item => item.Label == "LY Sales ₹").Value);
+        Assert.Equal(["Store", "CRO", "CRO name", "Value incl. GST (₹)"], staff.Take(4).Select(item => item.Label).ToArray());
+        Assert.Equal("12,34,567.13", staff.Single(item => item.Label == "Value incl. GST (₹)").Value);
+        Assert.Equal("—", staff.Single(item => item.Label == "LY Sales (₹)").Value);
         Assert.Equal("Missing source", staff.Single(item => item.Label == "Growth Status").Value);
         Assert.DoesNotContain(staff, item => item.Label is "Cro Number" or "NetSales" or "StoreCode");
 
         var tender = TablePresentation.DescribeRow(new TenderDocumentRecord("WLMHW", "D1", 118m, 118m, 0m, ReportStatus.Passed, 2027));
         Assert.DoesNotContain(tender, item => item.Label.Contains("Year", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal("Passed", tender.Single(item => item.Label == "Status").Value);
+        Assert.Equal("OK", tender.Single(item => item.Label == "Status").Value);
 
         var movement = TablePresentation.DescribeRow(new StockMovementRecord("WLMHW", "ITEM", "SR", -1m, "RETAILBIN", false));
         Assert.Equal(["Store", "Item", "Location", "Movement Type", "Signed Quantity", "Snapshot"], movement.Select(item => item.Label).ToArray());
@@ -208,7 +208,7 @@ public sealed class ReportGridPresentationTests
 
             // No exceptions is the finding itself, not missing data.
             await view.RunReportAsync("exceptions");
-            Assert.Equal("Passed: 0 exception(s).", ((TextBlock)view.FindName("ReportResult")).Text);
+            Assert.Equal("OK: 0 exception(s).", ((TextBlock)view.FindName("ReportResult")).Text);
             Assert.False(latest().CanExportReport);
         });
     }

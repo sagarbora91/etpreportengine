@@ -168,7 +168,7 @@ public sealed class TargetCopyTests
             { TargetLoader = () => Task.FromResult<IReadOnlyList<MonthlyTargetRow>>([new("TST01", October, 10m)]) };
             Find<DatePicker>(view, "Target month").SelectedDate = new DateTime(2026, 10, 1);
             Click(FindButton(view, "Copy from previous month"));
-            Assert.Contains("No monthly targets are saved for Sep 2026", view.StatusText);
+            Assert.Contains("No monthly targets are saved for Sept 2026", view.StatusText);
             return Task.CompletedTask;
         });
     }
@@ -266,7 +266,7 @@ public sealed class TargetCopyTests
                 Assert.Equal("TST01", row.StoreCode);
                 Assert.Equal(October, row.PeriodStart);
                 Assert.Equal(new DateOnly(2026, 10, 31), row.PeriodEnd);
-                Assert.Equal("Copied from Sep 2026", row.Reason);
+                Assert.Equal("Copied from Sept 2026", row.Reason);
             });
             Assert.Equal(choice == TargetOverwriteChoice.Cancel ? 2 : 0, view.PendingStaffTargetCopy.Count);
         });

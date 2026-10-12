@@ -131,7 +131,7 @@ public sealed class EveningReportInteractionTests
             Assert.Equal(["Store", "CRO", "CRO name"], grid.Columns.Take(3).Select(column => column.Header).ToArray());
             Assert.Equal("Unique invoices", grid.Columns[9].Header);
             Assert.Equal("AUPT", grid.Columns[10].Header);
-            Assert.Equal("ATV ₹", grid.Columns[11].Header);
+            Assert.Equal("ATV (₹)", grid.Columns[11].Header);
             var otherReport = new DataGrid { ItemsSource = new[] { new { Transactions = 2, Upt = 1.5m, Atv = 100m } } };
             TablePresentation.Configure(otherReport);
             Assert.Equal(new[] { "Transactions", "Upt", "Atv" }, otherReport.Columns.Select(column => column.Header));

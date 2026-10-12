@@ -265,12 +265,12 @@ public partial class ReportsWorkspaceView : UserControl
             if (mode == "BRAND")
             {
                 var grouped = rows.GroupBy(x => new { x.StoreCode, BrandRow = x.StockGroup, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.BrandRow, x.Key.Brand, Cluster = x.Key.Group, Quantity = x.Sum(y => y.Quantity), MrpValue = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => StockAgeing.IsSlow(y.Quantity, y.MovementStatus)) }).OrderBy(x => x.StoreCode).ThenBy(x => x.BrandRow).ThenBy(x => x.Cluster).ThenBy(x => x.Brand).ToArray();
-                var status = grouped.Length == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = grouped; ReportResult.Text = IndianText($"{status}: {grouped.Length:N0} store/brand/cluster row(s).{sources}");
+                var status = grouped.Length == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = grouped; ReportResult.Text = IndianText($"{StatusWords.Label(status)}: {grouped.Length:N0} store/brand/cluster row(s).{sources}");
                 SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from each store's latest saved ETP snapshot on or before the selected date; quantity and MRP are never inferred. " + StockMrpNote + BrandRowNote + sources, [new("Store"),new("Brand row"),new("Brand"),new("Cluster"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BrandRow,x.Brand,x.Cluster,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
             }
             else
             {
-                var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands; it lists SLOW, WATCH and NEVER SOLD items with stock, not NEW or ACTIVE ones.{NewStockText(rows)}");
+                var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands; it lists SLOW, WATCH and NEVER SOLD items with stock, not NEW or ACTIVE ones.{NewStockText(rows)}");
                 SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from each store's latest ETP stock snapshot on or before the selected date (the Date column). " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + ReceiptNote + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Cluster"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Last Receipt"),new("Days Since Receipt","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.LastReceiptDate,x.DaysSinceReceipt,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","","","",""]);
             }
             ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed), mode == "BRAND" ? "Brand stock" : mode == "SLOW" ? "Slow stock" : "Closing stock");
@@ -294,7 +294,7 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string SnapshotSourceText(IEnumerable<(string StoreCode, DateOnly SnapshotDate, string? Source)> rows)
     {
         var days = rows.GroupBy(x => (x.StoreCode, x.SnapshotDate)).OrderBy(x => x.Key.StoreCode, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Key.SnapshotDate)
-            .Select(x => $"{x.Key.StoreCode} {x.Key.SnapshotDate.ToString("dd-MMM-yyyy", System.Globalization.CultureInfo.InvariantCulture)} {string.Join(" + ", x.Select(y => y.Source ?? "Unknown").Distinct(StringComparer.Ordinal))}")
+            .Select(x => $"{x.Key.StoreCode} {Etp.Reporting.Reporting.IndianFormat.Date(x.Key.SnapshotDate)} {string.Join(" + ", x.Select(y => y.Source ?? "Unknown").Distinct(StringComparer.Ordinal))}")
             .ToArray();
         return days.Length == 0 ? "" : " Snapshot source: " + string.Join("; ", days) + ".";
     }
@@ -304,7 +304,7 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string MissingSnapshotText(IReadOnlyList<string>? requestedStores, IEnumerable<string> storesWithRows, DateOnly date)
     {
         var present = storesWithRows.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var day = date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        var day = Etp.Reporting.Reporting.IndianFormat.Date(date);
         if (requestedStores is not { Count: > 0 }) return present.Count == 0 ? $" No closing-stock snapshot for any store on or before {day}; import the Closing Stock export." : "";
         var missing = requestedStores.Where(x => !present.Contains(x)).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         return missing.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", missing)} on or before {day}; import the Closing Stock export.";
@@ -314,7 +314,7 @@ public partial class ReportsWorkspaceView : UserControl
     // 05 Oct 2026) for STORE." Stores whose snapshot is on the date itself add nothing.
     internal static string FallbackSnapshotText(IEnumerable<(string StoreCode, DateOnly SnapshotDate)> rows, DateOnly date)
     {
-        static string Day(DateOnly value) => value.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        static string Day(DateOnly value) => Etp.Reporting.Reporting.IndianFormat.Date(value);
         var days = rows.Where(x => x.SnapshotDate != date).GroupBy(x => x.SnapshotDate).OrderBy(x => x.Key)
             .Select(x => $"Snapshot of {Day(x.Key)} (latest on or before {Day(date)}) for {string.Join(", ", x.Select(y => y.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))}")
             .ToArray();
@@ -324,7 +324,7 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunStockMovementAsync()
     {
         var revision = reportRevision;
-        try { var scope = ReportScope(); var rows = await controlledReportQueryFactory(connectionStringProvider()).LoadStockMovementsAsync(scope); var snapshotNote = StockMovementSnapshotNote(rows, scope.DateTo) + MissingMovementText(scope.StoreCodes is { Count: > 0 } ? scope.StoreCodes : stores.Stores.Select(x => x.Code).ToArray(), rows.Select(x => x.StoreCode), scope.DateFrom, scope.DateTo); var status = StockMovementStatus(rows.Count); if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} source movement group(s).") + snapshotNote; SetExport("Stock Movement", status, RetailReportingPolicy.Version, "Movement quantities retain the ETP source transaction type and source-signed quantity." + snapshotNote, [new("Store"),new("Item"),new("Location"),new("Movement Type"),new("Signed Quantity","#,##0.00"),new("Snapshot")], rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Location,x.SourceMovementType,x.SourceSignedQuantity,x.Snapshot]).ToArray(), ["Total","","","",rows.Sum(x=>x.SourceSignedQuantity),""]); ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(status), "Stock movement"); }
+        try { var scope = ReportScope(); var rows = await controlledReportQueryFactory(connectionStringProvider()).LoadStockMovementsAsync(scope); var snapshotNote = StockMovementSnapshotNote(rows, scope.DateTo) + MissingMovementText(scope.StoreCodes is { Count: > 0 } ? scope.StoreCodes : stores.Stores.Select(x => x.Code).ToArray(), rows.Select(x => x.StoreCode), scope.DateFrom, scope.DateTo); var status = StockMovementStatus(rows.Count); if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} source movement group(s).") + snapshotNote; SetExport("Stock Movement", status, RetailReportingPolicy.Version, "Movement quantities retain the ETP source transaction type and source-signed quantity." + snapshotNote, [new("Store"),new("Item"),new("Location"),new("Movement Type"),new("Signed Quantity","#,##0.00"),new("Snapshot")], rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Location,x.SourceMovementType,x.SourceSignedQuantity,x.Snapshot]).ToArray(), ["Total","","","",rows.Sum(x=>x.SourceSignedQuantity),""]); ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(status), "Stock movement"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_MOVEMENT_REPORT_FAILED", "Stock movement report failed"); }
     }
 
@@ -336,7 +336,7 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string StockMovementSnapshotNote(IEnumerable<EtpApplication::Etp.Reporting.Application.Reports.StockMovementRecord> rows, DateOnly dateTo)
     {
         var stores = rows.Where(x => !x.HasSnapshot).Select(x => x.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        return stores.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", stores)} on {dateTo.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}; movements are shown, closing stock cannot be checked.";
+        return stores.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", stores)} on {Etp.Reporting.Reporting.IndianFormat.Date(dateTo)}; movements are shown, closing stock cannot be checked.";
     }
 
     // RA-STOCK-03 / RA-UI-08: a store in scope with no ledger row in the period is named, so a reader does not take its
@@ -345,14 +345,14 @@ public partial class ReportsWorkspaceView : UserControl
     {
         var present = storesWithRows.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var missing = scopedStores.Where(x => !present.Contains(x)).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        static string Day(DateOnly date) => Etp.Reporting.Reporting.IndianFormat.Date(date);
         return missing.Length == 0 ? "" : $" No stock ledger rows for {string.Join(", ", missing)} between {Day(dateFrom)} and {Day(dateTo)}; import the stock ledger for those dates, or the store had no movement.";
     }
 
     private async Task RunManagementTrendReportAsync()
     {
         var revision = reportRevision;
-        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; var missingTender = rows.Count(x => x.TenderVariance is null); ReportResult.Text=IndianText($"{status}: {rows.Count:N0} daily management trend row(s).") + (missingTender == 0 ? "" : IndianText($" {missingTender:N0} store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.")); SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales (R025 NETAMOUNT), units, invoice and return counts and unchanged control variances. " + InvoicesNote,[new("Date"),new("Store"),new(SalesHeader,"#,##0.00"),new("Units","#,##0.00"),new(InvoicesHeader,"#,##0"),new(ReturnsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Tender Source"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.Returns,x.TenderVariance,x.TenderSource,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.Returns),missingTender == 0 ? rows.Sum(x=>x.TenderVariance) : null,missingTender == 0 ? "" : $"{missingTender:N0} missing",rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
+        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; var missingTender = rows.Count(x => x.TenderVariance is null); ReportResult.Text=IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} daily management trend row(s).") + (missingTender == 0 ? "" : IndianText($" {missingTender:N0} store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.")); SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales (R025 NETAMOUNT), units, invoice and return counts and unchanged control variances. " + InvoicesNote,[new("Date"),new("Store"),new(SalesHeader,"#,##0.00"),new("Units","#,##0.00"),new(InvoicesHeader,"#,##0"),new(ReturnsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Tender Source"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.Returns,x.TenderVariance,x.TenderSource,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.Returns),missingTender == 0 ? rows.Sum(x=>x.TenderVariance) : null,missingTender == 0 ? "" : $"{missingTender:N0} missing",rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "MANAGEMENT_TREND_REPORT_FAILED", "Management trend failed"); }
     }
 
@@ -381,7 +381,7 @@ public partial class ReportsWorkspaceView : UserControl
             var sales = result.Rows.Sum(row => row.SourceSignedNetAmount);
             var units = result.Rows.Sum(row => row.SourceSignedQuantity);
             ReportGrid.ItemsSource = result.Rows;
-            ReportResult.Text = IndianText($"{result.Status}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}") + (autoStoreNote is null ? "" : " " + autoStoreNote);
+            ReportResult.Text = IndianText($"{StatusWords.Label(result.Status)}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}") + (autoStoreNote is null ? "" : " " + autoStoreNote);
             // RA-SALES-08: the Returns report is keyed by store and brand and its Invoices column counts return documents.
             SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + (name == "Returns" ? ReturnsNote : InvoicesNote),
                 [new("Group"), new("Units", "#,##0.00"), new(SalesHeader, "#,##0.00"), new(InvoicesHeader, "#,##0"), new(ReturnsHeader, "#,##0")],
@@ -406,7 +406,7 @@ public partial class ReportsWorkspaceView : UserControl
 
     /// <summary>RA-SALES-11 / RA-EXPORT-10 (1.9.9): the Customer-wise status line starts with its status word and names the dates.</summary>
     internal static string CustomerWiseStatus(ReconciliationStatus status, IReadOnlyList<EtpApplication::Etp.Reporting.Application.Reports.InvoiceSummaryRecord> rows, DateOnly from, DateOnly to) =>
-        rows.Count == 0 ? $"{status}: 0 invoices." : $"{status}: {WindowText(from, to)}, {CustomerWiseCounts(rows)}";
+        rows.Count == 0 ? $"{StatusWords.Label(status)}: 0 invoices." : $"{StatusWords.Label(status)}: {WindowText(from, to)}, {CustomerWiseCounts(rows)}";
 
     private async Task RunInvoiceSummaryAsync()
     {
@@ -429,7 +429,7 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunInvoiceLineageAsync()
     {
         var revision = reportRevision;
-        try { var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceLineageAsync(ReportScope()); var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Invoice and item drill-down is traceable to its source workbook, sheet and row. Sales values include GST."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=IndianText($"{status}: {rows.Count:N0} recorded line(s)."); SetExport("Invoice Sales source history",status,RetailReportingPolicy.Version,message,[new("Business Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Value incl. GST","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),["Total","","","","","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue),"","","",rows.Count]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Invoice source history report"); }
+        try { var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceLineageAsync(ReportScope()); var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Invoice and item drill-down is traceable to its source workbook, sheet and row. Sales values include GST."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} recorded line(s)."); SetExport("Invoice Sales source history",status,RetailReportingPolicy.Version,message,[new("Business Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Value incl. GST","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),["Total","","","","","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue),"","","",rows.Count]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Invoice source history report"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "INVOICE_DRILLDOWN_FAILED", "Invoice drill-down failed"); }
     }
 
@@ -455,14 +455,14 @@ public partial class ReportsWorkspaceView : UserControl
     /// <summary>RA-EXPORT-10 (1.9.9): the DSR status line always starts with its status word and, when Blocked, says why.</summary>
     internal static string DsrStatus(ReconciliationStatus status, string? coverageBlock, DateOnly businessDate) =>
         coverageBlock is not null ? $"{ReconciliationStatus.Blocked}: {coverageBlock} {DsrNote}"
-        : status == ReconciliationStatus.Passed ? $"{status}: {DsrNote}"
-        : $"{status}: No sales found for {DayText(businessDate)}; import the sales export (R025) for that date. {DsrNote}";
+        : status == ReconciliationStatus.Passed ? $"{StatusWords.Label(status)}: {DsrNote}"
+        : $"{StatusWords.Label(status)}: No sales found for {DayText(businessDate)}; import the sales export (R025) for that date. {DsrNote}";
 
     // RA-SALES-01: a business date no current R025 covers for a store in scope reads "-" for FTD and MTD. That is a
     // Blocked report naming the store and the last imported day, not a Passed one; YTD stays as it is.
     internal static string? DsrCoverageBlock(IEnumerable<EtpApplication::Etp.Reporting.Application.Reports.DsrManagementRecord> rows, DateOnly businessDate)
     {
-        static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        static string Day(DateOnly date) => Etp.Reporting.Reporting.IndianFormat.Date(date);
         var missing = rows.Where(x => string.Equals(x.Period, "FTD", StringComparison.OrdinalIgnoreCase) && !string.Equals(x.Store, "COMBINED", StringComparison.OrdinalIgnoreCase) && x.TySales is null)
             .OrderBy(x => x.Store, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.SourceCoversTo is { } last ? $"{x.Store}: last {Day(last)}" : $"{x.Store}: none imported").ToArray();
@@ -477,7 +477,7 @@ public partial class ReportsWorkspaceView : UserControl
         {
             var result = await operationalReportQueryFactory(connectionStringProvider()).LoadStaffPerformanceAsync(ReportScope());
             if (revision != reportRevision) return; ReportGrid.ItemsSource = result.Rows;
-            ReportResult.Text = IndianText($"{result.Status}: recorded {result.CanonicalSales:N2}, attributed {result.AttributedSales:N2}, variance {result.Variance:N2}. {result.Message}");
+            ReportResult.Text = IndianText($"{StatusWords.Label(result.Status)}: recorded {result.CanonicalSales:N2}, attributed {result.AttributedSales:N2}, variance {result.Variance:N2}. {result.Message}");
             SetExport("Staff CRO Performance",ToReportingStatus(result.Status), result.MetricPolicy, result.Message,
                 [new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","0.00%"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Unique invoices","#,##0"),new("AUPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","0.00%"),new("Target","#,##0.00"),new("Achievement %","0.00%"),new("Rank","#,##0")],
                 result.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.CroNumber,x.CroName,x.NetSales,x.LastYearSales,x.GrowthPercent,x.GrowthStatus,x.NetQuantity,x.Discount,x.Transactions,x.Upt,x.Atv,x.ContributionPercent,x.TargetSales,x.TargetAchievementPercent,x.Rank]).ToArray(),
@@ -497,8 +497,8 @@ public partial class ReportsWorkspaceView : UserControl
 
     /// <summary>RA-EXPORT-10 (1.9.9): a Blocked Service Sales line says no service entries exist and where to enter them.</summary>
     internal static string ServiceStatus(ReconciliationStatus status, string message, string storeScope, DateOnly businessDate) =>
-        status == ReconciliationStatus.Passed ? $"{status}: {message}"
-        : $"{status}: Service entries missing for {storeScope} up to {DayText(businessDate)}; no period has cash, card and UPI on every day. Enter them in Today > Cash > Cash and service entries. {message}";
+        status == ReconciliationStatus.Passed ? $"{StatusWords.Label(status)}: {message}"
+        : $"{StatusWords.Label(status)}: Service entries missing for {storeScope} up to {DayText(businessDate)}; no period has cash, card and UPI on every day. Enter them in Today > Cash > Cash and service entries. {message}";
 
     private async Task RunCashReconciliationAsync()
     {
@@ -524,21 +524,21 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunTenderReportAsync()
     {
         var revision = reportRevision;
-        try { var r=await controlledReportQueryFactory(connectionStringProvider()).RunTenderReconciliationAsync(ReportScope()); if (revision != reportRevision) return; ReportGrid.ItemsSource=r.Documents; ReportResult.Text=IndianText($"{r.Status}: invoice {r.InvoiceTotal:N2}, tender {r.TenderTotal:N2}, variance {r.Variance:N2}. {r.Message}"); SetExport("Invoice Tender Reconciliation",ToReportingStatus(r.Status),r.RuleVersion,r.Message,[new("Store"),new("Document"),new("Invoice","#,##0.00"),new("Tender","#,##0.00"),new("Variance","#,##0.00"),new("Status")],r.Documents.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(),["Total","",r.InvoiceTotal,r.TenderTotal,r.Variance,r.Status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",r.Status==ApplicationReportStatus.Passed?"Succeeded":r.Status.ToString(),"Tender control"); }
+        try { var r=await controlledReportQueryFactory(connectionStringProvider()).RunTenderReconciliationAsync(ReportScope()); if (revision != reportRevision) return; ReportGrid.ItemsSource=r.Documents; ReportResult.Text=IndianText($"{StatusWords.Label(r.Status)}: invoice {r.InvoiceTotal:N2}, tender {r.TenderTotal:N2}, variance {r.Variance:N2}. {r.Message}"); SetExport("Invoice Tender Reconciliation",ToReportingStatus(r.Status),r.RuleVersion,r.Message,[new("Store"),new("Document"),new("Invoice","#,##0.00"),new("Tender","#,##0.00"),new("Variance","#,##0.00"),new("Status")],r.Documents.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(),["Total","",r.InvoiceTotal,r.TenderTotal,r.Variance,r.Status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",r.Status==ApplicationReportStatus.Passed?"Succeeded":r.Status.ToString(),"Tender control"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "TENDER_RECONCILIATION_FAILED", "Tender reconciliation failed"); }
     }
 
     private async Task RunTenderDiagnosticAsync()
     {
         var revision = reportRevision;
-        try { var reconciliation=await controlledReportQueryFactory(connectionStringProvider()).RunTenderReconciliationAsync(ReportScope()); var diagnostic=tenderVarianceDiagnostic.Diagnose(reconciliation,RetailReportingPolicy.Tender.AbsoluteTolerance); if (revision != reportRevision) return; ReportGrid.ItemsSource=diagnostic.Rows; ReportResult.Text=IndianText($"{diagnostic.Status}: {diagnostic.FailedDocuments:N0} documents require review; absolute variance {diagnostic.AbsoluteVariance:N2}. {diagnostic.Message} Classifications do not change the control result."); SetExport("Tender Variance Diagnostics",ToReportingStatus(diagnostic.Status),diagnostic.RuleVersion,diagnostic.Message,[new("Store"),new("Document"),new("Invoice","#,##0.00"),new("Tender","#,##0.00"),new("Variance","#,##0.00"),new("Likely Cause"),new("Recommended Check")],diagnostic.Rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.LikelyCause.ToString(),x.RecommendedCheck]).ToArray(),["Total","",reconciliation.InvoiceTotal,reconciliation.TenderTotal,reconciliation.Variance,diagnostic.Status.ToString(),$"{diagnostic.FailedDocuments:N0} documents"]); ApplyReportFilter(); await auditRecorder("ReportRun",diagnostic.Status==ApplicationReportStatus.Passed?"Succeeded":diagnostic.Status.ToString(),"Tender diagnostic"); }
+        try { var reconciliation=await controlledReportQueryFactory(connectionStringProvider()).RunTenderReconciliationAsync(ReportScope()); var diagnostic=tenderVarianceDiagnostic.Diagnose(reconciliation,RetailReportingPolicy.Tender.AbsoluteTolerance); if (revision != reportRevision) return; ReportGrid.ItemsSource=diagnostic.Rows; ReportResult.Text=IndianText($"{StatusWords.Label(diagnostic.Status)}: {diagnostic.FailedDocuments:N0} documents require review; absolute variance {diagnostic.AbsoluteVariance:N2}. {diagnostic.Message} Classifications do not change the control result."); SetExport("Tender Variance Diagnostics",ToReportingStatus(diagnostic.Status),diagnostic.RuleVersion,diagnostic.Message,[new("Store"),new("Document"),new("Invoice","#,##0.00"),new("Tender","#,##0.00"),new("Variance","#,##0.00"),new("Likely Cause"),new("Recommended Check")],diagnostic.Rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.LikelyCause.ToString(),x.RecommendedCheck]).ToArray(),["Total","",reconciliation.InvoiceTotal,reconciliation.TenderTotal,reconciliation.Variance,diagnostic.Status.ToString(),$"{diagnostic.FailedDocuments:N0} documents"]); ApplyReportFilter(); await auditRecorder("ReportRun",diagnostic.Status==ApplicationReportStatus.Passed?"Succeeded":diagnostic.Status.ToString(),"Tender diagnostic"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "TENDER_DIAGNOSTICS_FAILED", "Tender diagnostics failed"); }
     }
 
     private async Task RunStockReportAsync()
     {
         var revision = reportRevision;
-        try { var r=await controlledReportQueryFactory(connectionStringProvider()).RunStockReconciliationAsync(ReportScope()); if (revision != reportRevision) return; ReportGrid.ItemsSource=r.Items; ReportResult.Text=$"{r.Status}: {r.Message}"; SetExport("Stock Reconciliation",ToReportingStatus(r.Status),r.RuleVersion,r.Message,[new("Store"),new("Item"),new("Opening","#,##0.00"),new("Movements","#,##0.00"),new("Expected Closing","#,##0.00"),new("Reported Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status"),new("Snapshot")],r.Items.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString(),x.Snapshot]).ToArray(),["Total","",r.Items.Sum(x=>x.Opening),r.Items.Sum(x=>x.SourceSignedMovements),r.Items.Sum(x=>x.ExpectedClosing),r.Items.Sum(x=>x.ReportedClosing),r.Items.Sum(x=>x.Variance),r.Status.ToString(),""]); ApplyReportFilter(); await auditRecorder("ReportRun",r.Status==ApplicationReportStatus.Passed?"Succeeded":r.Status.ToString(),"Stock control"); }
+        try { var r=await controlledReportQueryFactory(connectionStringProvider()).RunStockReconciliationAsync(ReportScope()); if (revision != reportRevision) return; ReportGrid.ItemsSource=r.Items; ReportResult.Text=$"{StatusWords.Label(r.Status)}: {r.Message}"; SetExport("Stock Reconciliation",ToReportingStatus(r.Status),r.RuleVersion,r.Message,[new("Store"),new("Item"),new("Opening","#,##0.00"),new("Movements","#,##0.00"),new("Expected Closing","#,##0.00"),new("Reported Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status"),new("Snapshot")],r.Items.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString(),x.Snapshot]).ToArray(),["Total","",r.Items.Sum(x=>x.Opening),r.Items.Sum(x=>x.SourceSignedMovements),r.Items.Sum(x=>x.ExpectedClosing),r.Items.Sum(x=>x.ReportedClosing),r.Items.Sum(x=>x.Variance),r.Status.ToString(),""]); ApplyReportFilter(); await auditRecorder("ReportRun",r.Status==ApplicationReportStatus.Passed?"Succeeded":r.Status.ToString(),"Stock control"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_RECONCILIATION_FAILED", "Stock reconciliation failed"); }
     }
 
@@ -561,10 +561,10 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string PhysicalStockStatus(ReconciliationStatus status, int rowCount, int notCounted, string store, DateOnly date)
     {
         var none = $"No physical count entered for {store} on {DayText(date)}; enter it at {PhysicalCountScreen}.";
-        if (rowCount == 0) return $"{status}: {none}";
-        if (notCounted >= rowCount) return IndianText($"{status}: {rowCount:N0} brand(s). ") + none;
-        return notCounted == 0 ? IndianText($"{status}: {rowCount:N0} brand(s).")
-            : IndianText($"{status}: {rowCount:N0} brand(s); {notCounted:N0} not counted on ") + $"{DayText(date)}. Enter them at {PhysicalCountScreen}.";
+        if (rowCount == 0) return $"{StatusWords.Label(status)}: {none}";
+        if (notCounted >= rowCount) return IndianText($"{StatusWords.Label(status)}: {rowCount:N0} brand(s). ") + none;
+        return notCounted == 0 ? IndianText($"{StatusWords.Label(status)}: {rowCount:N0} brand(s).")
+            : IndianText($"{StatusWords.Label(status)}: {rowCount:N0} brand(s); {notCounted:N0} not counted on ") + $"{DayText(date)}. Enter them at {PhysicalCountScreen}.";
     }
     internal const string PhysicalCountScreen = "Stock > Physical count";
 
@@ -583,13 +583,13 @@ public partial class ReportsWorkspaceView : UserControl
         var others = rows.Count - sources - inputs - failures;
         var status = failures > 0 ? ReconciliationStatus.Failed
             : rows.Any(x => Severe(x.Severity)) ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed;
-        if (rows.Count == 0) return (status, $"{status}: 0 exception(s).");
+        if (rows.Count == 0) return (status, $"{StatusWords.Label(status)}: 0 exception(s).");
         var parts = new List<string>();
         if (sources > 0) parts.Add(IndianText($"{sources:N0} source report(s) not imported"));
         if (inputs > 0) parts.Add(IndianText($"{inputs:N0} input(s) not entered"));
         parts.Add(IndianText($"{failures:N0} variance(s) or failure(s)"));
         if (others > 0) parts.Add(IndianText($"{others:N0} warning(s)"));
-        return (status, IndianText($"{status}: {rows.Count:N0} exception(s) - ") + string.Join(", ", parts) + ".");
+        return (status, IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} exception(s) - ") + string.Join(", ", parts) + ".");
     }
 
     private async Task RunDailyExceptionsAsync()
@@ -621,7 +621,7 @@ public partial class ReportsWorkspaceView : UserControl
             : ProductReportCatalogue.All.FirstOrDefault(x => string.Equals(x.Code, reportCode, StringComparison.Ordinal))?.Name ?? fallback;
 
     internal static string WindowText(DateOnly from, DateOnly to) => from == to ? DayText(from) : $"{DayText(from)} – {DayText(to)}";
-    internal static string DayText(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    internal static string DayText(DateOnly date) => Etp.Reporting.Reporting.IndianFormat.Date(date);
 
     /// <summary>
     /// The status line for a report that returned no rows: "No data for 01 Mar 2024 – 31 Mar 2024, All stores." plus any
@@ -631,13 +631,13 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string? NoDataStatus(string? reportCode, int rowCount, DateOnly from, DateOnly to, string storeScope, string current)
     {
         if (rowCount > 0 || reportCode is "exceptions" or "tender-diagnostic") return null;
-        var window = from == to ? from.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
-            : $"{from.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)} – {to.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}";
+        var window = from == to ? Etp.Reporting.Reporting.IndianFormat.Date(from)
+            : $"{Etp.Reporting.Reporting.IndianFormat.Date(from)} – {Etp.Reporting.Reporting.IndianFormat.Date(to)}";
         var headline = $"No data for {window}, {storeScope}.";
-        var match = System.Text.RegularExpressions.Regex.Match(current, @"^(?<status>Passed|Blocked|Failed|NotRun): ?(?<rest>.*)$", System.Text.RegularExpressions.RegexOptions.Singleline);
+        var match = System.Text.RegularExpressions.Regex.Match(current, @"^(?<status>OK|Cannot run|Problem|Not checked yet|Passed|Blocked|Failed|NotRun): ?(?<rest>.*)$", System.Text.RegularExpressions.RegexOptions.Singleline);
         // A Passed line over zero rows only restates zeros ("Sales incl. GST 0.00; units 0.00"); a Blocked line may name
         // the missing source, which stays. A leading zero count ("0 item(s).", "0 days.") is dropped either way.
-        if (match.Success && match.Groups["status"].Value == "Passed") return headline;
+        if (match.Success && match.Groups["status"].Value is "OK" or "Passed") return headline;
         var rest = System.Text.RegularExpressions.Regex.Replace((match.Success ? match.Groups["rest"].Value : current).Trim(), @"^0 [^.]*\.\s*", "");
         return rest.Length == 0 ? headline : $"{headline} {rest}";
     }
@@ -665,9 +665,9 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string CashBookStatus(ReconciliationStatus status, IReadOnlyList<CashBookDay> days)
     {
         const string carry = "Opening carries forward from the previous calculated closing.";
-        if (days.Count == 0) return $"{status}: 0 days. {carry}";
+        if (days.Count == 0) return $"{StatusWords.Label(status)}: 0 days. {carry}";
         var incomplete = days.Where(x => x.Status != "Complete").ToArray();
-        if (incomplete.Length == 0) return IndianText($"{status}: {days.Count:N0} of {days.Count:N0} day(s) complete. ") + $"{carry} {CashBookEntryHint}";
+        if (incomplete.Length == 0) return IndianText($"{StatusWords.Label(status)}: {days.Count:N0} of {days.Count:N0} day(s) complete. ") + $"{carry} {CashBookEntryHint}";
         var missing = new List<string>();
         void Need(string label, Func<CashBookDay, bool> isMissing) { if (incomplete.Any(isMissing)) missing.Add(label); }
         Need("R022 tender import", x => !x.TenderSourceImported);
@@ -680,7 +680,7 @@ public partial class ReportsWorkspaceView : UserControl
         Need("cash deposit", x => x.Deposit is null);
         Need("a check of the counted cash variance", x => x.Status == "Counted cash variance");
         var what = missing.Count == 0 ? string.Join("; ", incomplete.Select(x => x.Status).Distinct(StringComparer.Ordinal)) : "missing " + string.Join(", ", missing);
-        return IndianText($"{status}: {incomplete.Length:N0} of {days.Count:N0} day(s) incomplete - ") + $"{what}. {carry} {CashBookEntryHint}";
+        return IndianText($"{StatusWords.Label(status)}: {incomplete.Length:N0} of {days.Count:N0} day(s) incomplete - ") + $"{what}. {carry} {CashBookEntryHint}";
     }
 
     internal const string CashBookEntryHint = "Enter opening cash, expenses and deposits with a reason in Today > Cash > Cash and service entries.";

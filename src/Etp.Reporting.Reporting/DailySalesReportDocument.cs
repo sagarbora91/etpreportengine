@@ -168,19 +168,11 @@ public static class DsrKpiCards
 
 public static class DsrDisplay
 {
-    private static readonly CultureInfo India = CultureInfo.GetCultureInfo("en-IN");
-    public const string Missing = "—";
-    public static string Currency(decimal? value) => value is null ? Missing : value.Value.ToString("₹#,##0;−₹#,##0;₹0", India);
-    public static string Number(decimal? value, int decimals = 2) => value is null ? Missing : value.Value.ToString(decimals == 0 ? "#,##0" : "0.00", India);
-    public static string Percent(CalculatedMetric metric) => metric.Value is null ? Missing : $"{metric.Value.Value.ToString("+0.0;-0.0;+0.0", India)}%";
-    public static string PercentValue(CalculatedMetric metric) => metric.Value is null ? Missing : $"{metric.Value:+0.0;-0.0;+0.0}%";
-    public static string ValueQuantity(decimal? value, decimal? quantity) => value is null || quantity is null ? "— / —" : $"{Currency(value)} / {quantity.Value.ToString("#,##0.##", India)}";
-    public static string CompactCurrency(decimal? value)
-    {
-        if (value is null) return Missing;
-        var absolute = Math.Abs(value.Value); var sign = value < 0 ? "−" : string.Empty;
-        if (absolute >= 10_000_000m) return $"{sign}₹{absolute / 10_000_000m:0.00} Cr";
-        if (absolute >= 100_000m) return $"{sign}₹{absolute / 100_000m:0.00} L";
-        return Currency(value);
-    }
+    public const string Missing = IndianFormat.Missing;
+    public static string Currency(decimal? value) => IndianFormat.Money(value);
+    public static string Number(decimal? value, int decimals = 2) => IndianFormat.Quantity(value, decimals);
+    public static string Percent(CalculatedMetric metric) => IndianFormat.Percent(metric.Value, signed: true);
+    public static string PercentValue(CalculatedMetric metric) => IndianFormat.Percent(metric.Value, signed: true);
+    public static string ValueQuantity(decimal? value, decimal? quantity) => value is null || quantity is null ? "— / —" : $"{Currency(value)} / {quantity.Value.ToString("#,##0.##", IndianFormat.Culture)}";
+    public static string CompactCurrency(decimal? value) => IndianFormat.MoneyCompact(value);
 }

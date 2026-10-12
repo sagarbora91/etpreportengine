@@ -6,13 +6,8 @@ namespace Etp.Reporting.Desktop;
 
 public static class PresentationCulture
 {
-    public static CultureInfo Indian { get; } = Create();
-    private static CultureInfo Create()
-    {
-        var culture = (CultureInfo)CultureInfo.GetCultureInfo("en-IN").Clone();
-        culture.DateTimeFormat.ShortDatePattern = "dd MMM yyyy";
-        return culture;
-    }
+    /// <summary>One culture for every figure and date a person reads: <see cref="Etp.Reporting.Reporting.IndianFormat.Culture"/>.</summary>
+    public static CultureInfo Indian => Etp.Reporting.Reporting.IndianFormat.Culture;
     public static void Initialize()
     {
         CultureInfo.DefaultThreadCurrentCulture = Indian;

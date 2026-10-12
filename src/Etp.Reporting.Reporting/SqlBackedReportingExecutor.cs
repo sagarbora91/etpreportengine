@@ -86,7 +86,7 @@ public sealed class SqlBackedReportingExecutor(
         var stores = gaps.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(store =>
         {
             var dates = store.Select(x => x.BusinessDate).Distinct().Order().ToArray();
-            var listed = string.Join(", ", dates.Take(shown).Select(x => x.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)));
+            var listed = string.Join(", ", dates.Take(shown).Select(x => IndianFormat.Date(x)));
             return dates.Length > shown ? $"{store.Key}: {listed} and {dates.Length - shown:N0} more" : $"{store.Key}: {listed}";
         });
         return $"R022 missing / not imported for {gaps.Count:N0} store-day(s) with sales ({string.Join("; ", stores)}). Import the Revenue Report (R022) for these dates; tenders are not treated as zero.";
@@ -205,7 +205,7 @@ public sealed class SqlBackedReportingExecutor(
     }
 
     private static string Join(string? warning, string message) => warning is null ? message : $"{warning} {message}";
-    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Day(DateOnly date) => IndianFormat.Date(date);
 
     private void Validate(ReportingQueryScope scope)
     {

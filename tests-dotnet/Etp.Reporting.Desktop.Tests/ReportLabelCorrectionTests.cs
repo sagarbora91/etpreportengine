@@ -44,8 +44,8 @@ public sealed class ReportLabelCorrectionTests
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             var gridHeaders = grid.Columns.Select(column => (string)column.Header).ToArray();
-            Assert.Contains("Unit MRP ₹", gridHeaders);
-            Assert.Contains("MRP value (GST incl.) ₹", gridHeaders);
+            Assert.Contains("Unit MRP (₹)", gridHeaders);
+            Assert.Contains("MRP value (GST incl.) (₹)", gridHeaders);
             Assert.DoesNotContain(gridHeaders, header => header.Contains("Cost", StringComparison.OrdinalIgnoreCase));
         });
     }
@@ -71,7 +71,7 @@ public sealed class ReportLabelCorrectionTests
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             var gridHeaders = grid.Columns.Select(column => (string)column.Header).ToArray();
-            Assert.Contains("MRP value (GST incl.) ₹", gridHeaders);
+            Assert.Contains("MRP value (GST incl.) (₹)", gridHeaders);
             Assert.DoesNotContain(gridHeaders, header => header.Contains("Cost", StringComparison.OrdinalIgnoreCase));
         });
     }
@@ -190,18 +190,18 @@ public sealed class ReportLabelCorrectionTests
         {
             var view = CreateView(out var latest);
             await view.RunReportAsync("invoice");
-            Assert.StartsWith("Passed: 25 Aug 2026, 1 invoices, 1 returns;", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
+            Assert.StartsWith("OK: 25 Aug 2026, 1 invoices, 1 returns;", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
-            Assert.Contains("Value incl. GST ₹", grid.Columns.Select(column => (string)column.Header));
-            Assert.DoesNotContain("Net Value ₹", grid.Columns.Select(column => (string)column.Header));
+            Assert.Contains("Value incl. GST (₹)", grid.Columns.Select(column => (string)column.Header));
+            Assert.DoesNotContain("Net Value (₹)", grid.Columns.Select(column => (string)column.Header));
 
             await view.RunReportAsync("invoice-lineage");
             var headers = latest().ExportData!.Columns.Select(column => column.Header).ToArray();
             Assert.Contains("Value incl. GST", headers);
             Assert.DoesNotContain("Net Value", headers);
             TablePresentation.Configure(grid);
-            Assert.Contains("Value incl. GST ₹", grid.Columns.Select(column => (string)column.Header));
+            Assert.Contains("Value incl. GST (₹)", grid.Columns.Select(column => (string)column.Header));
         });
     }
 

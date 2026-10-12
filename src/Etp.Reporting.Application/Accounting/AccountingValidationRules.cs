@@ -211,7 +211,7 @@ public static class AccountingValidationRules
 
     private static decimal Money(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
     private static string Text(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
-    private static string Date(DateOnly value) => value.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture);
+    private static string Date(DateOnly value) => Etp.Reporting.Application.Formatting.DisplayText.Date(value);
 
     private static string DateWindow(TallyProfile profile, DateOnly today) =>
         (profile.PostingFromDate, profile.PostingToDate) switch

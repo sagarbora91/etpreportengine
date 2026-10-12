@@ -243,7 +243,7 @@ public static class TallySalesVoucherComposer
             return Blocked("UNBALANCED", $"payment and round-off ({Text(debit)}) do not equal revenue and GST ({Text(credit)}). Check the sales export for this invoice.");
         var missing = lines.Select(line => line.Event).Where(code => !mappings.ContainsKey(code)).Distinct(StringComparer.Ordinal).ToArray();
         if (missing.Length > 0)
-            return Blocked("MAPPING_MISSING", $"no approved ledger for {string.Join(", ", missing)} on {invoice.InvoiceDate.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture)}.");
+            return Blocked("MAPPING_MISSING", $"no approved ledger for {string.Join(", ", missing)} on {Etp.Reporting.Application.Formatting.DisplayText.Date(invoice.InvoiceDate)}.");
 
         var entries = new List<PlannedEntry>();
         foreach (var line in lines)

@@ -290,12 +290,12 @@ public static class ReportSummaryBuilder
         var total = days.Sum(x => x.Sales);
         var kpis = new List<ReportKpi>
         {
-            new("Latest day sales", days.Length == 0 ? null : days[^1].Sales, "currency", days.Length == 0 ? VisualValueState.Missing : VisualValueState.Available, days.Length == 0 ? null : days[^1].Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
+            new("Latest day sales", days.Length == 0 ? null : days[^1].Sales, "currency", days.Length == 0 ? VisualValueState.Missing : VisualValueState.Available, days.Length == 0 ? null : IndianFormat.Date(days[^1].Date)),
             new("Daily average", days.Length == 0 ? null : Math.Round(total / days.Length, 2), "currency", days.Length == 0 ? VisualValueState.Missing : VisualValueState.Available),
             new("Total sales", total, "currency"),
             new("Days", days.Length, "integer")
         };
-        var points = days.TakeLast(31).Select(x => new ReportVisualPoint(x.Date.ToString("dd MMM", CultureInfo.InvariantCulture), x.Sales)).ToArray();
+        var points = days.TakeLast(31).Select(x => new ReportVisualPoint(x.Date.ToString("dd MMM", IndianFormat.Culture), x.Sales)).ToArray();
         var visuals = new List<ReportVisual> { new("Daily sales incl. GST (last 31 days)", ReportVisualType.Line, [new("Sales incl. GST", points, VisualReportTheme.Blue)], "currency", "Sales are additive across stores for the same date.") };
         return new(kpis, visuals);
     }
@@ -333,8 +333,8 @@ public static class ReportSummaryBuilder
         public string Text(IReadOnlyList<object?> row, int column) => column < row.Count ? row[column] switch
         {
             null => "",
-            DateOnly d => d.ToString("dd MMM yyyy", CultureInfo.InvariantCulture),
-            DateTime d => d.ToString("dd MMM yyyy", CultureInfo.InvariantCulture),
+            DateOnly d => IndianFormat.Date(d),
+            DateTime d => IndianFormat.Date(d),
             var v => Convert.ToString(v, CultureInfo.InvariantCulture) ?? ""
         } : "";
         public DateOnly? Date(IReadOnlyList<object?> row, int column) => column < row.Count ? row[column] switch

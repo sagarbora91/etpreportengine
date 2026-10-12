@@ -18,7 +18,7 @@ public sealed class ReportCoverageTextTests
             Dsr("MTD", "WLMHW", null, new(2026, 9, 29)), Dsr("YTD", "WLMHW", 8_242_572.10m, new(2026, 9, 29))
         };
 
-        Assert.Equal("R025 not imported for 08 Oct 2026 (HEMW: last 28 Sep 2026; WLMHW: last 29 Sep 2026). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.",
+        Assert.Equal("R025 not imported for 08 Oct 2026 (HEMW: last 28 Sept 2026; WLMHW: last 29 Sept 2026). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.",
             ReportsWorkspaceView.DsrCoverageBlock(rows, new(2026, 10, 8)));
     }
 
@@ -27,7 +27,7 @@ public sealed class ReportCoverageTextTests
     {
         var rows = new[] { Dsr("FTD", "WLMHW", 46_095m, new(2026, 9, 29)), Dsr("FTD", "HEMW", null, null), Dsr("FTD", "COMBINED", null, null) };
 
-        Assert.Equal("R025 not imported for 28 Sep 2026 (HEMW: none imported). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.",
+        Assert.Equal("R025 not imported for 28 Sept 2026 (HEMW: none imported). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.",
             ReportsWorkspaceView.DsrCoverageBlock(rows, new(2026, 9, 28)));
     }
 
@@ -42,7 +42,7 @@ public sealed class ReportCoverageTextTests
     [Fact]
     public void Stock_movement_names_the_scoped_stores_that_have_no_ledger_rows_in_the_period()
     {
-        Assert.Equal(" No stock ledger rows for WLMHW between 01 Sep 2026 and 28 Sep 2026; import the stock ledger for those dates, or the store had no movement.",
+        Assert.Equal(" No stock ledger rows for WLMHW between 01 Sept 2026 and 28 Sept 2026; import the stock ledger for those dates, or the store had no movement.",
             ReportsWorkspaceView.MissingMovementText(["WLMHW", "HEMW"], ["HEMW"], new(2026, 9, 1), new(2026, 9, 28)));
         Assert.Equal("", ReportsWorkspaceView.MissingMovementText(["WLMHW", "HEMW"], ["hemw", "WLMHW"], new(2026, 9, 1), new(2026, 9, 28)));
         Assert.Equal("", ReportsWorkspaceView.MissingMovementText([], [], new(2026, 9, 1), new(2026, 9, 28)));

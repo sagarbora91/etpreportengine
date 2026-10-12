@@ -145,7 +145,7 @@ public static class ReportVisualPresenter
         if (control is null) return;
         root.Children.Add(new TextBlock
         {
-            Text = $"Control {control.Status}: {control.Message}",
+            Text = $"Control {StatusWords.Label(control.Status)}: {control.Message}",
             TextWrapping = TextWrapping.Wrap,
             Foreground = Brush(control.Status.Equals("Passed", StringComparison.OrdinalIgnoreCase)
                 ? "#006B5C"

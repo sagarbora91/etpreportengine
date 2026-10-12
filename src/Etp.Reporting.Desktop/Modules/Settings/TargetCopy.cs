@@ -44,7 +44,7 @@ public static class TargetCopy
 
     public static DateOnly PreviousMonth(DateOnly month) => MonthStart(month).AddMonths(-1);
 
-    public static string MonthLabel(DateOnly month) => month.ToString("MMM yyyy", CultureInfo.InvariantCulture);
+    public static string MonthLabel(DateOnly month) => Etp.Reporting.Reporting.IndianFormat.Month(month);
 
     /// <summary>Rows of the month before <paramref name="targetMonth"/>, each with the target already saved for <paramref name="targetMonth"/> (if any).</summary>
     public static IReadOnlyList<CopiedTargetRow> Plan(IEnumerable<TargetCopySource> saved, DateOnly targetMonth, IFormatProvider? formatProvider = null)

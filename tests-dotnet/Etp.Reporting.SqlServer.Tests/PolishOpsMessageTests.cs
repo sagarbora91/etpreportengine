@@ -27,7 +27,7 @@ public sealed class PolishOpsMessageTests
     {
         var message = DailyReportingPackService.PhysicalStockMessage("HEMW", new DateOnly(2026, 9, 26), brandRows: 0, uncountedBrands: 0);
 
-        Assert.StartsWith("No closing-stock snapshot for HEMW on 26 Sep 2026", message);
+        Assert.StartsWith("No closing-stock snapshot for HEMW on 26 Sept 2026", message);
         Assert.Contains("Stock > Physical count", message);
         Assert.DoesNotContain("Physical is the sum", message);
     }

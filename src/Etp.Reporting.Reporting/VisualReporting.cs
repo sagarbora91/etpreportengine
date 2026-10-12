@@ -30,19 +30,20 @@ public static class VisualReportTheme
     public static readonly IReadOnlyList<string> SeriesColours = [Blue, Teal, Amber, Red, Grey];
 }
 
+/// <summary>Visual summary cards and chart labels. Thin wrapper over <see cref="IndianFormat"/> (R1): the only choice made here is which format a card asks for.</summary>
 public static class IndianNumberFormatter
 {
-    private static readonly CultureInfo India = CultureInfo.GetCultureInfo("en-IN");
     public static string Format(decimal? value, string format, VisualValueState state = VisualValueState.Available)
     {
-        if (state == VisualValueState.NotApplicable) return "N/A";
-        if (state == VisualValueState.Missing || value is null) return "Not available";
+        if (state == VisualValueState.NotApplicable) return IndianFormat.NotApplicable;
+        // R7: "Not available" says nothing about why; a missing source reads "Not imported yet".
+        if (state == VisualValueState.Missing || value is null) return "Not imported yet";
         return format switch
         {
-            "currency" => value.Value.ToString("₹#,##0.00;−₹#,##0.00;₹0.00", India),
-            "percent" => value.Value.ToString("0.0;−0.0;0.0", India) + "%",
-            "integer" => value.Value.ToString("#,##0;−#,##0;0", India),
-            _ => value.Value.ToString("#,##0.00;−#,##0.00;0.00", India)
+            "currency" => IndianFormat.Money(value),
+            "percent" => IndianFormat.Percent(value),
+            "integer" => IndianFormat.Count((long)Math.Round(value.Value, MidpointRounding.AwayFromZero)),
+            _ => IndianFormat.Quantity(value, 2)
         };
     }
 }

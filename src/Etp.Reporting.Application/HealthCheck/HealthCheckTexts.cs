@@ -180,7 +180,7 @@ public static class HealthCheckTexts
 
     // ---- Helpers -------------------------------------------------------------------------------------------
 
-    public static string Date(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    public static string Date(DateOnly date) => Etp.Reporting.Application.Formatting.DisplayText.Date(date);
 
     public static string Count(int value) => value.ToString(CultureInfo.InvariantCulture);
 

@@ -98,7 +98,7 @@ public sealed class TodaySalesView : Grid
         root.Children.Add(table);
         return root;
     }
-    private static string Label(string metric) => metric switch { "VALUE" => "Sales ₹", "VOL" => "Units", "RETAIL WALKIN" => "Walk-ins", "INVOICE" => "Invoices", "CONVERSION %" => "Conversion %", _ => metric };
+    private static string Label(string metric) => metric switch { "VALUE" => "Sales (₹)", "VOL" => "Units", "RETAIL WALKIN" => "Walk-ins", "INVOICE" => "Invoices", "CONVERSION %" => "Conversion %", _ => metric };
     private static TextBlock Text(string value,double size,bool bold=false)
     {
         var text = new TextBlock { Text=value,FontSize=size,FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,0) };

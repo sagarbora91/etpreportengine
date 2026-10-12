@@ -152,8 +152,8 @@ public sealed class TallyLedgersView : UserControl
         public string Event => Row.BusinessEvent;
         public string Store => Row.StoreCode ?? "All stores";
         public string Ledger => string.Equals(Row.DebitLedger, Row.CreditLedger, StringComparison.Ordinal) ? Row.DebitLedger : $"{Row.DebitLedger} / {Row.CreditLedger}";
-        public string From => Row.EffectiveFrom.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture);
-        public string To => Row.EffectiveTo?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? "";
+        public string From => Etp.Reporting.Reporting.IndianFormat.Date(Row.EffectiveFrom);
+        public string To => Row.EffectiveTo is { } to ? Etp.Reporting.Reporting.IndianFormat.Date(to) : "";
         public int Version => Row.Version;
         public string InUse => Row.IsActive ? "Yes" : "No";
         public string ChangedBy => Row.ChangedBy;
