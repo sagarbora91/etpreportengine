@@ -6,5 +6,7 @@
   "dailyInputsPattern": "ETP-Daily-Inputs*.xlsx",
   "oneDriveRoot": "",
   "stableSeconds": 10,
-  "logFolder": "%LOCALAPPDATA%\EtpOneDrive"
+  "logFolder": "%LOCALAPPDATA%\EtpOneDrive",
+  "signingKeyFile": "%LOCALAPPDATA%\EtpOneDrive\shop-signing.key",
+  "checkOneDriveClient": true
 }

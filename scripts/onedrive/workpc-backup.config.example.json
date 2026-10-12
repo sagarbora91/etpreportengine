@@ -3,5 +3,8 @@
   "database": "EtpReporting",
   "oneDriveRoot": "",
   "keyFile": "C:\ProgramData\EtpReporting\Keys\onedrive-backup.key",
-  "keepLast": 3
+  "keepLast": 3,
+  "keepMonthly": 6,
+  "syncWaitMinutes": 30,
+  "checkOneDriveClient": true
 }
