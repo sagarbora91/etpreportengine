@@ -74,7 +74,17 @@ public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) 
     }
 
     [Fact]
-    public async Task A_duplicate_staff_row_on_one_line_counts_once_and_the_surplus_reads_missing()
+    public async Task Two_staff_rows_that_differ_in_content_on_one_line_are_both_kept_and_the_surplus_reads_missing()
+    {
+        // Same key, one line, but the second R013 row has another CRO and value: not a duplicate, so it is kept and unpaired.
+        var date = new DateOnly(2026, 8, 18);
+        await SeedAsync("OCCDIF", "e", date, lines: 1, gross1: 1850m, gross2: 0m, staffGross2: 900m, "CROD", "CROE", "Matched");
+        var trend = Assert.Single(await new Phase2OperationsRepository(database.ConnectionString).LoadManagementTrendAsync(date, date), x => x.StoreCode == "OCCDIF");
+        Assert.Equal(1, trend.UnmatchedEnrichmentRows);
+    }
+
+    [Fact]
+    public async Task An_exact_duplicate_staff_row_on_one_line_counts_once_and_is_not_reported_missing()
     {
         // As imported in 1.9.3: one line, two identical R013 rows, both stored Matched to that line (counted twice).
         var date = new DateOnly(2026, 8, 17);
@@ -93,8 +103,9 @@ public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) 
 
         Assert.Equal("CROC", Assert.Single(await reports.LoadInvoiceLineageAsync(scope)).CroNumber);
 
-        // Only the surplus R013 row is unmatched; the two R003 discount rows on the one line stay Matched.
+        // 1.11.2 L4: the two R013 rows are identical in every content column, so the extra one is dropped (no R013_MISSING);
+        // the two R003 discount rows on the one line stay Matched.
         var trend = Assert.Single(await new Phase2OperationsRepository(database.ConnectionString).LoadManagementTrendAsync(date, date), x => x.StoreCode == "OCCDUP");
-        Assert.Equal(1, trend.UnmatchedEnrichmentRows);
+        Assert.Equal(0, trend.UnmatchedEnrichmentRows);
     }
 }

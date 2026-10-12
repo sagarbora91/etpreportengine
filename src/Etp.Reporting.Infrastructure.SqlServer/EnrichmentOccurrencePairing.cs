@@ -29,7 +29,8 @@ internal static class EnrichmentOccurrencePairing
                                             ORDER BY x.source_lineage_id,x.sales_line_enrichment_id) occurrence
                FROM (SELECT d.*,ROW_NUMBER() OVER(PARTITION BY d.enrichment_type,d.store_code,d.transaction_date,d.document_number,d.product_code,
                                                            d.source_transaction_type,d.source_quantity,d.source_net_value,d.source_cro_number,
-                                                           d.scheme_discount,d.user_discount,d.pre_discount,d.other_charges,d.activation_details,d.user_discount_details
+                                                           d.scheme_discount,d.user_discount,d.pre_discount,d.other_charges,d.activation_details,d.user_discount_details,
+                                                           d.invoice_year,d.source_gross_value,d.staff_name
                                                   ORDER BY d.source_lineage_id,d.sales_line_enrichment_id) same_content
                      FROM dbo.sales_line_enrichments d) x
                WHERE x.enrichment_type<>'R013' OR x.same_content=1) pe

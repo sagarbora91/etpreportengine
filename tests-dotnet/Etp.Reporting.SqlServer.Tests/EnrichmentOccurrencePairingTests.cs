@@ -65,6 +65,26 @@ public sealed partial class EnrichmentOccurrencePairingTests
     }
 
     [Fact]
+    public void An_R013_row_identical_to_an_earlier_one_is_dropped_but_content_is_never_ignored()
+    {
+        // 1.11.2 L4 (AUDIT-1 fix 3): the Titan export lists an invoice line twice; the importer keeps one sales line, so
+        // the identical extra R013 row is removed instead of reading Missing (R013_MISSING).
+        var sql = Squash(EnrichmentOccurrencePairing.EffectiveEnrichments);
+        Assert.Contains("WHERE x.enrichment_type<>'R013' OR x.same_content=1) pe", sql);
+        var partition = sql[sql.IndexOf("PARTITION BY d.enrichment_type", StringComparison.Ordinal)..];
+        partition = partition[..partition.IndexOf("ORDER BY", StringComparison.Ordinal)];
+        // Every content column is part of "identical"; any difference keeps both rows.
+        foreach (var column in new[] { "store_code", "transaction_date", "document_number", "product_code", "source_transaction_type",
+                     "source_quantity", "source_net_value", "source_cro_number", "scheme_discount", "user_discount", "pre_discount",
+                     "other_charges", "activation_details", "user_discount_details", "invoice_year", "source_gross_value", "staff_name" })
+            Assert.Contains("d." + column, partition);
+        // Row identity columns differ per row by design and must not be compared.
+        Assert.DoesNotContain("content_key", partition);
+        Assert.DoesNotContain("source_lineage_id", partition);
+        Assert.DoesNotContain("sales_line_enrichment_id", partition);
+    }
+
+    [Fact]
     public void Invoice_lineage_looks_up_the_paired_staff_row_by_the_line_key()
     {
         // The lineage export filters its lines by date and store; the CRO lookup is correlated on that line's key so
