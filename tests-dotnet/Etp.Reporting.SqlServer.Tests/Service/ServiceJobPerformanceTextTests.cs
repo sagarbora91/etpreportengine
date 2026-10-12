@@ -9,6 +9,7 @@ namespace Etp.Reporting.SqlServer.Tests.Service;
 /// 0052. won_rows ranks each (job, document) with ROW_NUMBER and won counts rank 1. The SQL behaviour is
 /// ServiceJobModelSqlTests (SQL suite). 1.10.1: migration 0052 (Service UI fixes) restates v_service_job and keeps won_rows.
 /// 1.11.1: migration 0056 (customer name, decision 37) restates it again and keeps won_rows.
+/// 1.11.4: migration 0061 (Service view speed) restates it once more (the customer name as a facts_by_job branch) and keeps won_rows.
 /// </summary>
 public sealed partial class ServiceJobPerformanceTextTests
 {
@@ -41,7 +42,7 @@ public sealed partial class ServiceJobPerformanceTextTests
     }
 
     [Fact]
-    public void Only_0050_the_1_10_1_fixes_and_the_1_11_1_customer_name_define_v_service_job_and_no_separate_performance_migration_ships()
+    public void Only_0050_the_1_10_1_fixes_the_1_11_1_customer_name_and_the_1_11_4_speed_migration_define_v_service_job()
     {
         // 1.10.1: 0052 is lane service-sql's Service UI fixes (it restates v_service_job), not a performance migration.
         Assert.Equal(["0052_service_ui_fixes.sql"], Directory.GetFiles(MigrationsDirectory(), "0052_*.sql").Select(Path.GetFileName));
@@ -50,13 +51,14 @@ public sealed partial class ServiceJobPerformanceTextTests
             .Select(Path.GetFileName)
             .Order(StringComparer.Ordinal)
             .ToList();
-        Assert.Equal(["0050_service_centre_ui.sql", "0052_service_ui_fixes.sql", "0056_service_job_customer_name.sql"], definers);
+        Assert.Equal(["0050_service_centre_ui.sql", "0052_service_ui_fixes.sql", "0056_service_job_customer_name.sql", "0061_service_view_speed.sql"], definers);
     }
 
     [Theory]
     [InlineData("0050_service_centre_ui.sql")]
     [InlineData("0052_service_ui_fixes.sql")]
     [InlineData("0056_service_job_customer_name.sql")]
+    [InlineData("0061_service_view_speed.sql")]
     public void Won_counts_distinct_documents_by_rank_and_keeps_the_DateLog_rule_and_every_other_column(string migration)
     {
         var view = JobView(File.ReadAllText(Path.Combine(MigrationsDirectory(), migration)).Replace("\r\n", "\n"));

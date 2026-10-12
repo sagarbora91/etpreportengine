@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.11.4] - (date after the gate)
+
+Service view speed and one health-check rule. Migration 0061 (views only: no table, column, index or permission change; the grants are repeated unchanged).
+
+**Service screens are faster (migration 0061)**
+
+The 1.11.3 VM acceptance run (a copy of live, SQL Server 2025 RTM, 4 GB) timed the Service views. 0061 restates six of them with the same columns and rows; the old and new texts were compared row for row on live and on the Service test files. Timings on Workpc against the live data (read-only, the view texts run as plain queries), full read:
+
+| View | 1.11.3 | 1.11.4 | VM 1.11.3 |
+|---|---|---|---|
+| v_service_money_changes | 55.0 s | 0.14 s | 58.9 s |
+| v_service_s004_daily | 4.7 s | 0.04 s | 5.0 s |
+| v_service_job | 2.4 s | 0.7 s | 2.45 s |
+| v_service_parts | 1.0 s | 0.04 s | 0.98 s |
+| v_service_claims | 0.16 s | 0.02 s | 0.15 s |
+
+- Why: the DateLog read rule (v_service_datelog_readings) expanded a 36-table view twice each time it was used, and the money, tender and parts views joined it to the landing rows in a way SQL Server repeated once per row (S004 read 1,928 times; S003 and S004 5,108 times for the money check). The job list joined the customer names last, through a loop over 10 M spooled rows.
+- The Jobs list's first query after SQL Server starts compiles in about 1.2 s instead of 3.2 s, so the nightly health check's DB-06 (Service screen timing) completes inside its 10 s budget instead of being skipped (TIME_BUDGET).
+- New tests: the old and new texts return the same rows (also after a Restate and for a Viewer), and every Service view reads in under 1 second on the test data (gate).
+
+**Health check OPS-05 (folder permissions)**
+
+- OPS-05 failed with ACL_RIGHTS on the backups folder on every PC set up by ETP setup: setup lets SQL Server's service account (it writes the backup files) and the automation account (receipts, recovery drill) change files in `Backups`, and the check allowed no one. The check now accepts exactly those two accounts there, with Modify and no more; anyone else, or permission/ownership rights, is still a failure. No setup change.
+
 ## [1.11.3] - 2026-10-12
 
 The UI/UX audit of 12 Oct 2026 in five lanes (theme and shared controls, Service screens, daily screens, outputs, formats and wording). Decision 45: the eight UI/UX recommendations accepted and `ETP-DESIGN-SYSTEM.md` is the rule book. Decision 46: lane U1's four departures accepted (inputs keep a darker edge, the selected grid row has its own colour, the new green everywhere, blue allowed as a tile stripe). Decision 50: 1.11.2 was not gated or released on its own; its changes (listed under [1.11.2] below, plus the 1.11.2 gate fixes) ship in 1.11.3. No migration in this release; figures and report logic are unchanged.
