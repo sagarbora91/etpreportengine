@@ -75,28 +75,39 @@ public sealed class ServiceTodayViewTests
             view.ActivateAsync().GetAwaiter().GetResult();
 
             Assert.Equal([ServiceTodayView.BookedLabel, ServiceTodayView.DeliveredLabel, ServiceTodayView.OnBenchLabel, ServiceTodayView.ReadyLabel,
-                ServiceTodayView.CollectionLabel, ServiceTodayView.Over15Label, ServiceTodayView.ClaimsLabel], view.Cards.Select(card => card.Label));
+                ServiceTodayView.CollectionLabel, ServiceTodayView.CashBookLabel, ServiceTodayView.Over15Label, ServiceTodayView.ClaimsLabel], view.Cards.Select(card => card.Label));
             var booked = view.Cards[0];
             Assert.Equal("6", booked.Value);
-            Assert.Equal("Booking 4 · Quick Billing 2 · this month 61 (40 / 21)", booked.Detail);
+            Assert.Equal("this month 61 · 40 bookings, 21 quick bills", booked.Detail);
+            Assert.Equal("Divider", booked.Accent);
             var delivered = view.Cards[1];
             Assert.Equal("4", delivered.Value);
-            Assert.Equal("RWR 1 · this month 58 delivered", delivered.Detail);
+            Assert.Equal("this month 58 delivered · 1 returned unrepaired today", delivered.Detail);
             var bench = view.Cards[2];
             Assert.Equal("46", bench.Value);
-            Assert.Equal("indent raised 25 · EDD passed 11", bench.Detail);
+            Assert.Equal("25 waiting for parts · 11 past promised date", bench.Detail);
             Assert.Equal("Warning", bench.Accent);
             Assert.Equal("12", view.Cards[3].Value);
-            Assert.Equal("in transit back 97", view.Cards[3].Detail);
+            Assert.Equal("97 more on the way back", view.Cards[3].Detail);
             var money = view.Cards[4];
             Assert.Equal("12,500", money.Value);
-            Assert.EndsWith(ServiceTodayView.ManualMissingText, money.Detail, StringComparison.Ordinal);
-            Assert.Equal("Critical", money.Accent);
-            Assert.Equal("9", view.Cards[5].Value);
-            Assert.Equal("7", view.Cards[6].Value);
-            Assert.StartsWith("41,000 net incl. tax", view.Cards[6].Detail, StringComparison.Ordinal);
-            Assert.Equal(7, view.CardButtons.Count);
-            Assert.Equal(7, Descendants<KpiCard>(view).Count());
+            Assert.Equal("cash, card and UPI collected at the Service Centre", money.Detail);
+            // SVC-08: the amount's card is information; the cash book entry has its own card, Critical until entered.
+            Assert.Equal("Divider", money.Accent);
+            var cashBook = view.Cards[5];
+            Assert.Equal(ServiceTodayView.ManualMissingValue, cashBook.Value);
+            Assert.Equal("Critical", cashBook.Accent);
+            Assert.Equal("Service cash, card and UPI for 05 Oct 2026", cashBook.Detail);
+            Assert.Equal("9", view.Cards[6].Value);
+            Assert.Equal("Warning", view.Cards[6].Accent);
+            Assert.Equal("7", view.Cards[7].Value);
+            Assert.StartsWith("41,000 net incl. tax", view.Cards[7].Detail, StringComparison.Ordinal);
+            Assert.Equal(8, view.CardButtons.Count);
+            Assert.Equal(8, Descendants<KpiCard>(view).Count());
+            // The cards are the screen: the repeat grid is hidden, and each card says where it goes (SVC-07, SVC-10).
+            Assert.Equal(System.Windows.Visibility.Collapsed, view.Table.Visibility);
+            Assert.Equal(["Open list", "Open list", "Open board", "Open board", "Open money check", "Open money check", "Open board", "Open claims"],
+                view.Cards.Select(card => ServiceTodayView.OpenText(card.Target)));
             Assert.All(view.CardButtons, button => Assert.EndsWith("Open the list.", AutomationProperties.GetName(button), StringComparison.Ordinal));
         });
     }
@@ -118,6 +129,7 @@ public sealed class ServiceTodayViewTests
                 new(ServiceScreens.JobsTask, "DELIVERED_ON:2026-10-05"),
                 new(ServiceScreens.PendingTask, "ON_BENCH,INDENT_RAISED"),
                 new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery),
+                new(ServiceScreens.MoneyTask, "2026-10-05"),
                 new(ServiceScreens.MoneyTask, "2026-10-05"),
                 new(ServiceScreens.PendingTask, ServicePendingBoardRules.Over15Days),
                 new(ServiceScreens.ClaimsTask, "2026-10")
@@ -203,7 +215,7 @@ public sealed class ServiceTodayViewTests
             Assert.Equal("Counts for 05 Oct 2026. This is the latest Service export.", view.StatusText);
             Assert.StartsWith("Service data as at 05 Oct 2026 (refreshed ", view.AsAtText, StringComparison.Ordinal);
             Assert.Equal("12,500", view.Cards[4].Value);
-            Assert.StartsWith("41,000 net incl. tax", view.Cards[6].Detail, StringComparison.Ordinal);
+            Assert.StartsWith("41,000 net incl. tax", view.Cards[7].Detail, StringComparison.Ordinal);
         });
     }
 
@@ -238,16 +250,19 @@ public sealed class ServiceTodayViewTests
             Assert.Equal(new DateOnly(2026, 10, 7), query.LastDate);
             Assert.Equal("Nothing booked or delivered on 07 Oct 2026. The latest Service export is 05 Oct 2026; no file covers this date yet.", view.StatusText);
             Assert.Equal("—", view.Cards[4].Value);
-            Assert.StartsWith("no S004 collection for the date", view.Cards[4].Detail, StringComparison.Ordinal);
-            Assert.Equal("PrimaryText", view.Cards[4].Accent);
+            Assert.Equal("no collection reported for the date", view.Cards[4].Detail);
+            Assert.Equal("Divider", view.Cards[4].Accent);
         });
     }
 
     [Fact]
-    public void Money_entered_shows_the_manual_amount_in_green()
+    public void Money_entered_shows_the_cash_book_card_as_entered_with_the_manual_amount_in_the_Success_stripe()
     {
-        var card = ServiceTodayView.BuildCards(Summary(new(2026, 10, 5)) with { ManualEntered = true, ManualAmount = 12_500m })[4];
-        Assert.Equal("S004 cash, card and UPI · " + ServiceTodayView.ManualEnteredText + " (12,500)", card.Detail);
+        var cards = ServiceTodayView.BuildCards(Summary(new(2026, 10, 5)) with { ManualEntered = true, ManualAmount = 12_500m });
+        Assert.Equal("Divider", cards[4].Accent);
+        var card = cards[5];
+        Assert.Equal(ServiceTodayView.ManualEnteredValue, card.Value);
+        Assert.Equal("Service cash, card and UPI for 05 Oct 2026 (12,500)", card.Detail);
         Assert.Equal("Success", card.Accent);
         Assert.Equal(new ServiceDrillDown(ServiceScreens.MoneyTask, "2026-10-05"), card.Target);
     }

@@ -73,6 +73,14 @@ public sealed class ServiceScreenViewTests
             var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
             Assert.Equal(view.Freshness.Count, strip.Children.Count);
             Assert.Equal(view.Freshness, strip.Children.OfType<Border>().Select(border => (ServiceFreshnessChip)border.Tag));
+            // SVC-01: the full strip is collapsed; the freshness line holds the as-at text, one summary chip, only the chips that need a look, and the link.
+            Assert.Equal(System.Windows.Visibility.Collapsed, strip.Visibility);
+            Assert.False(view.AllGroupsOpen);
+            var line = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness summary");
+            Assert.Contains(line.Children.OfType<Border>(), border => border.Tag is null
+                && AutomationProperties.GetName(border).StartsWith(ServiceFreshnessStrip.SummaryText(view.Freshness), StringComparison.Ordinal));
+            Assert.Equal(view.Freshness.Where(ServiceFreshnessStrip.NeedsLook), line.Children.OfType<Border>().Where(border => border.Tag is not null).Select(border => (ServiceFreshnessChip)border.Tag));
+            Assert.Contains(line.Children.OfType<Button>(), button => (string)button.Content == $"All {view.Freshness.Count} groups");
         });
     }
 
@@ -243,8 +251,9 @@ public sealed class ServiceScreenViewTests
 
             Assert.Empty(view.Freshness);
             Assert.Matches("^The export dates could not be read\\. Ref: [0-9A-Za-z]+$", view.FreshnessNote);
-            var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
-            Assert.Equal(view.FreshnessNote, Assert.IsType<TextBlock>(Assert.Single(strip.Children)).Text);
+            var line = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness summary");
+            Assert.Contains(line.Children.OfType<TextBlock>(), block => block.Text == view.FreshnessNote);
+            Assert.Empty(Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness").Children);
             Assert.DoesNotContain("raw technical text", view.FreshnessNote);
             Assert.True(view.HasData);
             Assert.DoesNotContain("could not be loaded", view.StatusText);

@@ -31,11 +31,12 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     public const string CollectionLabel = "Collection";
     public const string Over15Label = "Open over 15 days";
     public const string ClaimsLabel = "Claims raised this month";
-    public const string ManualEnteredText = "manual entry: entered";
-    public const string ManualMissingText = "manual entry: not entered";
+    public const string CashBookLabel = "Cash book entry";
+    public const string ManualEnteredValue = "Entered";
+    public const string ManualMissingValue = "Not entered";
 
-    private readonly DatePicker businessDate = new() { MinHeight = 44, MinWidth = 150 };
-    private readonly WrapPanel cards = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+    private readonly DatePicker businessDate = new() { MinWidth = 150 };
+    private readonly WrapPanel cards = new() { Orientation = Orientation.Horizontal, Margin = ServiceUi.Gap(-ServiceUi.S4, ServiceUi.S4, 0, ServiceUi.S4) };
     private readonly Action<ServiceDrillDown>? navigate;
     private DateOnly? chosen;
     private DateOnly? latestSnapshot;
@@ -43,19 +44,22 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
 
     public ServiceTodayView(Func<ServiceReportQuery> query, ServiceExcelExport export, Action<ServiceDrillDown>? navigate = null)
         : base("Service today",
-            "What came in, what went out, what is waiting and whether the money was entered, for the business date. The date starts at the latest Service export; select a card to open its list.",
+            "What came in, what went out, what is waiting and whether the cash book entry was made, for the business date. The date starts at the latest Service export; select a card to open its list.",
             "Service.Today", "SERVICE_TODAY_LOAD_FAILED", query, export)
     {
         this.navigate = navigate;
         AutomationProperties.SetName(businessDate, "Business date");
-        FilterBar.Children.Add(new TextBlock { Text = "Business date", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Business date", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(businessDate);
-        var show = new Button { Content = "Show", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0) };
+        var show = ServiceUi.MakeButton("Show");
+        show.Margin = ServiceUi.Gap(ServiceUi.S8, 0, 0, 0);
         show.Click += async (_, _) => { chosen = businessDate.SelectedDate is { } picked ? DateOnly.FromDateTime(picked) : null; await ActivateAsync(); };
         FilterBar.Children.Add(show);
         AutomationProperties.SetName(cards, "Service today cards");
         Summary.Children.Add(cards);
         SetColumns([new("Card", Width: 200), new("Value", Width: 120), new("Detail", Width: 420)]);
+        // The grid repeated the cards' values only so Export had rows (SVC-10); Export still writes it, the screen shows the cards once.
+        HideGrid();
     }
 
     /// <summary>The business date the cards show; null until the first load picks the latest snapshot date.</summary>
@@ -95,43 +99,71 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
 
     protected override void ClearExtras() { cards.Children.Clear(); Cards = []; }
 
-    /// <summary>The seven cards of design 3.2 from one summary. Pure, so the values and targets are testable without WPF.</summary>
+    /// <summary>
+    /// The eight cards: design 3.2's seven, with the money split into the amount collected and whether the cash book entry
+    /// was made (SVC-08), so a money card is never red while the money is right. Pure, so the values and targets are testable without WPF.
+    /// Stripe = state only (SVC-06): <see cref="ServiceUi.StripeNone"/> is information, Success is checked and fine, Warning is look this week, Critical is act today.
+    /// Sub-lines are words; export codes stay in grids and tooltips (module rule 8).
+    /// </summary>
     public static IReadOnlyList<ServiceTodayCard> BuildCards(ServiceToday summary)
     {
         // Route arguments are culture-invariant (R-UI-17). Each card opens the list its number counts (design 3.2, R-UI-04).
         var date = summary.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var month = summary.BusinessDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-        var manual = summary.ManualEntered ? ServiceDisplay.Text($"{ManualEnteredText} ({summary.ManualAmount ?? 0:N0})") : ManualMissingText;
-        var collectionAccent = summary.CollectionToday is null ? "PrimaryText" : summary.ManualEntered ? "Success" : "Critical";
+        var longDate = ServiceDisplay.Date(summary.BusinessDate);
+        var manualState = summary.ManualEntered ? ManualEnteredValue : ManualMissingValue;
+        var manualDetail = summary.ManualEntered
+            ? ServiceDisplay.Text($"Service cash, card and UPI for {longDate} ({summary.ManualAmount ?? 0:N0})")
+            : $"Service cash, card and UPI for {longDate}";
         return
         [
-            new(BookedLabel, N(summary.BookedToday), $"Booking {N(summary.BookedTodayBooking)} · Quick Billing {N(summary.BookedTodayQuickBilling)} · this month {N(summary.BookedThisMonth)} ({N(summary.BookedThisMonthBooking)} / {N(summary.BookedThisMonthQuickBilling)})",
-                "Success", new(ServiceScreens.JobsTask, ServiceJobsView.BookedOnPrefix + date)),
-            new(DeliveredLabel, N(summary.DeliveredToday), $"RWR {N(summary.RwrToday)} · this month {N(summary.DeliveredThisMonth)} delivered",
-                "Success", new(ServiceScreens.JobsTask, ServiceJobsView.DeliveredOnPrefix + date)),
-            new(OnBenchLabel, N(summary.OnBench), $"indent raised {N(summary.IndentRaised)} · EDD passed {N(summary.EddPassed)}",
-                summary.EddPassed > 0 ? "Warning" : "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.OnBench + "," + ServiceStages.IndentRaised)),
-            new(ReadyLabel, N(summary.ReadyAtCentre), $"in transit back {N(summary.InTransit)}",
-                "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery)),
-            new(CollectionLabel, summary.CollectionToday is { } collection ? collection.ToString("N0", ServiceDisplay.Culture) : "—",
-                summary.CollectionToday is null ? "no S004 collection for the date · " + manual : "S004 cash, card and UPI · " + manual,
-                collectionAccent, new(ServiceScreens.MoneyTask, date)),
-            new(Over15Label, N(summary.JobsOver15Days), "open jobs booked more than 15 days ago", summary.JobsOver15Days > 0 ? "Warning" : "PrimaryText",
+            new(BookedLabel, N(summary.BookedToday), $"this month {N(summary.BookedThisMonth)} · {N(summary.BookedThisMonthBooking)} bookings, {N(summary.BookedThisMonthQuickBilling)} quick bills",
+                ServiceUi.StripeNone, new(ServiceScreens.JobsTask, ServiceJobsView.BookedOnPrefix + date)),
+            new(DeliveredLabel, N(summary.DeliveredToday), $"this month {N(summary.DeliveredThisMonth)} delivered · {N(summary.RwrToday)} returned unrepaired today",
+                ServiceUi.StripeNone, new(ServiceScreens.JobsTask, ServiceJobsView.DeliveredOnPrefix + date)),
+            new(OnBenchLabel, N(summary.OnBench), $"{N(summary.IndentRaised)} waiting for parts · {N(summary.EddPassed)} past promised date",
+                summary.EddPassed > 0 ? ServiceUi.StripeLookThisWeek : ServiceUi.StripeNone, new(ServiceScreens.PendingTask, ServiceStages.OnBench + "," + ServiceStages.IndentRaised)),
+            new(ReadyLabel, N(summary.ReadyAtCentre), $"{N(summary.InTransit)} more on the way back",
+                ServiceUi.StripeNone, new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery)),
+            new(CollectionLabel, summary.CollectionToday is { } collection ? collection.ToString("N0", ServiceDisplay.Culture) : ServiceScreenView.NotApplicable,
+                summary.CollectionToday is null ? "no collection reported for the date" : "cash, card and UPI collected at the Service Centre",
+                ServiceUi.StripeNone, new(ServiceScreens.MoneyTask, date)),
+            new(CashBookLabel, manualState, manualDetail,
+                summary.ManualEntered ? ServiceUi.StripeFine : ServiceUi.StripeActToday, new(ServiceScreens.MoneyTask, date)),
+            new(Over15Label, N(summary.JobsOver15Days), "open jobs booked more than 15 days ago", summary.JobsOver15Days > 0 ? ServiceUi.StripeLookThisWeek : ServiceUi.StripeNone,
                 new(ServiceScreens.PendingTask, ServicePendingBoardRules.Over15Days)),
             new(ClaimsLabel, N(summary.ClaimsRaisedThisMonth),
-                (summary.ClaimsValueThisMonth is { } value ? ServiceDisplay.Text($"{value:N0} net incl. tax · ") : "") + "GPRC, Module Bank, WDC and WRA documents raised (not settlement)",
-                "PrimaryText", new(ServiceScreens.ClaimsTask, month))
+                (summary.ClaimsValueThisMonth is { } value ? ServiceDisplay.Text($"{value:N0} net incl. tax · ") : "") + "documents raised to the brand · settlement not known",
+                ServiceUi.StripeNone, new(ServiceScreens.ClaimsTask, month))
         ];
     }
 
+    /// <summary>The words each card's footer says: where a click goes.</summary>
+    public static string OpenText(ServiceDrillDown target) =>
+        target.TaskId == ServiceScreens.PendingTask ? "Open board"
+        : target.TaskId == ServiceScreens.MoneyTask ? "Open money check"
+        : target.TaskId == ServiceScreens.ClaimsTask ? "Open claims" : "Open list";
+
+    /// <summary>Fixed width of a card, so a row of cards lines up (SVC-09).</summary>
+    public const double CardWidth = 250;
+
     private Button CreateCardButton(ServiceTodayCard card)
     {
-        var button = new Button
+        var face = new StackPanel();
+        face.Children.Add(new KpiCard(card.Label, card.Value, card.Detail, card.Accent) { Margin = ServiceUi.Gap(0) });
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, Margin = ServiceUi.Gap(ServiceUi.S12, ServiceUi.S4, 0, 0) };
+        footer.Children.Add(ServiceUi.Text(OpenText(card.Target), "CaptionText", "Accent"));
+        if (System.Windows.Application.Current?.TryFindResource("IconChevronRight") is Geometry chevron)
         {
-            Content = new KpiCard(card.Label, card.Value, card.Detail, card.Accent),
-            Tag = card, Padding = new Thickness(0), Margin = new Thickness(0), BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent, MinWidth = 220, MaxWidth = 340, HorizontalContentAlignment = HorizontalAlignment.Stretch
-        };
+            var icon = new System.Windows.Shapes.Path { Data = chevron, Width = 20, Height = 20, StrokeThickness = 1.5, VerticalAlignment = VerticalAlignment.Center };
+            icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "Accent");
+            footer.Children.Add(icon);
+        }
+        face.Children.Add(footer);
+        var button = new Button { Content = face, Tag = card, Width = CardWidth, Margin = ServiceUi.Gap(ServiceUi.S4), Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        // K3: the TileButton style owns the border at rest and the Accent hover/focus border; without it (older theme) the button is flat.
+        if (System.Windows.Application.Current?.TryFindResource("TileButton") is Style tile) button.Style = tile;
+        else { button.Padding = ServiceUi.Gap(0); button.BorderThickness = ServiceUi.Gap(0); button.Background = Brushes.Transparent; }
         AutomationProperties.SetName(button, $"{card.Label}: {card.Value}. {card.Detail}. Open the list.");
         button.Click += (_, _) => navigate?.Invoke(card.Target);
         return button;

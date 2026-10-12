@@ -156,31 +156,60 @@ public sealed class ServicePendingBoardViewTests
             Assert.Equal(AsAt, view.AsAt);
             Assert.Equal("Service data as at 05 Oct 2026 (refreshed " + FakeBoardQuery.ImportedLocal.ToString("dd MMM yyyy") + ")", view.AsAtText);
             Assert.Equal("11 open jobs in 8 stage groups · stage order, longest in stage first.", view.StatusText);
-            Assert.Equal(["Job number", "Stage", "Booked on", "Days since booking", "Days in stage", "EDD", "Overdue by (days)", "Age band", "Brand",
-                "Model", "Product", "Guarantee", "Customer type", "Job type", "Pending at", "Spare required", "Last reading"], view.ColumnHeaders);
+            // SVC-13 / SVC-16: days in stage first, overdue next; the first 10 columns are the default view, the rest are hidden but exported.
+            Assert.Equal(["Job number", "Days in stage", "Overdue", "Promised (EDD)", "Booked on", "Days since booking", "Brand", "Model", "Spare required", "Pending at",
+                "Stage", "Age band", "Product", "Guarantee", "Customer type", "Job type", "Last reading"], view.ColumnHeaders);
+            Assert.Equal(10, view.Table.Columns.Count(column => column.Visibility == System.Windows.Visibility.Visible));
+            Assert.Equal(["Stage", "Age band", "Product", "Guarantee", "Customer type", "Job type", "Last reading"],
+                view.Table.Columns.Where(column => column.Visibility != System.Windows.Visibility.Visible).Select(column => (string)column.Header));
             Assert.Equal(["JOAW330SYN0101", "JOAW330SYN0102", "JOAW330SYN0103", "JOAW330SYN0114", "JOAW330SYN0104", "JOAW330SYN0105",
                 "JOAW330SYN0106", "JOAW330SYN0108", "JOAW330SYN0107", "JOAW330SYN0109", "JOAW330SYN0111"], view.Rows.Select(row => (string)row.Cells[0]!));
             var indent = view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0104");
-            Assert.Equal(["JOAW330SYN0104", "Indent raised, parts awaited", new DateOnly(2026, 8, 20), 46, 20, new DateOnly(2026, 10, 1), 4, "31-60",
-                "Sample Brand A", "Model 4", "Watch", "In guarantee", "Retail", "Booking", "AW330", "Crown", new DateOnly(2026, 10, 5)], indent.Cells);
+            Assert.Equal(["JOAW330SYN0104", 20, 4, new DateOnly(2026, 10, 1), new DateOnly(2026, 8, 20), 46, "Sample Brand A", "Model 4", "Crown", "AW330",
+                "Indent raised, parts awaited", "31-60", "Watch", "In guarantee", "Retail", "Booking", new DateOnly(2026, 10, 5)], indent.Cells);
             var srn = view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0106");
-            Assert.Equal(60, srn.Cells[6]);
-            Assert.Equal("60+", srn.Cells[7]);
-            Assert.Equal("Titan Bangalore", srn.Cells[14]);
-            Assert.Null(view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0109").Cells[6]);
+            Assert.Equal(60, srn.Cells[2]);
+            Assert.Equal("60+", srn.Cells[11]);
+            Assert.Equal("Titan Bangalore", srn.Cells[9]);
+            Assert.Null(view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0109").Cells[2]);
             Assert.Equal(new ServicePendingNumbers(11, 6, 4, 1, 2), view.Numbers);
             Assert.Equal(BoardLabels, view.Groups.Select(group => group.Label));
             var cards = Descendants<KpiCard>(view).ToArray();
             Assert.Equal(5, cards.Length);
-            Assert.Equal(["Open jobs: 11. on the board", "Overdue: 6. EDD passed or over the stage limit", "Over 30 days: 4. since booking",
-                "In transit: 1. sent back after repair", "Parts awaited: 2. indent raised"], cards.Select(System.Windows.Automation.AutomationProperties.GetName));
+            Assert.Equal(["Open jobs: 11. on the board", "Overdue: 6. promised date passed or over the stage limit", "Over 30 days: 4. since booking",
+                "On the way back: 1. sent back after repair", "Waiting for parts: 2. indent raised"], cards.Select(System.Windows.Automation.AutomationProperties.GetName));
             // The grid groups by stage, in stage order.
             var grouped = Assert.IsAssignableFrom<IEnumerable<object>>(view.Table.Items.Groups).Cast<CollectionViewGroup>().ToArray();
             Assert.Equal(BoardLabels, grouped.Select(group => (string)group.Name));
             Assert.Same(view.Rows, view.Table.ItemsSource);
             Assert.Contains(Descendants<TextBlock>(view), block => block.Text.StartsWith(ServiceScreenView.ServiceCentreLabel, StringComparison.Ordinal));
+            // The tint and the overdue text follow the rules of module section 4.
+            Assert.Equal("CriticalSoft", ServicePendingBoardView.RowTintKey(srn.Source as ServicePendingBoardRow ?? throw new InvalidOperationException()));
+            Assert.Null(ServicePendingBoardView.RowTintKey(Assert.IsType<ServicePendingBoardRow>(view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0109").Source)));
+            Assert.Equal(0, view.Table.Columns.Count(column => column.Header is "Overdue by (days)"));
         });
     }
+
+    [Fact]
+    public void Stage_dots_are_numbered_in_lifecycle_order_and_group_headers_say_count_and_oldest()
+    {
+        Assert.Equal(["1", "2", "3", "4", "5", "6", "7", "8"], ServicePendingBoardRules.BoardStages.Select(ServiceUi.StageNumber));
+        Assert.Equal(ServiceStages.IndentRaised, ServicePendingBoardView.StageOfLabel(ServiceStages.Label(ServiceStages.IndentRaised)));
+        Assert.Equal("Out of centre", ServiceUi.StageFor(ServiceStages.SrnOut).Group);
+        Assert.Equal(ServiceUi.StageFor(ServiceStages.SrnOut).StrongKey, ServiceUi.StageFor(ServiceStages.InTransitBack).StrongKey);
+        // Stage colours are never the lateness colours.
+        Assert.All(ServicePendingBoardRules.BoardStages, stage => Assert.DoesNotContain(ServiceUi.StageFor(stage).FallbackKey, new[] { "Critical", "Success" }));
+        Assert.Equal("3 jobs · oldest 41 days in stage", ServicePendingBoardView.DescribeGroup("x", [Row(41), Row(5), Row(20)]));
+        Assert.Equal("1 job", ServicePendingBoardView.DescribeGroup("x", [Row(null)]));
+        Assert.Equal("CriticalSoft", ServicePendingBoardView.RowTintKey(Row(10, overdue: 8)));
+        Assert.Equal("WarningSoft", ServicePendingBoardView.RowTintKey(Row(10, overdue: 7)));
+        Assert.Null(ServicePendingBoardView.RowTintKey(Row(10, overdue: null)));
+        Assert.Equal("+12 d", 12.ToString(ServicePendingBoardView.OverdueFormat, ServiceDisplay.Culture));
+        Assert.Equal("—", 0.ToString(ServicePendingBoardView.OverdueFormat, ServiceDisplay.Culture));
+    }
+
+    private static ServicePendingBoardRow Row(int? daysInStage, int? overdue = null) =>
+        new("JOAW330SYN0900", ServiceStages.OnBench, null, null, daysInStage, null, overdue, null, null, null, null, null, null, null, "Booking", false, false, null);
 
     [Fact]
     public void Filters_on_the_screen_narrow_the_rows_but_not_the_numbers()

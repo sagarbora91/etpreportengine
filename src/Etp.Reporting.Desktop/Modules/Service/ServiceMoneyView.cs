@@ -21,11 +21,11 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// </summary>
 public sealed class ServiceMoneyView : ServiceScreenView
 {
-    private readonly DatePicker fromDate = new() { MinHeight = 44, MinWidth = 140 };
-    private readonly DatePicker toDate = new() { MinHeight = 44, MinWidth = 140 };
-    private readonly TextBlock manualSources = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
-    private readonly TextBlock changesStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
-    private readonly TextBlock unmatchedStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
+    private readonly DatePicker fromDate = new() { MinWidth = 140 };
+    private readonly DatePicker toDate = new() { MinWidth = 140 };
+    private readonly TextBlock manualSources = ServiceUi.Caption("");
+    private readonly TextBlock changesStatus = ServiceUi.Caption("");
+    private readonly TextBlock unmatchedStatus = ServiceUi.Caption("");
     private bool rangeChosen;
     private bool applyingDefault;
 
@@ -44,22 +44,21 @@ public sealed class ServiceMoneyView : ServiceScreenView
         toDate.SelectedDateChanged += (_, _) => { if (!applyingDefault) rangeChosen = true; };
         AutomationProperties.SetName(fromDate, "From date");
         AutomationProperties.SetName(toDate, "To date");
-        FilterBar.Children.Add(new TextBlock { Text = "From", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "From", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(fromDate);
-        FilterBar.Children.Add(new TextBlock { Text = "To", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "To", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(ServiceUi.S12, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(toDate);
-        var show = new Button { Content = "Show", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0) };
+        var show = ServiceUi.MakeButton("Show");
+        show.Margin = ServiceUi.Gap(ServiceUi.S8, 0, 0, 0);
         show.Click += async (_, _) => await ActivateAsync();
         FilterBar.Children.Add(show);
         SetColumns(
         [
             new("Date", DisplayFormat: "dd MMM yyyy"), new("Tender", Width: 110), new("S004 amount", "#,##0.00", "N2", 130),
-            new("Manual amount", "#,##0.00", "N2", 130), new("Difference", "#,##0.00", "N2", 120), new("Manual entries from", Width: 200)
+            new("Manual amount", "#,##0.00", "N2", 130), new("Difference", "#,##0.00", "N2", 120, NonZeroBrush: "Critical", ZeroBrush: "Success"), new("Manual entries from", Width: 200)
         ]);
 
         Footer.Children.Add(manualSources);
-        Footer.Children.Add(new TextBlock { Text = UnmatchedTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-        Footer.Children.Add(unmatchedStatus);
         string[] unmatchedHeaders = ["Date", "Shop", "Field", "Amount", "Note"];
         for (var index = 0; index < unmatchedHeaders.Length; index++)
             Unmatched.Columns.Add(new DataGridTextColumn
@@ -70,10 +69,8 @@ public sealed class ServiceMoneyView : ServiceScreenView
             });
         TablePresentation.Configure(Unmatched);
         AutomationProperties.SetName(Unmatched, UnmatchedTitle);
-        Footer.Children.Add(Unmatched);
-        Footer.Children.Add(new TextBlock { Text = "Money changed since the previous refresh", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-        Footer.Children.Add(new TextBlock { Text = "A date is listed when a newer Service file gives it a different total. It is information for checking, not an error.", TextWrapping = TextWrapping.Wrap });
-        Footer.Children.Add(changesStatus);
+        // SVC-27: the two secondary grids are collapsed sections with their count in the heading; the comparison grid is the screen.
+        Footer.Children.Add(ServiceUi.CollapsedSection(ServiceUi.CardTitle(UnmatchedTitle), unmatchedStatus, Unmatched));
         string[] changeHeaders = ["Date", "Report", "Previous refresh", "Previous amount", "Current refresh", "Current amount", "Change"];
         for (var index = 0; index < changeHeaders.Length; index++)
             Changes.Columns.Add(new DataGridTextColumn
@@ -84,7 +81,8 @@ public sealed class ServiceMoneyView : ServiceScreenView
             });
         TablePresentation.Configure(Changes);
         AutomationProperties.SetName(Changes, "Money changed since the previous refresh");
-        Footer.Children.Add(Changes);
+        Footer.Children.Add(ServiceUi.CollapsedSection(ServiceUi.CardTitle("Money changed since the previous refresh"), changesStatus,
+            ServiceUi.Caption("A date is listed when a newer Service file gives it a different total. It is information for checking, not an error."), Changes));
     }
 
     public DataGrid Changes { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, MaxHeight = 220 };
