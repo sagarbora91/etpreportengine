@@ -40,8 +40,12 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     // for every role (Q13); 1.10.0 Tally PR #3 added the Owner's "tally-ledgers" and
     // "tally-vouchers"; 1.11.0 the Owner's "health-check" and "error-register" and the "health-check"
     // Help topic for every role. TaskNavigationTests holds the same lists.
+    // 1.11.2 (lane L6, UX audit 5.1): the 23 Help topics left TaskNavigation.All (F1 and the Help Centre reach them through
+    // TaskNavigation.HelpTasks), so the catalogue is 82/55/40. The walk still visits every Help topic for every role, so
+    // it covers 105/78/63 screens as before; the Help count is written out on its own.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 105, ["STORE_MANAGER"] = 78, ["VIEWER"] = 63 };
+        new Dictionary<string, int> { ["OWNER"] = 82, ["STORE_MANAGER"] = 55, ["VIEWER"] = 40 };
+    private const int ExpectedHelpTopicCount = 23;
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
@@ -70,6 +74,15 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         Assert.True(expected.Length == ExpectedDestinationCounts[role],
             $"{role}: the catalogue now offers {expected.Length} destinations, not {ExpectedDestinationCounts[role]}. Update the written-out counts only for a deliberate change.");
         return expected;
+    }
+
+    // What the walk visits: the role's catalogue plus every Help topic (each Help topic is open to every role).
+    private static string[] ExpectedWalk(string role)
+    {
+        var help = TaskNavigation.HelpTasks.Select(task => task.Id).ToArray();
+        Assert.True(help.Length == ExpectedHelpTopicCount,
+            $"The Help Centre now has {help.Length} topics, not {ExpectedHelpTopicCount}. Update the written-out count only for a deliberate change.");
+        return [.. ExpectedDestinations(role).Concat(help).Order(StringComparer.Ordinal)];
     }
 
     [Fact]
@@ -105,7 +118,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                 output.WriteLine($"Walked every available destination for {role}: {count}.");
             foreach (var note in result.Notes) output.WriteLine(note);
             Assert.True(result.Failures.Count == 0, string.Join(Environment.NewLine, result.Failures));
-            Assert.Equal(ExpectedDestinationCounts.OrderBy(pair => pair.Key, StringComparer.Ordinal),
+            Assert.Equal(ExpectedDestinationCounts.Select(pair => KeyValuePair.Create(pair.Key, pair.Value + ExpectedHelpTopicCount))
+                    .OrderBy(pair => pair.Key, StringComparer.Ordinal),
                 result.Destinations.OrderBy(pair => pair.Key, StringComparer.Ordinal));
             var captures = result.Captures;
             if (evidence is not null)
@@ -192,8 +206,9 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                             Assert.False(TaskNavigation.Find("import-files")!.IsAllowed(window.CurrentShellAccess) && role == "VIEWER");
 
                             var screenshots = ScreenshotTasks(role);
-                            var expectedIds = ExpectedDestinations(role);
-                            var tasks = TaskNavigation.All.Where(task => task.Available && task.IsAllowed(window.CurrentShellAccess)).ToArray();
+                            var expectedIds = ExpectedWalk(role);
+                            var tasks = TaskNavigation.All.Concat(TaskNavigation.HelpTasks)
+                                .Where(task => task.Available && task.IsAllowed(window.CurrentShellAccess)).ToArray();
                             // The product rule picks what the walk visits; the written-out
                             // lists decide whether that is right.
                             Assert.Equal(expectedIds, tasks.Select(task => task.Id).Order(StringComparer.Ordinal));

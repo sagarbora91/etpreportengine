@@ -166,7 +166,7 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
             INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes) VALUES(@batch,'tender-short.xlsx',REPLICATE('e',64),1);
             SET @file=SCOPE_IDENTITY();
             INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
-            SELECT @file,v.sheet,v.n,'row' FROM (VALUES('Revenue',1),('Revenue',2),('Revenue',3),('Revenue',4),('Tender',1),('Tender',2),('Tender',3),('Tender',4),('Tender',5)) v(sheet,n);
+            SELECT @file,v.sheet,v.n,'row' FROM (VALUES('Revenue',1),('Revenue',2),('Revenue',3),('Revenue',4),('Tender',1),('Tender',2),('Tender',3),('Tender',4),('Tender',5),('Tender',6)) v(sheet,n);
             INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES(@store,'T1',2031,@date),(@store,'T2',2031,@date),(@store,'T3',2031,@date),(@store,'T4',2031,@date);
             INSERT dbo.sales_invoice_controls(sales_invoice_id,source_transaction_type,source_invoice_quantity,source_net_value,currency_code,source_lineage_id)
             SELECT i.sales_invoice_id,'INV',1,v.control,'INR',s.source_lineage_id
@@ -174,8 +174,9 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
             JOIN dbo.sales_invoices i ON i.store_code=@store AND i.document_number=v.doc
             JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Revenue' AND s.source_row_number=v.rowNo;
             INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,is_reporting_eligible,exclusion_reason,source_lineage_id)
-            SELECT i.sales_invoice_id,'CASH',v.amount,'INR',v.eligible,CASE WHEN v.eligible=0 THEN N'Synthetic exclusion' END,s.source_lineage_id
-            FROM (VALUES('T1',900.0,1,1),('T2',400.0,1,2),('T2',100.0,0,3),('T3',300.0,1,4),('T4',250.0,1,5)) v(doc,amount,eligible,rowNo)
+            SELECT i.sales_invoice_id,v.tender,v.amount,'INR',v.eligible,CASE WHEN v.eligible=0 THEN N'Synthetic exclusion' END,s.source_lineage_id
+            FROM (VALUES('T1','CASH',900.0,1,1),('T2','CASH',400.0,1,2),('T2','CARD',100.0,0,3),('T3','CASH',200.0,1,4),('T3','CARD',100.0,1,5),
+                         ('T4','CASH',250.0,1,6)) v(doc,tender,amount,eligible,rowNo)
             JOIN dbo.sales_invoices i ON i.store_code=@store AND i.document_number=v.doc
             JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Tender' AND s.source_row_number=v.rowNo;
             """);
@@ -183,7 +184,8 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
         var rows = await new OperationalReportRepository(database.ConnectionString).LoadTenderSourceShortfallsAsync(new(date, date, [store]));
 
         // T1: the export pays 100 short. T2: short only because a row was excluded (an ETP rule, not the source).
-        // T3 balances; T4 is an excess.
+        // T3 balances only when both of its tender rows (CASH 200 + CARD 100) are counted; T4 is an excess.
+        // One row per invoice and tender type (UX_sales_tenders_invoice_type, 0041), so a split payment uses two types.
         var row = Assert.Single(rows);
         Assert.Equal(("T1", 100m), (row.DocumentNumber, row.Shortfall));
     }

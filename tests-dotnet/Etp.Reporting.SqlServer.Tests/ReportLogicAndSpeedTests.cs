@@ -125,6 +125,20 @@ public sealed class ReportLogicAndSpeedTests
     }
 
     [Fact]
+    public void Dsr_facts_on_a_database_below_0060_read_no_cancelled_bills_instead_of_the_missing_view()
+    {
+        // Gate 1.11.2: ApprovedBrandMappingTests loads the DSR on a database at 0026 and failed with "Invalid object name
+        // 'dbo.v_sales_cancelled_same_day'". The DSR reads the view only when it exists (like v_service_manual_money, 0048).
+        Assert.Same(OperationalReportRepository.DsrFactsSql, OperationalReportRepository.DsrFactsSqlFor(cancelledViewExists: true));
+        var older = Squash(OperationalReportRepository.DsrFactsSqlFor(cancelledViewExists: false));
+        Assert.DoesNotContain("v_sales_cancelled_same_day", older, StringComparison.Ordinal);
+        Assert.Contains("LEFT JOIN " + OperationalReportRepository.NoCancelledBillsSql + " cancelled ON cancelled.store_code=i.store_code", older, StringComparison.Ordinal);
+        Assert.Contains("WHERE 1=0", OperationalReportRepository.NoCancelledBillsSql, StringComparison.Ordinal);
+        // Everything else in the query is the same text.
+        Assert.Equal(Squash(OperationalReportRepository.DsrFactsSql).Replace("dbo.v_sales_cancelled_same_day", OperationalReportRepository.NoCancelledBillsSql, StringComparison.Ordinal), older);
+    }
+
+    [Fact]
     public void Sales_query_resolves_the_snapshot_brand_once_per_item_not_per_line()
     {
         var sql = Squash(SqlReportingQueries.Sales);
