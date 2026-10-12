@@ -36,7 +36,7 @@ public static class TallyTestDataGenerator
         var result = new List<InvoiceAccountingSource>();
         for (var number = 1; number <= count; number++)
         {
-            var pick = Math.Abs(seed * 31 + number * 7);
+            var pick = Math.Abs(seed * 31 + number * 17);
             var net = NetAmounts[pick % NetAmounts.Length];
             var rate = GstRates[pick % GstRates.Length];
             var tax = decimal.Round(net * rate / 100m, 2, MidpointRounding.AwayFromZero);
