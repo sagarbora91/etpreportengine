@@ -35,15 +35,18 @@ public sealed class TaskNavigationTests
     // 1.11.0 self-diagnostics added the Owner-only "health-check" and "error-register" (decision 33) and the
     // "health-check" Help topic for every role.
     [Theory]
-    [InlineData("OWNER", 105)]
-    [InlineData("STORE_MANAGER", 78)]
-    [InlineData("VIEWER", 63)]
+    [InlineData("OWNER", 82)]
+    [InlineData("STORE_MANAGER", 55)]
+    [InlineData("VIEWER", 40)]
     public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
     {
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
         Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
-        Assert.Equal(23, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
-        Assert.Equal(60, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        // 1.11.2 (UX audit 5.1): the 23 Help topics left the task list (105 -> 82 for the Owner); they are still found by id.
+        Assert.Empty(TaskNavigation.All.Where(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.Equal(23, TaskNavigation.HelpTasks.Count);
+        Assert.All(TaskNavigation.HelpTasks, task => Assert.Same(task, TaskNavigation.Find(task.Id)));
+        Assert.Equal(60, TaskNavigation.All.Count(task => task.ReportCode is null));
         string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
         Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));
         var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order().ToArray();
@@ -232,5 +235,38 @@ public sealed class TaskNavigationTests
         }
         Assert.Equal("report-stock-closing",HelpTaskRoutes.Find("stock-reports")!.Route.TaskId);
         Assert.False(HelpTaskRoutes.Find("administration")!.IsAllowed(ShellAccess.Viewer));
+    }
+
+    [Fact]
+    public void Help_topics_are_not_in_the_Ctrl_K_list()
+    {
+        Assert.DoesNotContain(TaskNavigation.Search("", ShellAccess.Owner), task => task.Id.StartsWith("help:", StringComparison.Ordinal));
+        Assert.All(HelpCentreRegistry.Topics, topic => Assert.NotNull(TaskNavigation.Find("help:" + topic.Id)));
+    }
+
+    [Fact]
+    public void Ctrl_K_with_nothing_typed_lists_pins_then_recents_then_the_rest_and_skips_unknown_ids()
+    {
+        var found = TaskNavigation.Search("", ShellAccess.Owner, ["report-cash", "no-such-task"], ["backups", "report-cash", "readiness"]);
+        Assert.Equal(["report-cash", "backups", "readiness"], found.Take(3).Select(t => t.Id));
+        Assert.Equal(found.Count, found.Select(t => t.Id).Distinct().Count());
+        Assert.Equal(TaskNavigation.Search("", ShellAccess.Owner).Count, found.Count);
+        // A typed query is not reordered by pins.
+        Assert.Equal(TaskNavigation.Search("health", ShellAccess.Owner), TaskNavigation.Search("health", ShellAccess.Owner, ["backups"], ["backups"]));
+    }
+
+    [Theory]
+    [InlineData("finalise", "readiness")]
+    [InlineData("targets", "masters")]
+    [InlineData("failed import", "conflicts")]
+    [InlineData("find ref", "error-register")]
+    public void Ctrl_K_knows_the_words_the_owner_uses(string query, string expectedId) =>
+        Assert.Contains(TaskNavigation.Search(query, ShellAccess.Owner), task => task.Id == expectedId);
+
+    [Fact]
+    public void The_app_opens_on_the_last_business_day()
+    {
+        Assert.Equal(new DateTime(2026, 10, 11), TaskNavigator.DefaultBusinessDate(new DateTime(2026, 10, 12, 9, 30, 0)));
+        Assert.Equal(new DateTime(2026, 12, 31), TaskNavigator.DefaultBusinessDate(new DateTime(2027, 1, 1)));
     }
 }

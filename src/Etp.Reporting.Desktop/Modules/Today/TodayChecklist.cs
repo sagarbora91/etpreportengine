@@ -3,6 +3,7 @@ extern alias EtpApplication;
 using System.Windows;
 using System.Windows.Controls;
 using DailyReadinessDestination = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessDestination;
+using DailyReadinessItemKind = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessItemKind;
 using DailyReadinessItem = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessItem;
 using DailyReadinessQuery = EtpApplication::Etp.Reporting.Application.DailyReadiness.IDailyReadinessQuery;
 using DailyReadinessRequest = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessRequest;
@@ -14,7 +15,22 @@ namespace Etp.Reporting.Desktop.Modules.Today;
 /// One line of the Today "What's missing" checklist: the readiness message, the button that opens
 /// the screen where the item is fixed, and whether the signed-in role may open that screen.
 /// </summary>
-public sealed record TodayChecklistLine(string Message, string ActionLabel, string TaskId, bool CanOpen, string? Tooltip);
+public sealed record TodayChecklistLine(string Message, string ActionLabel, string TaskId, bool CanOpen, string? Tooltip,
+    string StoreCode = "", string ShopName = "", string PlainMessage = "", TodayChecklistSection Section = TodayChecklistSection.EnterNow);
+
+/// <summary>
+/// 1.11.2 (UX audit top 6): who can act on a line. Exports come from the shop PC, so the Owner can only wait for them
+/// (or ask); manual inputs the Owner can type in himself; targets are a monthly job, kept apart from the day's files.
+/// </summary>
+public enum TodayChecklistSection
+{
+    /// <summary>A Titan or Helios export that has not arrived.</summary>
+    WaitingForShop,
+    /// <summary>A manual input (walk-ins, cash) the Owner can enter now, or leave for the shop daily sheet.</summary>
+    EnterNow,
+    /// <summary>A monthly or staff target.</summary>
+    ThisMonth
+}
 
 /// <summary>
 /// 1.9.9 Today checklist. Maps IDailyReadinessQuery results to checklist lines and each
@@ -45,7 +61,7 @@ public static class TodayChecklist
 
     public static string ActionLabel(DailyReadinessDestination destination) => destination switch
     {
-        DailyReadinessDestination.ImportIntake => "Import",
+        DailyReadinessDestination.ImportIntake => "Open Import",
         DailyReadinessDestination.TodayWalkIns => "Enter walk-ins",
         DailyReadinessDestination.TodayCashEntries => "Enter cash",
         DailyReadinessDestination.SettingsMonthlyTargets => "Set monthly target",
@@ -62,21 +78,70 @@ public static class TodayChecklist
             ? new(DateOnly.FromDateTime(businessDate), [], IncludeServiceCentre: true)
             : new(DateOnly.FromDateTime(businessDate), [headerStore.Trim()], IncludeServiceCentre: false);
 
-    public static IReadOnlyList<TodayChecklistLine> Lines(DailyReadinessResult result, ShellAccess access)
+    public static IReadOnlyList<TodayChecklistLine> Lines(DailyReadinessResult result, ShellAccess access, Func<string, string?>? shopName = null)
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(access);
-        return result.Missing.Select(item => Line(item, access)).ToArray();
+        return result.Missing.Select(item => Line(item, access, shopName)).ToArray();
     }
 
-    private static TodayChecklistLine Line(DailyReadinessItem item, ShellAccess access)
+    /// <summary>The plain report name for an export code in a missing-file line (the readiness message speaks in codes).</summary>
+    public static string ExportName(string code) => code switch
     {
+        "R025" => "Sales lines",
+        "R022" => "Invoice tenders",
+        "R011" => "Closing stock",
+        "R030" => "Stock ledger",
+        _ => code.Contains("SERVICE", StringComparison.OrdinalIgnoreCase) ? "Service files" : code
+    };
+
+    public static string InputName(string code) => code switch
+    {
+        "WALK_INS" => "Walk-ins",
+        "OPENING_CASH" => "Opening cash",
+        "EXPENSES" => "Expenses",
+        "CASH_DEPOSIT" => "Cash deposit",
+        _ => code
+    };
+
+    public static TodayChecklistSection SectionFor(DailyReadinessItemKind kind) => kind switch
+    {
+        DailyReadinessItemKind.MissingExport => TodayChecklistSection.WaitingForShop,
+        DailyReadinessItemKind.MissingManualInput => TodayChecklistSection.EnterNow,
+        _ => TodayChecklistSection.ThisMonth
+    };
+
+    /// <summary>
+    /// The line in words, without codes and without the shop (the panel groups by shop; a target line, which is listed
+    /// under "This month", names its shop). The original readiness message stays in <see cref="TodayChecklistLine.Message"/>.
+    /// </summary>
+    public static string PlainMessage(DailyReadinessItem item, string shopName) => item.Kind switch
+    {
+        DailyReadinessItemKind.MissingExport => $"{ExportName(item.Code)} - waiting for the shop's file",
+        DailyReadinessItemKind.MissingManualInput => $"{InputName(item.Code)} - not entered yet. You can enter it, or it arrives with the shop's daily sheet",
+        DailyReadinessItemKind.MissingMonthlyTarget => $"Monthly sales target for {shopName} is not set",
+        DailyReadinessItemKind.MissingStaffTargets => $"Staff targets for {shopName} are not set",
+        _ => item.Message
+    };
+
+    /// <summary>The shop name for its code, or the code when the shop list does not know it.</summary>
+    public static string ShopName(string storeCode, Func<string, string?>? shopNames)
+    {
+        if (string.IsNullOrWhiteSpace(storeCode)) return "";
+        var name = shopNames?.Invoke(storeCode);
+        return string.IsNullOrWhiteSpace(name) ? storeCode : name!;
+    }
+
+    private static TodayChecklistLine Line(DailyReadinessItem item, ShellAccess access, Func<string, string?>? shopNames)
+    {
+        var shop = ShopName(item.StoreCode, shopNames);
         var taskId = TaskFor(item.Destination);
         var task = TaskNavigation.Find(taskId) ?? throw new InvalidOperationException($"Task {taskId} is not registered.");
         var allowed = task.IsAllowed(access);
         var path = item.Destination == DailyReadinessDestination.SettingsMonthlyTargets ? task.Path + " → " + MonthlyTargetsTab : task.Path;
         return new(item.Message, ActionLabel(item.Destination), taskId, allowed,
-            allowed ? "Open " + path : $"{path} needs a different role. Ask the Owner.");
+            allowed ? "Open " + path : $"{path} needs a different role. Ask the Owner.",
+            item.StoreCode, shop, PlainMessage(item, shop), SectionFor(item.Kind));
     }
 
     public static string Heading(DateOnly businessDate, int count) =>

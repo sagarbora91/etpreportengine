@@ -19,7 +19,29 @@ public sealed partial class TaskNavigator(MainWindow window)
     private readonly HashSet<UserControl> visited = new();
     private WorkspaceRoute? displayedRoute;
     private bool databaseContextStarted;
-    public static DateTime InitialBusinessDate => DateTime.Today;
+    /// <summary>
+    /// 1.11.2 (UX audit top 3): ETP opens on the last business day (yesterday) instead of today. At 9 am today has no
+    /// imports, so the checklist listed every file as missing and the DSR was Blocked until the Owner changed the date by
+    /// hand; Close day, Archive and Accounting already defaulted to yesterday.
+    /// </summary>
+    public static DateTime DefaultBusinessDate(DateTime today) => today.Date.AddDays(-1);
+    public static DateTime InitialBusinessDate => DefaultBusinessDate(DateTime.Today);
+    private readonly List<string> recentTaskIds = new();
+    private const int RecentTaskLimit = 5;
+
+    private void RememberRecentTask(TaskDestination task)
+    {
+        if (task.Id.StartsWith("help:", StringComparison.Ordinal) || task.Section == "profile") return;
+        recentTaskIds.Remove(task.Id);
+        recentTaskIds.Insert(0, task.Id);
+        if (recentTaskIds.Count > RecentTaskLimit) recentTaskIds.RemoveRange(RecentTaskLimit, recentTaskIds.Count - RecentTaskLimit);
+    }
+
+    private IEnumerable<string> PinnedTaskIds()
+    {
+        try { return UiPreferenceStore.Load().FavouriteReportCodes.Select(code => "report-" + code).ToArray(); }
+        catch { return []; }
+    }
     private readonly Dictionary<WorkspaceRoute, (double Offset, IInputElement? Focus)> contexts = new();
 
     private static IEnumerable<DependencyObject> LogicalChildren(DependencyObject root)
@@ -211,10 +233,13 @@ public sealed partial class TaskNavigator(MainWindow window)
     {
         if (masterResults is null || masterSearch is null || searchPopup is null) return;
         masterResults.Items.Clear();
-        foreach (var task in TaskNavigation.Search(masterSearch.Text, window.CurrentShellAccess))
+        var pinned = PinnedTaskIds().ToArray();
+        var emptyQuery = masterSearch.Text.Trim().Length == 0;
+        foreach (var task in TaskNavigation.Search(masterSearch.Text, window.CurrentShellAccess, pinned, recentTaskIds))
         {
             var text = new StackPanel();
-            text.Children.Add(new TextBlock { Text = task.Title, FontWeight = FontWeights.SemiBold, FontSize = 14 });
+            var badge = !emptyQuery ? "" : pinned.Contains(task.Id) ? "Pinned - " : recentTaskIds.Contains(task.Id) ? "Recent - " : "";
+            text.Children.Add(new TextBlock { Text = badge + task.Title, FontWeight = FontWeights.SemiBold, FontSize = 14 });
             text.Children.Add(new TextBlock { Text = task.Path, FontSize = 12, TextWrapping = TextWrapping.Wrap });
             text.Children.Add(new TextBlock { Text = task.Purpose, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
             var item = new ListBoxItem { Content = text, Tag = task, MinHeight = 48, Padding = new Thickness(8) };
@@ -376,6 +401,10 @@ public sealed partial class TaskNavigator(MainWindow window)
         NavigateSafely(() => window.shell.Navigate(task.Route, window.CurrentShellAccess));
     }
 
+    /// <summary>Opens a task with a route argument (1.11.2: the Error register finds this Ref when it opens).</summary>
+    public void NavigateTaskWithArgument(TaskDestination task, string argument) =>
+        NavigateSafely(() => window.shell.Navigate(task.RouteWith(argument), window.CurrentShellAccess));
+
     public void NavigateOverview(string module, string destination, string? category = null) =>
         window.OpenSection(module switch { "Dashboard" => "Today", "Imports" => "Import", "Reports" => "Reports", _ => "Settings" });
     public void RestoreBreadcrumbs() { if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is { } task) window.UpdateSection(task); }
@@ -385,6 +414,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         pageSearch?.Close();
         RememberContext(route);
         if (TaskNavigation.Find(route.TaskId) is not { } task) return false;
+        RememberRecentTask(task);
         // RA-UI-26 (9 Oct 2026): the footer kept the previous screen's text ("6 saved pack(s) found..." on Investigation).
         // Each screen starts with its own path; a report or a save then replaces it with its result.
         window.ApplicationStatus.Text = task.Path;
@@ -472,7 +502,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         // 1.11.0 self-diagnostics: the Owner-only Health check and Error register screens (Operations Center, Settings > Database).
         if (Modules.OperationsAdministration.DiagnosticsScreens.Handles(id))
             return Modules.OperationsAdministration.DiagnosticsScreens.Create(id, () => window.CurrentShellAccess.CanAdminister,
-                taskId => { if (TaskNavigation.Find(taskId) is { } fix) NavigateTask(fix); });
+                taskId => { if (TaskNavigation.Find(taskId) is { } fix) NavigateTask(fix); }, argument);
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");

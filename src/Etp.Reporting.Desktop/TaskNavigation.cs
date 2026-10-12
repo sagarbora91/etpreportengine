@@ -27,9 +27,17 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
 
 public static class TaskNavigation
 {
-    public static TaskDestination? Find(string? id) => All.FirstOrDefault(x => x.Id == id);
+    public static TaskDestination? Find(string? id) => All.FirstOrDefault(x => x.Id == id) ?? HelpTasks.FirstOrDefault(x => x.Id == id);
     public static IReadOnlyList<string> Sections { get; } = ["Today", "Import", "Reports", "Stock", "Service", "Settings"];
     public static IReadOnlyList<TaskDestination> All { get; } = Build();
+    /// <summary>
+    /// 1.11.2 (UX audit 5.1): the Help topics are reached by F1 and the Help Centre, not by the task list, so they are no
+    /// longer in <see cref="All"/>, Ctrl+K or the Settings > Help dropdown. <see cref="Find"/> still resolves their ids so
+    /// the Help Centre's own navigation and history keep working.
+    /// </summary>
+    public static IReadOnlyList<TaskDestination> HelpTasks { get; } = HelpCentreRegistry.Topics
+        .Select(topic => new TaskDestination("help:" + topic.Id, topic.Title, "Settings", "Help", "Home", "help", 1, Aliases: [("help:" + topic.Id).Replace('-', ' ')]))
+        .ToArray();
     public static IReadOnlyList<TaskDestination> InSection(string section, ShellAccess access) => All.Where(t => t.Rail == section && t.IsAllowed(access)).ToArray();
 
     public static IReadOnlyList<TaskDestination> Search(string query, ShellAccess access)
@@ -38,6 +46,19 @@ public static class TaskNavigation
         return All.Where(x => x.IsAllowed(access)).Select(x => (Task: x, Rank: Rank(x, value)))
             .Where(x => x.Rank >= 0).OrderBy(x => x.Rank).ThenBy(x => x.Task.Path, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.Task).ToArray();
+    }
+
+    /// <summary>
+    /// Ctrl+K with nothing typed (1.11.2): the pinned screens, then the most recent ones, then the usual order. A typed query
+    /// ranks as before. Ids that are unknown or not allowed for this role are skipped.
+    /// </summary>
+    public static IReadOnlyList<TaskDestination> Search(string query, ShellAccess access, IEnumerable<string> pinnedIds, IEnumerable<string> recentIds)
+    {
+        var ranked = Search(query, access);
+        if (query.Trim().Length > 0) return ranked;
+        var front = pinnedIds.Concat(recentIds).Distinct(StringComparer.Ordinal)
+            .Select(id => ranked.FirstOrDefault(t => t.Id == id)).OfType<TaskDestination>().ToArray();
+        return front.Concat(ranked.Except(front)).ToArray();
     }
 
     private static int Rank(TaskDestination task, string query)
@@ -61,7 +82,22 @@ public static class TaskNavigation
                 "dashboard-overview" => ["dashboard", "overview", "system status"],
                 // 1.11.0 self-diagnostics (design 9): Owner-only screens in Settings > Database.
                 "health-check" => ["health", "self check", "diagnostics"],
-                "error-register" => ["errors", "ref", "error log"],
+                "error-register" => ["errors", "ref", "error log", "find ref", "copy ref"],
+                // 1.11.2 (UX audit 5): the words the Owner and shop actually use.
+                "readiness" => ["close day", "finalise", "finish the day", "lock day", "readiness"],
+                "finalisation" => ["finalise", "close day", "lock day"],
+                "import-files" => ["import a folder", "import folder", "import files", "load files"],
+                "conflicts" => ["problems", "refused", "failed import", "import problems", "needs attention"],
+                "import-history" => ["imports", "import history", "yesterday imports", "what was imported"],
+                "source-inbox" => ["received files", "shop files", "onedrive"],
+                "masters" => ["targets", "monthly target", "monthly targets", "brands", "set targets"],
+                "staff-target" => ["targets", "staff targets", "cro targets"],
+                "open-items" => ["needs attention", "open items", "exceptions"],
+                "data-quality" => ["needs attention", "data quality"],
+                "walk-ins" => ["walkins", "walk ins", "enter walk-ins"],
+                "cash-input" => ["cash", "enter cash", "service entries"],
+                "backups" => ["backup", "back up"],
+                "service-today" => ["service", "service centre", "service today"],
                 _ => [id.Replace('-', ' ')]
             }));
         Add("walk-ins", "Walk-ins", "Today", "Walk-ins", "Manual Entry", "manual", 2);
@@ -142,8 +178,6 @@ public static class TaskNavigation
             };
             result.Add(new("report-" + report.Code, report.Code == "dsr" ? "Sales" : report.Name, rail, tab, "Sales Reports", "report", 1, report.Code, ReportTaskAliases.For(report.Code).ToArray()));
         }
-        foreach (var topic in HelpCentreRegistry.Topics)
-            Add("help:" + topic.Id, topic.Title, "Settings", "Help", "Home", "help");
         var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help", "Today", "Pending", "Jobs", "Claims", "Parts", "Money" };
         return result.OrderBy(t => Array.IndexOf(Sections.ToArray(), t.Rail)).ThenBy(t => Array.IndexOf(tabOrder, t.Tab)).ThenBy(t => t.ReportCode is null ? 1 : 0).ToArray();
     }

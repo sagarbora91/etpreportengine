@@ -20,12 +20,16 @@ public sealed class TodayChecklistPanel : Border
     private readonly Func<DailyReadinessQuery> query;
     private readonly Action<string> openTask;
     private readonly Func<ShellAccess> access;
+    private readonly Func<string, string?>? shopName;
+    private DateTime? lastDate;
+    private string? lastStore;
     private readonly TextBlock heading = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel lines = new();
     private int revision;
 
-    public TodayChecklistPanel(Func<DailyReadinessQuery> query, Action<string> openTask, Func<ShellAccess> access)
+    public TodayChecklistPanel(Func<DailyReadinessQuery> query, Action<string> openTask, Func<ShellAccess> access, Func<string, string?>? shopName = null)
     {
+        this.shopName = shopName;
         this.query = query ?? throw new ArgumentNullException(nameof(query));
         this.openTask = openTask ?? throw new ArgumentNullException(nameof(openTask));
         this.access = access ?? throw new ArgumentNullException(nameof(access));
@@ -40,9 +44,10 @@ public sealed class TodayChecklistPanel : Border
         var root = new DockPanel();
         DockPanel.SetDock(heading, Dock.Top);
         root.Children.Add(heading);
-        // 4 stores x 4 exports plus inputs can be 25+ lines; keep the DSR preview on a 768-pixel panel.
-        root.Children.Add(new ScrollViewer { Content = lines, MaxHeight = 176, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = new Thickness(0, 4, 0, 0) });
+        // 4 stores x 4 exports plus inputs can be 25+ lines; keep the DSR preview on a 768-pixel panel. 1.11.2: taller (the
+        // lines are grouped by shop now) and not a tab stop, so a keyboard user goes straight to the buttons inside it.
+        root.Children.Add(new ScrollViewer { Content = lines, MaxHeight = 280, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = new Thickness(0, 4, 0, 0), Focusable = false });
         Child = root;
         AutomationProperties.SetName(this, "What's missing for the business date");
     }
@@ -58,6 +63,7 @@ public sealed class TodayChecklistPanel : Border
     public async Task RefreshAsync(DateTime businessDate, string? headerStore, CancellationToken cancellationToken = default)
     {
         var current = ++revision;
+        lastDate = businessDate; lastStore = headerStore;
         var request = TodayChecklist.Request(businessDate, headerStore);
         DailyReadinessQuery readiness;
         try { readiness = query(); }
@@ -82,8 +88,15 @@ public sealed class TodayChecklistPanel : Border
         }
     }
 
+    /// <summary>
+    /// Checks again for the date and store last shown. The shell calls it when the window is activated, so a file that
+    /// arrived while the Owner was in another program leaves the list without a screen change.
+    /// </summary>
+    public Task RefreshLastAsync() =>
+        lastDate is { } date ? RefreshAsync(date, lastStore) : Task.CompletedTask;
+
     private void Show(DailyReadinessResult result, DateOnly businessDate) =>
-        Show(TodayChecklist.Lines(result, access()), businessDate, null);
+        Show(TodayChecklist.Lines(result, access(), shopName), businessDate, null);
 
     private void Show(IReadOnlyList<TodayChecklistLine> items, DateOnly businessDate, string? failure)
     {
@@ -104,8 +117,27 @@ public sealed class TodayChecklistPanel : Border
             return;
         }
         heading.Text = TodayChecklist.Heading(businessDate, items.Count);
-        foreach (var item in items) lines.Children.Add(Row(item));
+        // The day's lines grouped by shop (named), then the month's targets apart from them.
+        foreach (var shop in items.Where(x => x.Section != TodayChecklistSection.ThisMonth).GroupBy(x => x.ShopName))
+        {
+            if (shop.Key.Length > 0) lines.Children.Add(GroupHeader(shop.Key));
+            foreach (var item in shop) lines.Children.Add(Row(item));
+        }
+        var month = items.Where(x => x.Section == TodayChecklistSection.ThisMonth).ToArray();
+        if (month.Length > 0)
+        {
+            lines.Children.Add(GroupHeader("This month"));
+            foreach (var item in month) lines.Children.Add(Row(item));
+        }
         Visibility = Visibility.Visible;
+    }
+
+    private static TextBlock GroupHeader(string title)
+    {
+        var header = new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 2) };
+        header.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+        AutomationProperties.SetHeadingLevel(header, AutomationHeadingLevel.Level3);
+        return header;
     }
 
     private UIElement Row(TodayChecklistLine item)
@@ -114,11 +146,11 @@ public sealed class TodayChecklistPanel : Border
         var button = new Button { Content = item.ActionLabel, Padding = new Thickness(10, 4, 10, 4), MinWidth = 120, Margin = new Thickness(8, 0, 0, 0),
             IsEnabled = item.CanOpen, ToolTip = item.Tooltip, Tag = item.TaskId, VerticalAlignment = VerticalAlignment.Center };
         ToolTipService.SetShowOnDisabled(button, true);
-        AutomationProperties.SetName(button, item.ActionLabel + ": " + item.Message);
+        AutomationProperties.SetName(button, item.ActionLabel + ": " + item.PlainMessage + (item.ShopName.Length > 0 ? " (" + item.ShopName + ")" : ""));
         button.Click += (_, _) => openTask(item.TaskId);
         DockPanel.SetDock(button, Dock.Right);
         row.Children.Add(button);
-        row.Children.Add(Text(item.Message));
+        row.Children.Add(Text(item.PlainMessage.Length > 0 ? item.PlainMessage : item.Message));
         return row;
     }
 

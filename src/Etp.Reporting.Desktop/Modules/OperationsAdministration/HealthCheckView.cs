@@ -45,13 +45,19 @@ public static class DiagnosticsScreens
 
     public static DiagnosticsScreenServices Services { get; set; } = new();
 
+    private static async Task LoadThenFindAsync(ErrorRegisterView register, string reference)
+    {
+        await register.LoadAsync();
+        await register.FindAsync(reference);
+    }
+
     public static bool Handles(string? taskId) => taskId is HealthCheckTask or ErrorRegisterTask;
 
     /// <summary>
     /// Creates the screen of a task and starts its first load. <paramref name="isOwner"/> is read at every action, so a
     /// role change in the shell applies at once; <paramref name="navigate"/> opens a task by id (the "Where to fix" button).
     /// </summary>
-    public static UserControl Create(string taskId, Func<bool> isOwner, Action<string>? navigate)
+    public static UserControl Create(string taskId, Func<bool> isOwner, Action<string>? navigate, string? argument = null)
     {
         var services = Services;
         switch (taskId)
@@ -62,7 +68,8 @@ public static class DiagnosticsScreens
                 return health;
             case ErrorRegisterTask:
                 var register = new ErrorRegisterView(services.ErrorStore, services.IngestOwnLog, isOwner);
-                _ = register.LoadAsync();
+                // 1.11.2: "Open in Error register" beside a Ref passes the Ref as the route argument; the register loads, then finds it.
+                _ = string.IsNullOrWhiteSpace(argument) ? register.LoadAsync() : LoadThenFindAsync(register, argument);
                 return register;
             default:
                 throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a diagnostics task.");
@@ -94,6 +101,8 @@ public sealed record HealthRow(HealthCheckResult Result, FixTarget Fix, HealthOu
         ? $"{Result.Explanation} (unchanged since {since.ToString("dd MMM", PresentationCulture.Indian)})"
         : Result.Explanation;
     public string FixText => Fix.Label;
+    /// <summary>1.11.2: a screen reader hears which line each "Where to fix" button belongs to, not the same name 50 times.</summary>
+    public string FixButtonName => $"Open where to fix for {Result.CheckId}: {Fix.Label}";
     public Visibility FixButtonVisibility => Fix.IsTask ? Visibility.Visible : Visibility.Collapsed;
     public Visibility FixTextVisibility => Fix.IsTask ? Visibility.Collapsed : Visibility.Visible;
     public string Took => Result.Duration.TotalSeconds.ToString("0.0", PresentationCulture.Indian) + " s";
@@ -137,8 +146,8 @@ public sealed class HealthCheckView : UserControl
     private readonly Button cancelButton = new() { Content = "Cancel", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
     private readonly Button refreshButton = new() { Content = "Refresh", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0) };
     private readonly Button folderButton = new() { Content = "Open export folder", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0) };
-    private readonly Button knownButton = new() { Content = "Mark selected warning as Known…", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
-    private readonly Button endKnownButton = new() { Content = "End Known", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+    private readonly Button knownButton = new() { Content = "Accept selected warning (Known)…", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+    private readonly Button endKnownButton = new() { Content = "End acceptance", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
     private readonly ComboBox compareBox = new() { MinHeight = 44, MinWidth = 260, IsEnabled = false };
     private readonly CheckBox showPassedBox = new() { Content = "Show passed lines", Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly DataGrid grid = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
@@ -662,8 +671,8 @@ public sealed class HealthCheckView : UserControl
 
     private (string Reason, DateOnly Until)? AskKnownWithDialog(DateOnly today)
     {
-        var answer = DiagnosticsDialog.Ask(this, "Mark as Known",
-            "A Known is a warning you have accepted for a while. It never hides a failure and ends on its own.", "Mark as Known",
+        var answer = DiagnosticsDialog.Ask(this, "Accept a warning (Known)",
+            "A Known is a warning you have accepted for a while. It never hides a failure and ends on its own.", "Accept warning",
             [
                 new("Reason (plain words)", DialogFieldKind.Text),
                 new($"Known until (at most {MaxKnownDays} days)", DialogFieldKind.Date, today.AddDays(30).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
@@ -714,7 +723,7 @@ public sealed class HealthCheckView : UserControl
         button.SetBinding(UIElement.VisibilityProperty, new Binding(nameof(HealthRow.FixButtonVisibility)));
         button.SetValue(FrameworkElement.MinHeightProperty, 32.0);
         button.SetValue(FrameworkElement.MarginProperty, new Thickness(4));
-        button.SetValue(AutomationProperties.NameProperty, "Open where to fix");
+        button.SetBinding(AutomationProperties.NameProperty, new Binding(nameof(HealthRow.FixButtonName)));
         button.AddHandler(Button.ClickEvent, new RoutedEventHandler((sender, _) =>
         {
             if (sender is FrameworkElement { DataContext: HealthRow row }) OpenFix(row);
