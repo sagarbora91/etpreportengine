@@ -23,7 +23,13 @@ public sealed class TodayChecklistPanel : Border
     private readonly Func<string, string?>? shopName;
     private DateTime? lastDate;
     private string? lastStore;
-    private readonly TextBlock heading = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock heading = new() { TextWrapping = TextWrapping.Wrap };
+
+    /// <summary>
+    /// ST-08: when set, a line opens its task for the shop it names (task id, store code; empty when the line names no shop)
+    /// instead of leaving the header on "All stores". The shell sets it; without it a line opens its task as before.
+    /// </summary>
+    public Action<string, string>? OpenTaskForStore { get; set; }
     private readonly StackPanel lines = new();
     private int revision;
 
@@ -39,8 +45,8 @@ public sealed class TodayChecklistPanel : Border
         Padding = new Thickness(12, 8, 12, 8);
         Margin = new Thickness(0, 8, 0, 0);
         SetResourceReference(BackgroundProperty, "Surface");
-        SetResourceReference(BorderBrushProperty, "Critical");
-        heading.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
+        SetResourceReference(BorderBrushProperty, "Warning");
+        heading.SetResourceReference(TextBlock.StyleProperty, "CardTitleText");
         var root = new DockPanel();
         DockPanel.SetDock(heading, Dock.Top);
         root.Children.Add(heading);
@@ -107,6 +113,7 @@ public sealed class TodayChecklistPanel : Border
         {
             heading.Text = $"What's missing for {businessDate:dd MMM yyyy}";
             lines.Children.Add(Text(failure));
+            SetResourceReference(BorderBrushProperty, "Critical");
             Visibility = Visibility.Visible;
             return;
         }
@@ -116,6 +123,8 @@ public sealed class TodayChecklistPanel : Border
             Visibility = Visibility.Collapsed;
             return;
         }
+        // DS-03: waiting for files is amber; red is kept for a check that could not run.
+        SetResourceReference(BorderBrushProperty, "Warning");
         heading.Text = TodayChecklist.Heading(businessDate, items.Count);
         // The day's lines grouped by shop (named), then the month's targets apart from them.
         foreach (var shop in items.Where(x => x.Section != TodayChecklistSection.ThisMonth).GroupBy(x => x.ShopName))
@@ -134,8 +143,8 @@ public sealed class TodayChecklistPanel : Border
 
     private static TextBlock GroupHeader(string title)
     {
-        var header = new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 2) };
-        header.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+        var header = new TextBlock { Text = title, Margin = new Thickness(0, 6, 0, 2) };
+        header.SetResourceReference(TextBlock.StyleProperty, "EyebrowText");
         AutomationProperties.SetHeadingLevel(header, AutomationHeadingLevel.Level3);
         return header;
     }
@@ -147,7 +156,11 @@ public sealed class TodayChecklistPanel : Border
             IsEnabled = item.CanOpen, ToolTip = item.Tooltip, Tag = item.TaskId, VerticalAlignment = VerticalAlignment.Center };
         ToolTipService.SetShowOnDisabled(button, true);
         AutomationProperties.SetName(button, item.ActionLabel + ": " + item.PlainMessage + (item.ShopName.Length > 0 ? " (" + item.ShopName + ")" : ""));
-        button.Click += (_, _) => openTask(item.TaskId);
+        button.Click += (_, _) =>
+        {
+            if (OpenTaskForStore is { } openForStore) openForStore(item.TaskId, item.StoreCode);
+            else openTask(item.TaskId);
+        };
         DockPanel.SetDock(button, Dock.Right);
         row.Children.Add(button);
         row.Children.Add(Text(item.PlainMessage.Length > 0 ? item.PlainMessage : item.Message));
@@ -156,8 +169,8 @@ public sealed class TodayChecklistPanel : Border
 
     private static TextBlock Text(string value)
     {
-        var text = new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-        text.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
+        var text = new TextBlock { Text = value, VerticalAlignment = VerticalAlignment.Center };
+        text.SetResourceReference(TextBlock.StyleProperty, "BodyText");
         return text;
     }
 }

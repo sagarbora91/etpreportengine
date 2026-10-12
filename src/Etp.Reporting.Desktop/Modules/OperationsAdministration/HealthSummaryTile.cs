@@ -22,7 +22,7 @@ public sealed class HealthSummaryTile : Border
 
     private readonly Func<IHealthCheckStore?> store;
     private readonly Func<DateOnly> today;
-    private readonly TextBlock text = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock text = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border stripe = new() { Width = 5, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 10, 0) };
     private readonly Func<bool>? isOwner;
     private readonly Action? open;
@@ -44,8 +44,9 @@ public sealed class HealthSummaryTile : Border
         Padding = new Thickness(12, 8, 12, 8);
         BorderThickness = new Thickness(1);
         CornerRadius = new CornerRadius(12);
-        Background = ThemeBrushes.Get("Surface");
-        BorderBrush = ThemeBrushes.Get("SecondaryText");
+        text.SetResourceReference(TextBlock.StyleProperty, "CaptionText");
+        SetResourceReference(BackgroundProperty, "Surface");
+        SetResourceReference(BorderBrushProperty, "Divider");
         var row = new DockPanel();
         DockPanel.SetDock(stripe, Dock.Left);
         row.Children.Add(stripe);
@@ -159,13 +160,17 @@ public sealed class HealthSummaryTile : Border
     {
         Level = level;
         text.Text = line;
-        stripe.Background = ThemeBrushes.Get(level switch
-        {
-            HealthOutcome.Fail => "Critical",
-            HealthOutcome.Warning => "Warning",
-            HealthOutcome.Pass => "Success",
-            _ => "SecondaryText"
-        });
+        // DS-04: a pass is one quiet 12 px line (no card, no stripe); a warning or a failure takes a soft tone fill with the
+        // status word first, so "something broke last night" no longer looks like "last night OK".
+        var loud = level is HealthOutcome.Fail or HealthOutcome.Warning;
+        var tone = level == HealthOutcome.Fail ? "Critical" : "Warning";
+        stripe.Visibility = loud ? Visibility.Visible : Visibility.Collapsed;
+        if (loud) stripe.SetResourceReference(Border.BackgroundProperty, tone);
+        SetResourceReference(BackgroundProperty, level == HealthOutcome.Fail ? "CriticalSoft" : level == HealthOutcome.Warning ? "WarningSoft" : "AppBackground");
+        SetResourceReference(BorderBrushProperty, loud ? tone : "AppBackground");
+        text.SetResourceReference(TextBlock.StyleProperty, loud ? "BodyText" : "CaptionText");
+        text.FontWeight = loud ? FontWeights.SemiBold : FontWeights.Normal;
+        text.TextDecorations = IsLink && loud ? TextDecorations.Underline : null;
         AutomationProperties.SetHelpText(this, line);
         var link = IsLink;
         Focusable = link;

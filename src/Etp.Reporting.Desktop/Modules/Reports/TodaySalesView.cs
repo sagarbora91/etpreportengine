@@ -31,8 +31,8 @@ public sealed class TodaySalesView : Grid
         {
             var row = combined?.Rows.FirstOrDefault(r => r.Metric == metric);
             var panel = new StackPanel { Margin = new Thickness(8,4,8,8) };
-            panel.Children.Add(Text(label, 12));
-            panel.Children.Add(Text(Format(period == "MTD" ? row?.Mtd : row?.Ftd, row?.Format), 20, true));
+            panel.Children.Add(Styled(label, "EyebrowText"));
+            panel.Children.Add(Styled(Format(period == "MTD" ? row?.Mtd : row?.Ftd, row?.Format), "MetricText"));
             kpis.Children.Add(panel);
         }
         root.Children.Add(kpis);
@@ -49,33 +49,43 @@ public sealed class TodaySalesView : Grid
         }
         for (var i = 0; i < sheets.Length; i++)
         {
-            var card = Store(sheets[i]);
+            var card = Store(sheets[i], document.BusinessDate);
             if (narrow) SetRow(card,i); else SetColumn(card,i);
             cards.Children.Add(card);
         }
         var service = new StackPanel { Margin = new Thickness(8) };
-        service.Children.Add(Heading("Service & targets",16));
-        service.Children.Add(Text("Service today",12));
-        service.Children.Add(Text(Format(document.Service.Total,"currency"),18,true));
+        service.Children.Add(Heading("Service & targets",15));
+        service.Children.Add(Styled("Service today", "EyebrowText"));
+        service.Children.Add(Styled(Format(document.Service.Total,"currency"), "SectionTitleText"));
         foreach (var sheet in sheets)
         {
-            service.Children.Add(Heading(sheet.StoreName,14));
+            service.Children.Add(Heading(sheet.StoreName,15));
             foreach (var (label, value) in new[] { ("Month target",sheet.StoreTarget), ("Day target",sheet.DayTarget), ("Balance",sheet.Balance), ("Required daily sales",sheet.RequiredAds) })
             {
-                service.Children.Add(Text(label,11));
-                service.Children.Add(Text(Format(value,"currency"),13));
+                service.Children.Add(Styled(label, "CaptionText"));
+                service.Children.Add(Styled(Format(value,"currency"), "BodyText"));
             }
         }
-        service.Children.Add(Text("— means data unavailable.",11));
         if (narrow) SetRow(service,sheets.Length); else SetColumn(service,sheets.Length);
         cards.Children.Add(service); root.Children.Add(cards); scroll.Content = root;
     }
-    private static FrameworkElement Store(EveningStoreSheet sheet)
+    /// <summary>DS-06: a shop whose sales file is not in has no value in any period; it gets one sentence instead of a wall of dashes.</summary>
+    internal static bool HasNoSalesData(EveningStoreSheet sheet) =>
+        sheet.Rows.Count == 0 || sheet.Rows.All(r => r.Ftd is null && r.Mtd is null && r.Ytd is null);
+
+    internal static string WaitingText(DateOnly businessDate) => $"No sales file for {businessDate.ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("en-IN"))} yet - waiting for the shop.";
+
+    private static FrameworkElement Store(EveningStoreSheet sheet, DateOnly businessDate)
     {
         var root = new StackPanel { Margin = new Thickness(6) };
         root.Children.Add(Heading(sheet.StoreName,18));
+        if (HasNoSalesData(sheet))
+        {
+            root.Children.Add(Styled(WaitingText(businessDate), "BodyText"));
+            return root;
+        }
         var sales = sheet.Rows.FirstOrDefault(r => r.Metric == "VALUE");
-        var comparison = Text($"LY today {Format(sales?.Ly,"currency")} · Growth {Format(sales?.Growth,"percent")}",11);
+        var comparison = Text($"LY today {Format(sales?.Ly,"currency")} · Growth {Format(sales?.Growth,"percent")}",12);
         // RA-SALES-14 (1.10.1): no growth figure (LY or Growth shown as "—") is neutral, not green.
         comparison.SetResourceReference(TextBlock.ForegroundProperty, sales?.Growth is not { } growth ? "PrimaryText" : growth < 0 ? "Critical" : "Success");
         root.Children.Add(comparison);
@@ -89,7 +99,8 @@ public sealed class TodaySalesView : Grid
             table.RowDefinitions.Add(new() { Height = GridLength.Auto });
             for (var col=0;col<4;col++)
             {
-                var cell = Text(lines[row][col],11,row==0);
+                var cell = Text(lines[row][col],12,row==0);
+                if (row > 0 && lines[row][col] == "—") cell.ToolTip = "Not imported yet. A real zero shows as 0.";
                 cell.Padding = new Thickness(2,2,2,2); cell.TextAlignment = col==0 ? TextAlignment.Left : TextAlignment.Right;
                 if (row%2==0) cell.SetResourceReference(TextBlock.BackgroundProperty,"SurfaceSecondary");
                 SetRow(cell,row);SetColumn(cell,col);table.Children.Add(cell);
@@ -103,6 +114,12 @@ public sealed class TodaySalesView : Grid
     {
         var text = new TextBlock { Text=value,FontSize=size,FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,0) };
         text.SetResourceReference(TextBlock.ForegroundProperty,"PrimaryText"); return text;
+    }
+    private static TextBlock Styled(string value, string style)
+    {
+        var text = new TextBlock { Text = value };
+        text.SetResourceReference(FrameworkElement.StyleProperty, style);
+        return text;
     }
     private static TextBlock Heading(string value,double size)
     {
