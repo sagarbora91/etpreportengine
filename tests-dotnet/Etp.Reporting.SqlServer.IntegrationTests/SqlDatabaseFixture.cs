@@ -62,7 +62,7 @@ public sealed class SqlDatabaseFixture : IAsyncLifetime
                 return;
             }
             // The known open-time transport flake (architecture A2): one more try on a clean database, logged.
-            catch (Exception exception) when (attempt == 1 && SqlFlakeRetry.IsOpenTransportError(exception))
+            catch (Exception exception) when (attempt == 1 && !SqlFlakeRetry.Disabled && SqlFlakeRetry.IsOpenTransportError(exception))
             {
                 SqlFlakeRetry.LogRetry("fixture " + Name);
                 try { await DropAsync(); } catch (Exception) { /* the next attempt creates it again, or fails visibly */ }

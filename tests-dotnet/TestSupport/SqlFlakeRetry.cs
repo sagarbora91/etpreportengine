@@ -91,6 +91,9 @@ public static class SqlFlakeRetry
     private static readonly object LogLock = new();
     private static int retries;
 
+    /// <summary>ETP_FLAKE_NO_RETRY=1 turns the retry off, so the flake experiments count raw failures.</summary>
+    public static bool Disabled => Environment.GetEnvironmentVariable("ETP_FLAKE_NO_RETRY") == "1";
+
     /// <summary>Number of ETP-FLAKE-RETRY lines written by this process.</summary>
     public static int RetryCount => Volatile.Read(ref retries);
 
@@ -125,7 +128,7 @@ public static class SqlFlakeRetry
     {
         var first = new BufferingMessageBus();
         var summary = await runOnce(first, new ExceptionAggregator(aggregator)).ConfigureAwait(false);
-        if (summary.Failed == 0 || !first.SawOpenTransportError)
+        if (summary.Failed == 0 || !first.SawOpenTransportError || Disabled)
         {
             first.FlushTo(realBus);
             return summary;
