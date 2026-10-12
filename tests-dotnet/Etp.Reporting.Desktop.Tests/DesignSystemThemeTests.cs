@@ -32,13 +32,18 @@ public sealed class DesignSystemThemeTests
         "IconChevronDown", "IconChevronRight", "IconBack", "IconRefresh", "IconExport", "IconInfo", "IconCheck", "IconWarning", "IconClose", "IconStar"
     ];
 
+    // 1.11.3 integrator: the Service stage tokens U2 references (MOCK-SVC-13).
+    private static readonly string[] StageKeys = ["StageIntake", "StageWorkshop", "StageOut", "StageClosing", "StageClaim", "StageClosed",
+        "StageIntakeSoft", "StageWorkshopSoft", "StageOutSoft", "StageClosingSoft", "StageClaimSoft", "StageClosedSoft"];
+
     [Fact]
     public void Every_rule_book_key_resolves_from_the_theme()
     {
         Sta(() =>
         {
             var host = Themed(new Border());
-            Assert.Empty(RuleBookKeys.Where(key => host.TryFindResource(key) is null));
+            var missing = RuleBookKeys.Concat(StageKeys).Where(key => host.TryFindResource(key) is null).ToArray();
+            Assert.True(missing.Length == 0, "Missing theme keys: " + string.Join(", ", missing));
             Assert.Equal(20d, Assert.IsType<Style>(host.FindResource("PageTitleText")).Setters.OfType<Setter>().Single(setter => setter.Property == TextBlock.FontSizeProperty).Value);
             Assert.Equal(new Thickness(16), host.FindResource("CardPadding"));
             Assert.Equal(new CornerRadius(8), host.FindResource("RadiusSmall"));

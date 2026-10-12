@@ -168,7 +168,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
             if (value is not CollectionViewGroup group) return "";
             var label = group.Name?.ToString() ?? "";
             var stage = StageOfLabel(label);
-            return parameter as string switch
+            return (parameter as string) switch
             {
                 "number" => ServiceUi.StageNumber(stage),
                 "label" => label,
