@@ -41,7 +41,8 @@ public sealed class ReportWorksheetWriterTests
 
             Assert.Equal("Brand Sales", byRow[1][0].InnerText);
             Assert.Equal("Stores: WLMHW", byRow[7][0].InnerText);
-            Assert.Equal("A7:G7", worksheet.Descendants<MergeCell>().Single().Reference!.Value);
+            // 1.12 U4: the Control sentence (row 4) is merged across the table so it wraps; the scope stays merged in row 7.
+            Assert.Equal(["B4:G4", "A7:G7"], worksheet.Descendants<MergeCell>().Select(x => x.Reference!.Value));
             Assert.Equal(Columns.Select(column => column.Header), byRow[8].Select(cell => cell.InnerText));
             Assert.Equal(Enumerable.Range(9, 51).Select(i => (uint)i), byRow.Keys.Where(index => index > 8).Order());
             Assert.Equal("A8:G58", worksheet.GetFirstChild<AutoFilter>()!.Reference!.Value);
@@ -95,6 +96,89 @@ public sealed class ReportWorksheetWriterTests
             // A number under a "General" column is still written as a number in the money style, never as text.
             Assert.Equal(CellValues.Number, cells[2].DataType!.Value);
             Assert.Equal(164u, NumberFormat(cells[2]));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void Print_setup_header_totals_status_and_generation_time_are_styled_and_the_values_are_unchanged()
+    {
+        var path = OutputPath("styled.xlsx");
+        try
+        {
+            var rows = new[] { (IReadOnlyList<object?>)["WLMHW", 12, 1234567.891m, "Passed"], ["HEMW", null, -40.5m, "NotRun"] };
+            IReadOnlyList<object?> totals = ["Total", 12, 1234527.391m, "Failed"];
+            var generated = new DateTimeOffset(2026, 10, 12, 3, 44, 0, TimeSpan.Zero);
+            new OpenXmlReportExporter().Export(path,
+                new("Cash & Book", new(2026, 10, 11), new(2026, 10, 11), "Failed", "v1", new string('x', 300), generated),
+                new([new("Store"), new("Units", "#,##0"), new("Value incl. GST", "#,##0.00"), new("Status")], rows, totals));
+
+            using var document = SpreadsheetDocument.Open(path, false);
+            var book = document.WorkbookPart!;
+            var worksheet = book.WorksheetParts.Single().Worksheet!;
+            var byRow = worksheet.Descendants<Row>().ToDictionary(row => row.RowIndex!.Value, row => row.Elements<Cell>().ToArray());
+            var stylesheet = book.WorkbookStylesPart!.Stylesheet!;
+            var formats = stylesheet.CellFormats!.Elements<CellFormat>().ToArray();
+            var fonts = stylesheet.Fonts!.Elements<Font>().ToArray();
+            var numbering = stylesheet.NumberingFormats!.Elements<NumberingFormat>().ToDictionary(x => x.NumberFormatId!.Value, x => x.FormatCode!.Value);
+            CellFormat Format(Cell cell) => formats[(int)(cell.StyleIndex?.Value ?? 0)];
+            bool Bold(Cell cell) => fonts[(int)(Format(cell).FontId?.Value ?? 0)].Elements<Bold>().Any();
+
+            // Same figures: every value is written exactly as given.
+            Assert.Equal("1234567.891", byRow[9][2].CellValue!.Text);
+            Assert.Equal("-40.5", byRow[10][2].CellValue!.Text);
+            Assert.Equal("1234527.391", byRow[11][2].CellValue!.Text);
+            Assert.Equal("12", byRow[11][1].CellValue!.Text);
+            Assert.Equal(ReportWorksheetWriter.IndianMoney, numbering[Format(byRow[11][2]).NumberFormatId!.Value]);
+
+            // OUT-17: A4 landscape, one page wide, row 8 repeated, a footer with the report, the day and the page number.
+            var setup = worksheet.GetFirstChild<PageSetup>()!;
+            Assert.Equal(OrientationValues.Landscape, setup.Orientation!.Value);
+            Assert.Equal(1u, setup.FitToWidth!.Value); Assert.Equal(0u, setup.FitToHeight!.Value);
+            Assert.True(worksheet.GetFirstChild<SheetProperties>()!.PageSetupProperties!.FitToPage!.Value);
+            var titles = book.Workbook!.DefinedNames!.Elements<DefinedName>().Single();
+            Assert.Equal("_xlnm.Print_Titles", titles.Name!.Value);
+            Assert.Equal("'Cash & Book'!$8:$8", titles.Text);
+            Assert.Equal(0u, titles.LocalSheetId!.Value);
+            Assert.Equal("&LCash && Book&C11 Oct 2026&RPage &P of &N", worksheet.Descendants<OddFooter>().Single().Text);
+
+            // OUT-18/19: title 14 pt, filled and bordered header row, bold totals with a top border, status as a coloured word.
+            Assert.Equal(14, fonts[(int)Format(byRow[1][0]).FontId!.Value].Elements<FontSize>().Single().Val!.Value);
+            Assert.True(Format(byRow[8][0]).FillId!.Value > 1);
+            Assert.True(Format(byRow[8][0]).BorderId!.Value > 0);
+            Assert.All(byRow[11].Take(3), cell => Assert.True(Bold(cell)));
+            Assert.Equal("Problem", byRow[3][1].InnerText);
+            Assert.True(Format(byRow[3][1]).FillId!.Value > 1);
+            Assert.Equal(["OK", "Not checked yet"], new[] { byRow[9][3].InnerText, byRow[10][3].InnerText });
+            Assert.Equal(ReportWorksheetWriter.GeneratedFormat, numbering[Format(byRow[6][1]).NumberFormatId!.Value]);
+            Assert.Equal(generated.LocalDateTime.ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), byRow[6][1].CellValue!.Text);
+            Assert.Contains(ReportWorksheetWriter.MissingNumberLegend, byRow[6][2].InnerText, StringComparison.Ordinal);
+            Assert.True(worksheet.Descendants<Row>().Single(r => r.RowIndex!.Value == 4).CustomHeight?.Value);
+
+            // OUT-20: widths follow the longest cell, capped at 60.
+            var widths = worksheet.Descendants<Column>().Select(x => x.Width!.Value).ToArray();
+            Assert.All(widths, width => Assert.InRange(width, 10, ReportWorksheetWriter.MaximumColumnWidth));
+            Assert.True(widths[0] < 21);
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void Long_text_columns_wrap_and_stay_within_sixty_characters()
+    {
+        var path = OutputPath("wrap.xlsx");
+        try
+        {
+            new OpenXmlReportExporter().Export(path,
+                new("Exceptions", new(2026, 10, 11), new(2026, 10, 11), "Passed", "v1", "x", DateTimeOffset.UtcNow),
+                new([new("Code"), new("Message")], [["X1", new string('m', 200)]]));
+            using var document = SpreadsheetDocument.Open(path, false);
+            var book = document.WorkbookPart!;
+            var worksheet = book.WorksheetParts.Single().Worksheet!;
+            Assert.Equal(60, worksheet.Descendants<Column>().ElementAt(1).Width!.Value);
+            var message = worksheet.Descendants<Cell>().Single(c => c.CellReference!.Value == "B9");
+            var format = book.WorkbookStylesPart!.Stylesheet!.CellFormats!.Elements<CellFormat>().ElementAt((int)message.StyleIndex!.Value);
+            Assert.True(format.Alignment!.WrapText!.Value);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

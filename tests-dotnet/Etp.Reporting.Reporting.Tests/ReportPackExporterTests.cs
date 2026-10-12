@@ -50,8 +50,10 @@ public sealed class ReportPackExporterTests
             new SimplePdfReportPackExporter().Export(path, Pack());
             var text = Encoding.ASCII.GetString(File.ReadAllBytes(path));
             using var document=PdfReader.Open(path,PdfDocumentOpenMode.Import);
-            Assert.Equal(2,document.PageCount);
-            Assert.All(document.Pages.Cast<PdfSharp.Pdf.PdfPage>(),page=>Assert.True(page.Width.Point>page.Height.Point));
+            // 1.12 U4 (decision 45 #4): a portrait cover page first, then one landscape page per table as before.
+            Assert.Equal(3,document.PageCount);
+            Assert.True(document.Pages[0].Height.Point>document.Pages[0].Width.Point);
+            Assert.All(document.Pages.Cast<PdfSharp.Pdf.PdfPage>().Skip(1),page=>Assert.True(page.Width.Point>page.Height.Point));
             Assert.EndsWith("%%EOF\n", text, StringComparison.Ordinal);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
