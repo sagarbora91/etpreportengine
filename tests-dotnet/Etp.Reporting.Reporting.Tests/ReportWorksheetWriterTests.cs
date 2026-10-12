@@ -153,7 +153,7 @@ public sealed class ReportWorksheetWriterTests
             Assert.Equal(ReportWorksheetWriter.GeneratedFormat, numbering[Format(byRow[6][1]).NumberFormatId!.Value]);
             Assert.Equal(generated.LocalDateTime.ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), byRow[6][1].CellValue!.Text);
             Assert.Contains(ReportWorksheetWriter.MissingNumberLegend, byRow[6][2].InnerText, StringComparison.Ordinal);
-            Assert.True(byRow.ContainsKey(4) && worksheet.Descendants<Row>().Single(r => r.RowIndex!.Value == 4).CustomHeight?.Value == true);
+            Assert.True(worksheet.Descendants<Row>().Single(r => r.RowIndex!.Value == 4).CustomHeight?.Value);
 
             // OUT-20: widths follow the longest cell, capped at 60.
             var widths = worksheet.Descendants<Column>().Select(x => x.Width!.Value).ToArray();

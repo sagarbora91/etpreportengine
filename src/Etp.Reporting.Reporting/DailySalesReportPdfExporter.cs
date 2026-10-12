@@ -197,9 +197,9 @@ internal static class DsrPhonePage
             var today = store.Periods.FirstOrDefault(x => x.Period == "FTD"); var month = store.Periods.FirstOrDefault(x => x.Period == "MTD");
             lines.Add(new($"Today {DsrDisplay.Currency(today?.TyValue)} · {(today is null ? DsrDisplay.Missing : DsrDisplay.Percent(today.ValueGrowth))} vs last year", 13));
             var target = r.Targets.FirstOrDefault(x => string.Equals(x.StoreCode, store.StoreCode, StringComparison.OrdinalIgnoreCase));
-            lines.Add(new($"Month {DsrDisplay.Currency(month?.TyValue)} · " + (target?.MonthlyTarget is null ? "target not set" : $"{DsrDisplay.Percent(target.Achievement).TrimStart('+')} of target"), 13));
+            lines.Add(new($"Month {DsrDisplay.Currency(month?.TyValue)} · " + (target is not { MonthlyTarget: not null } ? "target not set" : $"{DsrDisplay.Percent(target.Achievement).TrimStart('+')} of target"), 13));
             var evening = r.EveningSheets.FirstOrDefault(x => string.Equals(x.StoreCode, store.StoreCode, StringComparison.OrdinalIgnoreCase));
-            if (evening?.RequiredAds is not null) lines.Add(new($"Needed per day {DsrDisplay.Currency(evening.RequiredAds)} (incl. today)", 13));
+            if (evening is { RequiredAds: { } needed }) lines.Add(new($"Needed per day {DsrDisplay.Currency(needed)} (incl. today)", 13));
         }
         if (r.Service.Total is not null || r.Service.PeriodTotals.GetValueOrDefault("MTD") is not null)
         {

@@ -58,8 +58,8 @@ internal static class ReportWorksheetWriter
             row=HeaderRow;rows.Append(Row(row++,data.Columns.Select(x=>Text(x.Header,StyleHeader))));
             var wraps=data.Columns.Select((x,i)=>x.NumberFormat=="General"&&LongestText(i,data)>MaximumColumnWidth).ToArray();
             var statusColumns=data.Columns.Select(x=>x.Header.Trim().EndsWith("Status",StringComparison.OrdinalIgnoreCase)&&x.NumberFormat=="General").ToArray();
-            foreach(var record in data.Rows)rows.Append(Row(row++,record.Select((x,i)=>Cell(x,data.Columns[i].NumberFormat,wraps[i],statusColumns[i],false))));
-            var lastData=row-1;if(data.Totals is not null)rows.Append(Row(row++,data.Totals.Select((x,i)=>Cell(x,data.Columns[i].NumberFormat,false,false,true))));
+            foreach(var record in data.Rows)rows.Append(Row(row++,record.Select((x,i)=>DataCell(x,data.Columns[i].NumberFormat,wraps[i],statusColumns[i],false))));
+            var lastData=row-1;if(data.Totals is not null)rows.Append(Row(row++,data.Totals.Select((x,i)=>DataCell(x,data.Columns[i].NumberFormat,false,false,true))));
             var merges=new List<MergeCell>();
             if(mergeControl)merges.Add(new MergeCell{Reference=$"B4:{last}4"});
             if (!string.IsNullOrWhiteSpace(metadata.AppliedScope) && data.Columns.Count > 1)merges.Add(new MergeCell { Reference = $"A7:{last}7" });
@@ -161,7 +161,7 @@ internal static class ReportWorksheetWriter
 
     private static Cell Text(string? text,uint style=StyleDefault)=>new(){DataType=CellValues.InlineString,InlineString=new InlineString(new Text(text??"")),StyleIndex=style};
 
-    private static Cell Cell(object? value,string format,bool wrap,bool status,bool total)
+    private static Cell DataCell(object? value,string format,bool wrap,bool status,bool total)
     {
         if(status&&value is string word&&OutputText.StatusWord(word)!=word.Trim())return Text(OutputText.StatusWord(word),StatusStyle(word));
         var cell=Value(value,format);

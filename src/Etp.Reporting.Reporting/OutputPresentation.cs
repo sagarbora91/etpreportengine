@@ -94,7 +94,7 @@ public static class OutputText
     public static string FileNamePart(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "ETP";
-        var words = text.Split(['+', '/', '\\', ',', ';', '&'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var words = text.Split(new[] { '+', '/', '\\', ',', ';', '&' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(word => new string(word.Where(char.IsLetterOrDigit).ToArray()))
             .Where(word => word.Length > 0).ToArray();
         var joined = string.Join("-", words);
