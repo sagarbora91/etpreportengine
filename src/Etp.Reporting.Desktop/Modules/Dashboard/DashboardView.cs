@@ -19,12 +19,13 @@ public delegate Task ExportManagementSummaryPdfAsync(string path, ExcelReportMet
 
 public sealed class DashboardView : UserControl
 {
-    private static readonly Brush PrimaryText = Brush("Success");
+    // 1.11.3 (decision 45 #1, Sys DS-02 C2/C4): figures are dark, green only for a good state, borders are Divider.
+    private static readonly Brush PrimaryText = Brush("PrimaryText");
     private static readonly Brush SecondaryText = Brush("SecondaryText");
-    private static readonly Brush Accent = Brush("Success");
-    private static readonly Brush AccentSoft = Brush("SurfaceSecondary");
+    private static readonly Brush Accent = Brush("Accent");
+    private static readonly Brush AccentSoft = Brush("AccentSoft");
     private static readonly Brush DarkSurface = Brush("PrimaryText");
-    private static readonly Brush Divider = Brush("SecondaryText");
+    private static readonly Brush Divider = Brush("Divider");
     private static readonly Brush SurfaceSecondary = Brush("SurfaceSecondary");
 
     private readonly TextBlock importedFilesMetric = MetricValue(21);
@@ -108,8 +109,8 @@ public sealed class DashboardView : UserControl
         if (!preserveHealthColour)
             databaseHealthMetric.Foreground = state.DatabaseHealthTone switch
             {
-                DashboardHealthTone.Healthy => Accent,
-                DashboardHealthTone.Warning => Brush("Critical"),
+                DashboardHealthTone.Healthy => Brush("Success"),
+                DashboardHealthTone.Warning => Brush("Warning"),
                 _ => Brush("Critical")
             };
         databaseSizeMetric.Text = state.DatabaseSize;

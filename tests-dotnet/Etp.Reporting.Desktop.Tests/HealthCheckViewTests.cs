@@ -117,7 +117,7 @@ public sealed class HealthCheckViewTests
             view.ShowPassed = true;
 
             Assert.Equal(["SEC-01", "DB-01", "DATA-01", "DB-04", "OPS-03", "RPT-01"], view.Rows.Select(row => row.Check));
-            Assert.Equal(["FAIL", "WARN", "WARN", "KNOWN", "SKIPPED", "PASS"], view.Rows.Select(row => row.Outcome));
+            Assert.Equal(["Problem", "Check", "Check", "Known", "Skipped", "OK"], view.Rows.Select(row => row.Outcome));
         });
     }
 
@@ -211,9 +211,9 @@ public sealed class HealthCheckViewTests
 
             view.Select(view.Rows.Single());
 
-            Assert.Contains("DATA-01  WARN  finding FINDING", view.DetailsText, StringComparison.Ordinal);
-            Assert.Contains("HEMW: WARN R025_MISSING (1) - family R025", view.DetailsText, StringComparison.Ordinal);
-            Assert.Contains("TITAN: PASS", view.DetailsText, StringComparison.Ordinal);
+            Assert.Contains("DATA-01  Check  finding FINDING", view.DetailsText, StringComparison.Ordinal);
+            Assert.Contains("HEMW: Check R025_MISSING (1) - family R025", view.DetailsText, StringComparison.Ordinal);
+            Assert.Contains("TITAN: OK", view.DetailsText, StringComparison.Ordinal);
         });
     }
 
@@ -234,12 +234,12 @@ public sealed class HealthCheckViewTests
             Assert.Equal(2, view.CurrentRun!.HealthCheckRunId);
             Assert.Equal(1, view.ComparedRun!.HealthCheckRunId);
             Assert.Equal(1, view.CompareChoiceCount);
-            Assert.Contains("DATA-01 PASS → WARN", view.ChangesText, StringComparison.Ordinal);
+            Assert.Contains("DATA-01 OK → Check", view.ChangesText, StringComparison.Ordinal);
             Assert.DoesNotContain("DB-01", view.ChangesText, StringComparison.Ordinal);
             var changed = view.Rows.Single(row => row.Check == "DATA-01");
-            Assert.Equal("PASS", changed.EarlierText);
-            Assert.Equal("PASS → WARN", changed.ChangeText);
-            Assert.Equal("WARN", view.Rows.Single(row => row.Check == "DB-01").EarlierText);
+            Assert.Equal("OK", changed.EarlierText);
+            Assert.Equal("OK → Check", changed.ChangeText);
+            Assert.Equal("Check", view.Rows.Single(row => row.Check == "DB-01").EarlierText);
             Assert.Equal("", view.Rows.Single(row => row.Check == "DB-01").ChangeText);
         });
     }
@@ -256,12 +256,12 @@ public sealed class HealthCheckViewTests
             var view = NewView(store, runner: null);
             view.LoadAsync().GetAwaiter().GetResult();
             view.ShowPassed = true;
-            Assert.Equal("WARN", view.Rows.Single().EarlierText);
+            Assert.Equal("Check", view.Rows.Single().EarlierText);
 
             view.CompareWithAsync(1).GetAwaiter().GetResult();
 
-            Assert.Equal("FAIL", view.Rows.Single().EarlierText);
-            Assert.Contains("FAIL → PASS", view.ChangesText, StringComparison.Ordinal);
+            Assert.Equal("Problem", view.Rows.Single().EarlierText);
+            Assert.Contains("Problem → OK", view.ChangesText, StringComparison.Ordinal);
             Assert.Equal(2, view.CompareChoiceCount);
         });
     }

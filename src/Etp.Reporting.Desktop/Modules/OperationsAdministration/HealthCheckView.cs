@@ -286,13 +286,15 @@ public sealed class HealthCheckView : UserControl
 
     // ---- pure rules ----------------------------------------------------------------------------------------------
 
+    // 1.11.3 (decision 45 #5, U5 StatusWords): the plain check words, never PASS/WARN/FAIL in capitals. The chip tone
+    // still comes from the outcome itself (OutcomeKind), not from this text.
     public static string OutcomeLabel(HealthOutcome outcome) => outcome switch
     {
-        HealthOutcome.Fail => "FAIL",
-        HealthOutcome.Warning => "WARN",
-        HealthOutcome.Known => "KNOWN",
-        HealthOutcome.Skipped => "SKIPPED",
-        _ => "PASS"
+        HealthOutcome.Fail => Etp.Reporting.Reporting.StatusWords.Problem,
+        HealthOutcome.Warning => Etp.Reporting.Reporting.StatusWords.Check,
+        HealthOutcome.Known => "Known",
+        HealthOutcome.Skipped => "Skipped",
+        _ => Etp.Reporting.Reporting.StatusWords.Ok
     };
 
     private static int Rank(HealthOutcome outcome) => outcome switch
@@ -746,7 +748,7 @@ public sealed class HealthCheckView : UserControl
         grid.Columns.Add(Text("Changed", nameof(HealthRow.ChangeText), 130));
     }
 
-    /// <summary>DS-21: Result as a tone chip (FAIL red, WARN amber, KNOWN/SKIPPED grey, PASS green), always with the word.</summary>
+    /// <summary>DS-21: Result as a tone chip (Problem red, Check amber, Known/Skipped grey, OK green), always with the word.</summary>
     private static Style ResultChipStyle()
     {
         var style = new Style(typeof(TextBlock));
