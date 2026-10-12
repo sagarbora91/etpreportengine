@@ -19,6 +19,7 @@ public partial class MainWindow
         taskNavigator!.SetStores(StoreScopes);
         reportsWorkspaceView.SetStores(StoreScopes);
         importWorkspaceView.SetKnownStores(StoreScopes.Stores.Select(x=>x.Code).ToArray());
+        importWorkspaceView.SetBlankSheetStores(stores);
         importHistoryView?.SetStoreLabels(StoreScopes.HistoryStore);
         foreach (var (view, name, all) in new (UserControl, string, bool)[] {
             (dailyWorkflowWorkspace,"StoreInput",false), (importWorkspaceView,"ImportStoreInput",false),

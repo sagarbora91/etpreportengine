@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using Etp.Reporting.Desktop.Modules.Imports;
 using Etp.Reporting.Import.DailyInputs;
 using Etp.Reporting.Import.Workbooks;
+using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.Desktop.Tests;
 
@@ -11,14 +12,48 @@ public sealed class BlankDailySheetTests
 {
     private static readonly DateOnly Day = new(2026, 10, 12);
 
+    /// <summary>A synthetic store catalogue shaped as dbo.stores reads after 0052 (store codes only, no customer data).</summary>
+    private static readonly StoreCatalogEntry[] Catalog =
+    [
+        new("WLMHW", "Titan World", true, null, IsServiceMoneyShop: true),
+        new("HEMW", "Helios", true),
+        new("AW330", "Service Centre", false, "SERVICE"),
+        new("OLD", "Closed shop", false)
+    ];
+
+    private static readonly IReadOnlyList<BlankDailySheetOption> Options = BlankDailySheet.OptionsFor(Catalog);
+
     [Fact]
-    public void The_options_are_the_three_sheets_with_service_money_under_titan_world()
+    public void The_options_are_one_retail_sheet_per_active_shop_and_service_money_under_the_flagged_shop()
     {
-        Assert.Equal(3, BlankDailySheet.Options.Count);
-        Assert.Contains(BlankDailySheet.Options, o => o.StoreCode == "WLMHW" && o.Kind == DailyInputsKind.Retail);
-        Assert.Contains(BlankDailySheet.Options, o => o.StoreCode == "HEMW" && o.Kind == DailyInputsKind.Retail);
-        Assert.Contains(BlankDailySheet.Options, o => o.StoreCode == "WLMHW" && o.Kind == DailyInputsKind.Service);
-        Assert.Equal(BlankDailySheet.Options.Count, BlankDailySheet.Options.Select(o => (o.StoreCode, o.Kind)).Distinct().Count());
+        Assert.Equal(
+            [("WLMHW", DailyInputsKind.Retail), ("HEMW", DailyInputsKind.Retail), ("WLMHW", DailyInputsKind.Service)],
+            Options.Select(o => (o.StoreCode, o.Kind)));
+        Assert.Equal("Titan World (WLMHW) - retail sheet", Options[0].Label);
+        Assert.Equal("Titan World (Service money)", Options[2].StoreLabel);
+        Assert.Contains("Titan World (WLMHW)", Options[2].Label);
+    }
+
+    [Fact]
+    public void The_options_follow_the_store_list_not_fixed_codes()
+    {
+        var moved = BlankDailySheet.OptionsFor(
+        [
+            new("EAST", "East branch", true, null, IsServiceMoneyShop: true),
+            new("WEST", "West branch", true),
+            new("AW330", "Service Centre", false, "SERVICE", IsServiceMoneyShop: false)
+        ]);
+        Assert.Equal(
+            [("EAST", DailyInputsKind.Retail), ("WEST", DailyInputsKind.Retail), ("EAST", DailyInputsKind.Service)],
+            moved.Select(o => (o.StoreCode, o.Kind)));
+
+        // No flagged store (a database below 0052, or the flag cleared): retail sheets only.
+        var unflagged = BlankDailySheet.OptionsFor([new("EAST", "East branch", true), new("WEST", "West branch", true)]);
+        Assert.All(unflagged, o => Assert.Equal(DailyInputsKind.Retail, o.Kind));
+        // A flagged store that is no longer active gives no Service sheet.
+        Assert.DoesNotContain(BlankDailySheet.OptionsFor([new("EAST", "East", false, null, true), new("WEST", "West", true)]),
+            o => o.Kind == DailyInputsKind.Service);
+        Assert.Empty(BlankDailySheet.OptionsFor([]));
     }
 
     [Theory]
@@ -27,7 +62,7 @@ public sealed class BlankDailySheetTests
     [InlineData(2, "WLMHW", "SERVICE")]
     public void The_suggested_file_name_is_the_one_the_importer_expects(int index, string store, string kind)
     {
-        var name = BlankDailySheet.SuggestedFileName(new(BlankDailySheet.Options[index], Day));
+        var name = BlankDailySheet.SuggestedFileName(new(Options[index], Day));
         Assert.Equal($"ETP-Daily-Inputs-{store}-{kind}-2026-10-12.xlsx", name);
     }
 
@@ -48,12 +83,17 @@ public sealed class BlankDailySheetTests
         var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpBlankSheet_" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
-            var request = new BlankDailySheetRequest(BlankDailySheet.Options[index], Day);
+            var request = new BlankDailySheetRequest(Options[index], Day);
             var path = Path.Combine(folder, BlankDailySheet.SuggestedFileName(request));
             BlankDailySheet.Save(path, request);
 
             var snapshot = await new OpenXmlWorkbookReader().ReadAsync(path);
             Assert.True(DailyInputsTemplate.IsDailyInputsWorkbook(snapshot));
+            // The chosen business date is already in C5, so staff need not type it.
+            var dateRow = snapshot.Sheets.Single().Rows.Single(r => r.Cells[0].Value as string == DailyInputsTemplate.BusinessDateKey);
+            Assert.Equal(Day.ToDateTime(TimeOnly.MinValue), dateRow.Cells[2].Value);
+            var result = DailyInputsParser.Parse(snapshot, Day);
+            Assert.DoesNotContain(result.Errors, e => e.Code == DailyInputsCodes.DateMissing);
         }
         finally { Directory.Delete(folder, true); }
     }
@@ -82,7 +122,7 @@ public sealed class BlankDailySheetTests
             {
                 var view = CreateView(canImport: true);
                 string? suggested = null;
-                view.BlankSheetChooser = () => new(BlankDailySheet.Options[1], Day);
+                view.BlankSheetChooser = () => new(Options[1], Day);
                 view.BlankSheetSavePath = name => { suggested = name; return Path.Combine(folder, name); };
 
                 Assert.True(view.GetBlankDailySheet());
@@ -93,6 +133,21 @@ public sealed class BlankDailySheetTests
                 Assert.NotNull(view.FindName("GetBlankSheetButton"));
             }
             finally { Directory.Delete(folder, true); }
+        });
+    }
+
+    [Fact]
+    public void With_no_store_list_loaded_the_button_says_so_and_shows_no_dialog()
+    {
+        RunSta(() =>
+        {
+            var view = CreateView(canImport: true);
+            Assert.Empty(view.BlankSheetOptions);
+            Assert.False(view.GetBlankDailySheet());
+            Assert.Contains("No active shop store", Status(view));
+
+            view.SetBlankSheetStores(Catalog);
+            Assert.Equal(Options, view.BlankSheetOptions);
         });
     }
 
@@ -118,7 +173,7 @@ public sealed class BlankDailySheetTests
             view.BlankSheetChooser = () => null;
             Assert.False(view.GetBlankDailySheet());
 
-            view.BlankSheetChooser = () => new(BlankDailySheet.Options[0], Day);
+            view.BlankSheetChooser = () => new(Options[0], Day);
             view.BlankSheetSavePath = _ => null;
             Assert.False(view.GetBlankDailySheet());
             Assert.Equal(before, Status(view));
@@ -134,7 +189,7 @@ public sealed class BlankDailySheetTests
             try
             {
                 var view = CreateView(canImport: true);
-                view.BlankSheetChooser = () => new(BlankDailySheet.Options[0], Day);
+                view.BlankSheetChooser = () => new(Options[0], Day);
                 // A folder cannot be created as a file.
                 view.BlankSheetSavePath = _ => folder;
 
@@ -153,8 +208,8 @@ public sealed class BlankDailySheetTests
     {
         RunSta(() =>
         {
-            var dialog = new BlankDailySheetDialog(null, Day);
-            Assert.Equal(BlankDailySheet.Options[0], dialog.SheetInput.SelectedItem);
+            var dialog = new BlankDailySheetDialog(null, Options, Day);
+            Assert.Equal(Options[0], dialog.SheetInput.SelectedItem);
             Assert.Equal(Day.ToDateTime(TimeOnly.MinValue), dialog.DateInput.SelectedDate);
             Assert.Equal(Day.AddDays(-31).ToDateTime(TimeOnly.MinValue), dialog.DateInput.DisplayDateStart);
             Assert.Equal(Day.ToDateTime(TimeOnly.MinValue), dialog.DateInput.DisplayDateEnd);

@@ -13,8 +13,9 @@ public sealed class BlankDailySheetDialog : Window
     internal DatePicker DateInput { get; }
     internal Button OkButton { get; }
 
-    public BlankDailySheetDialog(Window? owner, DateOnly today)
+    public BlankDailySheetDialog(Window? owner, IReadOnlyList<BlankDailySheetOption> options, DateOnly today)
     {
+        ArgumentNullException.ThrowIfNull(options);
         if (owner?.IsLoaded == true) Owner = owner;
         Title = "Get blank daily sheet"; Width = 520; SizeToContent = SizeToContent.Height; MinWidth = 380;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
@@ -29,7 +30,7 @@ public sealed class BlankDailySheetDialog : Window
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 12)
         });
         root.Children.Add(new TextBlock { Text = "Store and sheet", Margin = new Thickness(0, 0, 0, 4) });
-        SheetInput = new ComboBox { DisplayMemberPath = nameof(BlankDailySheetOption.Label), ItemsSource = BlankDailySheet.Options, SelectedIndex = 0, MinHeight = 36, Margin = new Thickness(0, 0, 0, 12) };
+        SheetInput = new ComboBox { DisplayMemberPath = nameof(BlankDailySheetOption.Label), ItemsSource = options, SelectedIndex = 0, MinHeight = 36, Margin = new Thickness(0, 0, 0, 12) };
         AutomationProperties.SetName(SheetInput, "Store and sheet");
         root.Children.Add(SheetInput);
         root.Children.Add(new TextBlock { Text = "Business date", Margin = new Thickness(0, 0, 0, 4) });
@@ -62,9 +63,9 @@ public sealed class BlankDailySheetDialog : Window
     }
 
     /// <summary>Shows the dialog; the chosen sheet and date, or null when cancelled.</summary>
-    public static BlankDailySheetRequest? Choose(Window? owner, DateOnly today)
+    public static BlankDailySheetRequest? Choose(Window? owner, IReadOnlyList<BlankDailySheetOption> options, DateOnly today)
     {
-        var dialog = new BlankDailySheetDialog(owner, today);
+        var dialog = new BlankDailySheetDialog(owner, options, today);
         return dialog.ShowDialog() == true ? dialog.Request : null;
     }
 }

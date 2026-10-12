@@ -5,8 +5,10 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// <summary>
 /// A store row. <paramref name="BusinessUnitCode"/> is NULL for every Retail shop (the two seeded shops and
 /// any shop the Owner adds); the Service Centre store AW330 belongs to the SERVICE unit (0048).
+/// <paramref name="IsServiceMoneyShop"/> is 0052's <c>dbo.stores.is_service_money_shop</c>: the one shop that enters the
+/// Service centre's money (decision 31); false on a database below 0052.
 /// </summary>
-public sealed record StoreCatalogEntry(string Code, string Name, bool IsActive, string? BusinessUnitCode = null)
+public sealed record StoreCatalogEntry(string Code, string Name, bool IsActive, string? BusinessUnitCode = null, bool IsServiceMoneyShop = false)
 {
     /// <summary>A Service Centre store is never a shop: no packs, no DSR, no store picker.</summary>
     public bool IsServiceCentre => ServiceCentreStores.IsServiceUnit(BusinessUnitCode);
@@ -65,11 +67,18 @@ public sealed class StoreCatalogRepository(string connectionString)
     private readonly string validatedConnectionString = LocalSqlConnectionPolicy.Validate(connectionString);
 
     // The LEFT JOIN keeps every store; business_unit_id exists since 0001, so this also reads a
-    // database from before 0048 (every store then has no unit and is Retail).
+    // database from before 0048 (every store then has no unit and is Retail). is_service_money_shop exists
+    // since 0052; it is read in its own statement only when the column exists, so an older database still loads
+    // (every store then reads 0).
     internal const string LoadSql = """
-        SELECT s.store_code,s.store_name,s.is_active,u.business_unit_code
-        FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
-        ORDER BY s.store_id
+        IF COL_LENGTH(N'dbo.stores', N'is_service_money_shop') IS NULL
+            SELECT s.store_code,s.store_name,s.is_active,u.business_unit_code,CONVERT(bit,0) is_service_money_shop
+            FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
+            ORDER BY s.store_id;
+        ELSE
+            EXEC sp_executesql N'SELECT s.store_code,s.store_name,s.is_active,u.business_unit_code,s.is_service_money_shop
+            FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
+            ORDER BY s.store_id';
         """;
 
     public async Task<IReadOnlyList<StoreCatalogEntry>> LoadAsync(CancellationToken token = default)
@@ -80,7 +89,8 @@ public sealed class StoreCatalogRepository(string connectionString)
         await using var reader = await command.ExecuteReaderAsync(token);
         var rows = new List<StoreCatalogEntry>();
         while (await reader.ReadAsync(token))
-            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetString(3)));
+            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetString(3),
+                !reader.IsDBNull(4) && reader.GetBoolean(4)));
         return rows;
     }
 

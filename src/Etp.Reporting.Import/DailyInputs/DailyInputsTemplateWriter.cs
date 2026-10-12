@@ -9,6 +9,8 @@ namespace Etp.Reporting.Import.DailyInputs;
 /// Writes the pre-filled daily-inputs template for one shop PC (design section 1): a plain .xlsx, no macros, one
 /// sheet <c>Daily Inputs</c> protected without a password. Only the staff cells are unlocked: C5 (date), C6
 /// (filled by) and the Value cells of the field rows. The templates are generated, never committed as binaries.
+/// 1.11.1: an optional business date pre-fills C5 (a date serial in the dd-mmm-yyyy input style; still unlocked so
+/// staff can correct it). Without it C5 stays blank, as the shop-PC templates need.
 /// </summary>
 public static class DailyInputsTemplateWriter
 {
@@ -19,7 +21,7 @@ public static class DailyInputsTemplateWriter
     private const uint DateFormatId = 164, MoneyFormatId = 165;
     private const int FirstFieldRow = 7;
 
-    public static void Write(Stream output, DailyInputsKind kind, string storeCode, string storeLabel)
+    public static void Write(Stream output, DailyInputsKind kind, string storeCode, string storeLabel, DateOnly? businessDate = null)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentException.ThrowIfNullOrWhiteSpace(storeCode);
@@ -38,7 +40,8 @@ public static class DailyInputsTemplateWriter
         rows.Append(Row(2, [Text(DailyInputsTemplate.TemplateKey, StyleKey), Text("Template"), Text(DailyInputsTemplate.CurrentVersion), Text("Do not change", StyleNote)]));
         rows.Append(Row(3, [Text(DailyInputsTemplate.KindKey, StyleKey), Text("Sheet type"), Text(DailyInputsTemplate.KindText(kind)), Text("Do not change", StyleNote)]));
         rows.Append(Row(4, [Text(DailyInputsTemplate.StoreKey, StyleKey), Text("Store"), Text(store), Text(storeLabel ?? string.Empty, StyleNote)]));
-        rows.Append(Row(5, [Text(DailyInputsTemplate.BusinessDateKey, StyleKey), Text("Business date"), Empty(StyleInputDate),
+        rows.Append(Row(5, [Text(DailyInputsTemplate.BusinessDateKey, StyleKey), Text("Business date"),
+            businessDate is { } date ? DateSerial(date, StyleInputDate) : Empty(StyleInputDate),
             Text("The day the figures belong to (dd-mmm-yyyy)", StyleNote)]));
         rows.Append(Row(6, [Text(DailyInputsTemplate.FilledByKey, StyleKey), Text("Filled by"), Empty(StyleInputText),
             Text("Your name (optional)", StyleNote)]));
@@ -150,6 +153,12 @@ public static class DailyInputsTemplateWriter
         new() { DataType = CellValues.InlineString, InlineString = new InlineString(new Text(text)), StyleIndex = style };
 
     private static Cell Empty(uint style) => new() { StyleIndex = style };
+
+    private static Cell DateSerial(DateOnly date, uint style) => new()
+    {
+        CellValue = new CellValue(date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(CultureInfo.InvariantCulture)),
+        StyleIndex = style
+    };
 
     private static Row Row(uint index, IReadOnlyList<Cell> cells)
     {

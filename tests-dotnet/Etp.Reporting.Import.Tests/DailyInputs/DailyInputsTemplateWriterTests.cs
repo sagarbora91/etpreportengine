@@ -134,6 +134,49 @@ public sealed class DailyInputsTemplateWriterTests
     }
 
     [Fact]
+    public async Task An_optional_business_date_fills_C5_and_the_filled_sheet_imports_with_that_date()
+    {
+        var date = new DateOnly(2026, 10, 9);
+        var folder = Path.Combine(Path.GetTempPath(), "etp-daily-inputs-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, DailyInputsTemplate.FileName("HEMW", DailyInputsKind.Retail, date));
+            using (var file = File.Create(path))
+                DailyInputsTemplateWriter.Write(file, DailyInputsKind.Retail, "HEMW", "Synthetic store", date);
+
+            using (var document = SpreadsheetDocument.Open(path, false))
+            {
+                var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
+                Assert.Equal(date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), c5.CellValue?.Text);
+                Assert.Null(c5.DataType);
+            }
+
+            var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
+            var dateRow = workbook.Sheets.Single().Rows.Single(r => r.Cells[0].Value as string == DailyInputsTemplate.BusinessDateKey);
+            Assert.Equal(date.ToDateTime(TimeOnly.MinValue), dateRow.Cells[2].Value);
+            var result = DailyInputsParser.Parse(workbook, Today);
+            Assert.Equal([DailyInputsCodes.NoValues], result.Errors.Select(e => e.Code));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Without_a_date_C5_stays_empty_and_unlocked()
+    {
+        using var stream = new MemoryStream();
+        DailyInputsTemplateWriter.Write(stream, DailyInputsKind.Service, "WLMHW", "Synthetic store");
+        stream.Position = 0;
+        using var document = SpreadsheetDocument.Open(stream, false);
+        var c5 = document.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<Cell>().Single(c => c.CellReference?.Value == "C5");
+        Assert.Null(c5.CellValue);
+        Assert.Null(c5.InlineString);
+    }
+
+    [Fact]
     public void A_blank_store_code_is_refused()
     {
         using var stream = new MemoryStream();

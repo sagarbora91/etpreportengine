@@ -1,10 +1,17 @@
 using System.Windows;
 using Etp.Reporting.Desktop.Modules.Reports;
+using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
 
 public partial class ImportWorkspaceView
 {
+    /// <summary>The sheets offered, from the store list (<see cref="SetBlankSheetStores"/>); empty until the stores load.</summary>
+    internal IReadOnlyList<BlankDailySheetOption> BlankSheetOptions { get; private set; } = [];
+
+    /// <summary>Called with the store catalogue whenever the stores load or change.</summary>
+    public void SetBlankSheetStores(IEnumerable<StoreCatalogEntry> stores) => BlankSheetOptions = BlankDailySheet.OptionsFor(stores);
+
     /// <summary>Asks for the store, kind and date. Tests replace it; the default shows <see cref="BlankDailySheetDialog"/>.</summary>
     internal Func<BlankDailySheetRequest?>? BlankSheetChooser { get; set; }
 
@@ -20,11 +27,16 @@ public partial class ImportWorkspaceView
             ValidationResult.Text = "Owner or Store Manager permission is required to get a blank daily sheet.";
             return false;
         }
+        if (BlankSheetChooser is null && BlankSheetOptions.Count == 0)
+        {
+            ValidationResult.Text = "No active shop store is set up yet, so there is no daily sheet to get. Check Settings > Stores.";
+            return false;
+        }
         try
         {
             var request = BlankSheetChooser is { } choose
                 ? choose()
-                : BlankDailySheetDialog.Choose(ExportSaveDialog.Owner(this), DateOnly.FromDateTime(DateTime.Today));
+                : BlankDailySheetDialog.Choose(ExportSaveDialog.Owner(this), BlankSheetOptions, DateOnly.FromDateTime(DateTime.Today));
             if (request is null) return false;
             var name = BlankDailySheet.SuggestedFileName(request);
             var path = BlankSheetSavePath is { } pick ? pick(name) : ExportSaveDialog.Show(this, ExportSaveDialog.ExcelFilter, name);
