@@ -704,7 +704,24 @@ public sealed partial class OperationalReportRepository(string connectionString)
     internal const string SourceTenderShortfallAction =
         "Ask the POS operator which payment component the export leaves out (for example an instant discount or a gateway charge); do not change the control total.";
 
-    /// <summary>The pack's one-line summary of the source shortfalls of a day, empty when there are none.</summary>
+    /// <summary>
+    /// The failed tender documents of <paramref name="tender"/> whose shortfall is in the source (a shortfall within the
+    /// tolerance, for example a rupee of rounding, is a passed document and is not listed).
+    /// </summary>
+    internal static IReadOnlyList<TenderSourceShortfallRow> FailedSourceTenderShortfalls(
+        InvoiceTenderReconciliation tender, IReadOnlyList<TenderSourceShortfallRow> shortfalls)
+    {
+        var byDocument = shortfalls.GroupBy(x => (x.StoreCode.ToUpperInvariant(), x.DocumentNumber.ToUpperInvariant()))
+            .ToDictionary(x => x.Key, x => x.First());
+        return tender.Documents
+            .Where(document => document.Status != ReconciliationStatus.Passed)
+            .Select(document => byDocument.GetValueOrDefault((document.StoreCode.ToUpperInvariant(), document.DocumentNumber.ToUpperInvariant())) is { } row
+                && IsSourceTenderShortfall(document, row.Shortfall) ? row : null)
+            .OfType<TenderSourceShortfallRow>()
+            .ToArray();
+    }
+
+    /// <summary>The pack's one-line summary of a day's failed documents whose shortfall is in the source; empty when none.</summary>
     internal static string SourceTenderShortfallSummary(IReadOnlyList<TenderSourceShortfallRow> shortfalls) =>
         shortfalls.Count == 0 ? ""
             : $" Source tender shortfall (in the R022 export, not an import fault): {shortfalls.Count:N0} document(s), {shortfalls.Sum(x => x.Shortfall):N2}.";

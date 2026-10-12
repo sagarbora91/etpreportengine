@@ -7,26 +7,29 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public static class SqlReportingQueries
 {
     // Column 12 (1.9.8, RA-SALES-03/04): the owner's brand row for the line by the DSR rule (BrandRowSql), NULL when unmapped.
-    // AUDIT-4 spot 3 (1.11.2): the brand and cluster from the latest stock snapshot are resolved once per (store, item) sold in
-    // the window (CTE latest_product), not once per sales line; same rule as before (latest snapshot day, then the latest row).
+    // AUDIT-4 spot 3 (1.11.2): the brand and cluster from the latest stock snapshot are resolved in one set-based pass over the
+    // snapshot view for the (store, item) keys sold in the window (CTE latest_product), not by a TOP(1) probe per sales line.
+    // Same rule as before: the latest snapshot day, then the latest row. Read-only check on live, Oct 2024 to Sep 2026:
+    // identical rows (6,679), the lookup 2.6 s -> 0.04 s.
     public const string Sales = $"""
-        WITH latest_product AS
+        WITH sold AS
         (
-          SELECT k.store_code,k.product_code,x.brand_name,x.cluster
+          SELECT DISTINCT si.store_code,sl.product_code
+          FROM dbo.sales_lines sl JOIN dbo.sales_invoices si ON si.sales_invoice_id=sl.sales_invoice_id
+          WHERE si.transaction_date>=@dateFrom AND si.transaction_date<=@dateTo
+            AND (@storesJson IS NULL OR si.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+        ),
+        latest_product AS
+        (
+          SELECT r.store_code,r.product_code,r.brand_name,r.cluster
           FROM
           (
-            SELECT DISTINCT si.store_code,sl.product_code
-            FROM dbo.sales_lines sl JOIN dbo.sales_invoices si ON si.sales_invoice_id=sl.sales_invoice_id
-            WHERE si.transaction_date>=@dateFrom AND si.transaction_date<=@dateTo
-              AND (@storesJson IS NULL OR si.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
-          ) k
-          OUTER APPLY
-          (
-            SELECT TOP(1) COALESCE(s.brand_name,s.brand_code) brand_name,s.cluster
+            SELECT s.store_code,s.product_code,COALESCE(s.brand_name,s.brand_code) brand_name,s.cluster,
+                   ROW_NUMBER() OVER(PARTITION BY s.store_code,s.product_code ORDER BY s.snapshot_date DESC,s.stock_snapshot_id DESC) newest
             FROM dbo.v_stock_snapshots_effective s
-            WHERE s.store_code=k.store_code AND s.product_code=k.product_code
-            ORDER BY s.snapshot_date DESC,s.stock_snapshot_id DESC
-          ) x
+            WHERE EXISTS(SELECT 1 FROM sold k WHERE k.store_code=s.store_code AND k.product_code=s.product_code)
+          ) r
+          WHERE r.newest=1
         )
         SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
                COALESCE(l.source_brand_name,l.source_brand_code,p.brand_name),COALESCE(l.brand_segment,p.cluster),l.source_transaction_type,l.source_quantity,

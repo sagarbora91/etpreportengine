@@ -197,7 +197,8 @@ public sealed class DailyReportingPackService(string connectionString)
                     : "Service tender values are controlled operational facts and remain separate from retail sales."),
             // AUDIT-1 fix 4: a shortfall that is in the R022 export itself is named, so it does not read as an import fault.
             new("Tender Reconciliation", tender.Status, tender.TenderTotal, tender.Variance,
-                tender.Message + OperationalReportRepository.SourceTenderShortfallSummary(sourceShortfalls)),
+                tender.Message + OperationalReportRepository.SourceTenderShortfallSummary(
+                    OperationalReportRepository.FailedSourceTenderShortfalls(tender, sourceShortfalls))),
             new("Daily Cash Reconciliation", CashSectionStatus(cash), cash.CalculatedClosing, cash.Variance, CashSectionMessage(cash)),
             new("System Closing Stock", stock.Status, stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.ReportedClosing),
                 stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.Variance), stock.Message),
@@ -293,9 +294,9 @@ public sealed class DailyReportingPackService(string connectionString)
     /// AUDIT-2 S-07: the pack is e-mailed and shared, so its Customer column is blank unless the Owner switched on "include
     /// customer names in shared packs" (product_settings.share_pack_customer_names, 0060, default off). The column stays, so
     /// the sheet keeps its layout. With the setting on, the names are what the generating role may read (decision 37: a
-    /// Viewer's pack is blank either way, because v_sales_invoice_customer_name gives a Viewer NULL).
+    /// Viewer's pack is blank either way, because v_sales_invoice_customer_name gives a Viewer NULL). The flag defaults to off.
     /// </summary>
-    internal static ReportPackTable InvoiceSummaryTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesSummaryRow> invoice, bool shareCustomerNames) =>
+    internal static ReportPackTable InvoiceSummaryTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesSummaryRow> invoice, bool shareCustomerNames = false) =>
         new("Invoice Summary", section.Status.ToString(), section.Message,
             new([new("Date"),new("Store"),new("Document"),new("Customer"),new("Transaction Type"),new("Quantity","#,##0.00"),new(InvoiceValueHeader,"#,##0.00"),new("Source Rows","#,##0")],
                 invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,shareCustomerNames?x.CustomerName:null,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
