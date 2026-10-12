@@ -99,7 +99,8 @@ public sealed class PhaseFourOperationsStatusTests(SqlDatabaseFixture database) 
         await using var command = new SqlCommand($"EXECUTE AS USER='{principal}'; EXEC dbo.load_database_operational_health;", connection);
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal(7, reader.FieldCount);
+        Assert.Equal(8, reader.FieldCount); // 0058 (1.11.1) added open_imports as the 8th column
+        Assert.Equal("open_imports", reader.GetName(7));
         Assert.True(reader.GetDecimal(0) > 0);
         return (reader.IsDBNull(2) ? null : reader.GetDateTime(2), reader.IsDBNull(4) ? null : reader.GetString(4),
             reader.IsDBNull(5) ? null : reader.GetDateTime(5), reader.IsDBNull(6) ? null : reader.GetString(6));
