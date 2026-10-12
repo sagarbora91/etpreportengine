@@ -43,7 +43,9 @@ public sealed record ServicePartsNumbers(
 /// </summary>
 public sealed class ServicePartsView : ServiceScreenView
 {
-    public const string NoLinkText = "No data link exists between a pending job and a purchase invoice: the Service exports carry none. The two lists are shown side by side and are not joined.";
+    /// <summary>The caption above the jobs-waiting grid (SVC-26); the full explanation is <see cref="NoLinkExplanation"/>, behind its tooltip.</summary>
+    public const string NoLinkText = "Not linked to purchase invoices";
+    public const string NoLinkExplanation = "No data link exists between a pending job and a purchase invoice: the Service exports carry none. The two lists are shown side by side and are not joined.";
     public const string WaitingTitle = "Jobs waiting for parts (S009)";
     public const string LinesTitle = "Invoice lines";
     public const string GitTitle = "Goods in transit (S013), last 30 days";
@@ -51,15 +53,15 @@ public sealed class ServicePartsView : ServiceScreenView
 
     private readonly ServiceExcelExport export;
     private readonly Action<string>? openJob;
-    private readonly CheckBox openOnly = new() { Content = "Open only", MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-    private readonly ComboBox month = new() { MinWidth = 150, MinHeight = 44, ItemsSource = new List<ServiceMonthChoice> { ServiceMonthChoice.All }, SelectedIndex = 0 };
-    private readonly TextBox item = new() { MinWidth = 180, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
-    private readonly TextBlock linesStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
-    private readonly TextBlock waitingStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
-    private readonly TextBlock gitStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
-    private readonly TextBlock closingStock = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 4) };
-    private readonly Button exportWaiting = new() { Content = "Export jobs waiting to Excel", MinHeight = 44, Margin = new Thickness(0, 4, 8, 4), IsEnabled = false };
-    private readonly Button openHistory = new() { Content = "Open job history", MinHeight = 44, Margin = new Thickness(0, 4, 8, 4), IsEnabled = false };
+    private readonly CheckBox openOnly = new() { Content = "Open only", VerticalContentAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S12, 0) };
+    private readonly ComboBox month = new() { MinWidth = 150, ItemsSource = new List<ServiceMonthChoice> { ServiceMonthChoice.All }, SelectedIndex = 0 };
+    private readonly TextBox item = new() { MinWidth = 180, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBlock linesStatus = ServiceUi.Caption("");
+    private readonly TextBlock waitingStatus = ServiceUi.Caption("");
+    private readonly TextBlock gitStatus = ServiceUi.Caption("");
+    private readonly TextBlock closingStock = new() { TextWrapping = TextWrapping.Wrap, Margin = ServiceUi.Gap(0, ServiceUi.S12, 0, ServiceUi.S4) };
+    private readonly Button exportWaiting = new() { Content = "Export jobs waiting to Excel", Margin = ServiceUi.Gap(0, ServiceUi.S4, ServiceUi.S8, ServiceUi.S4), IsEnabled = false };
+    private readonly Button openHistory = new() { Content = "Open job history", Margin = ServiceUi.Gap(0, ServiceUi.S4, ServiceUi.S8, ServiceUi.S4), IsEnabled = false };
     private DateOnly? chosenMonth;
     private bool settingMonths;
     private ServiceParts parts = EmptyParts;
@@ -87,11 +89,12 @@ public sealed class ServicePartsView : ServiceScreenView
         };
         item.KeyDown += async (_, args) => { if (args.Key == Key.Enter) { args.Handled = true; await ActivateAsync(); } };
         FilterBar.Children.Add(openOnly);
-        FilterBar.Children.Add(new TextBlock { Text = "Month", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Month", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(month);
-        FilterBar.Children.Add(new TextBlock { Text = "Item", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Item", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(ServiceUi.S12, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(item);
-        var show = new Button { Content = "Show", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0) };
+        var show = ServiceUi.MakeButton("Show");
+        show.Margin = ServiceUi.Gap(ServiceUi.S8, 0, 0, 0);
         show.Click += async (_, _) => await ActivateAsync();
         FilterBar.Children.Add(show);
         SetColumns(
@@ -102,13 +105,15 @@ public sealed class ServicePartsView : ServiceScreenView
         ]);
         Table.SelectionChanged += (_, _) => ShowLines((Table.SelectedItem as ServiceGridRow)?.Source as ServicePartsInvoice);
 
-        Footer.Children.Add(new TextBlock { Text = LinesTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
+        Footer.Children.Add(ServiceUi.CardTitle(LinesTitle, ServiceUi.Gap(0, ServiceUi.S12, 0, 0)));
         Footer.Children.Add(linesStatus);
         Configure(Lines, LinesTitle, [("Item", null, 200), ("Shipped qty", "N0", 100), ("Received qty", "N0", 100), ("Net amount", "N2", 120), ("GRN", null, 140), ("GRN date", "dd MMM yyyy", 120)]);
         Footer.Children.Add(Lines);
 
-        Footer.Children.Add(new TextBlock { Text = WaitingTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-        Footer.Children.Add(new TextBlock { Text = NoLinkText, TextWrapping = TextWrapping.Wrap });
+        Footer.Children.Add(ServiceUi.CardTitle(WaitingTitle, ServiceUi.Gap(0, ServiceUi.S12, 0, 0)));
+        var noLink = ServiceUi.Caption(NoLinkText);
+        noLink.ToolTip = NoLinkExplanation;
+        Footer.Children.Add(noLink);
         Footer.Children.Add(waitingStatus);
         Configure(Waiting, WaitingTitle, [("Job number", null, 150), ("Part required", null, 280), ("Indent date", "dd MMM yyyy", 120),
             ("Days waiting", "N0", 100), ("Brand", null, 120), ("Model", null, 150), ("Pending at", null, 110)]);
@@ -123,12 +128,10 @@ public sealed class ServicePartsView : ServiceScreenView
         waitingActions.Children.Add(exportWaiting);
         Footer.Children.Add(waitingActions);
 
-        Footer.Children.Add(new TextBlock { Text = GitTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-        Footer.Children.Add(gitStatus);
         Configure(Git, GitTitle, [("Date", "dd MMM yyyy", 120), ("STM number", null, 140), ("Item", null, 160),
             ("Quantity shipped", "N0", 120), ("UCP", "N2", 110), ("From", null, 100), ("To", null, 100)]);
-        Footer.Children.Add(Git);
-        Footer.Children.Add(closingStock);
+        // SVC-24: goods in transit and the closing stock line sit behind a collapsed section with the count in its heading.
+        Footer.Children.Add(ServiceUi.CollapsedSection(ServiceUi.CardTitle(GitTitle), gitStatus, Git, closingStock));
     }
 
     public DataGrid Lines { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, MaxHeight = 180 };
@@ -259,12 +262,12 @@ public sealed class ServicePartsView : ServiceScreenView
     {
         NumbersShown = numbers;
         NumbersPanel.Children.Clear();
-        NumbersPanel.Children.Add(new KpiCard("Open invoices", ServiceDisplay.Whole(numbers.OpenInvoices), ServiceDisplay.Text($"net {numbers.OpenValue:N2}"), numbers.OpenInvoices == 0 ? "Success" : "Warning"));
+        NumbersPanel.Children.Add(new KpiCard("Open invoices", ServiceDisplay.Whole(numbers.OpenInvoices), ServiceDisplay.Text($"net {numbers.OpenValue:N2}"), numbers.OpenInvoices == 0 ? ServiceUi.StripeFine : ServiceUi.StripeLookThisWeek));
         NumbersPanel.Children.Add(new KpiCard("Oldest open", numbers.OldestOpenDays is { } days ? ServiceDisplay.Text($"{days:N0} days") : "—",
-            numbers.OldestOpenInvoice is { } invoice ? $"invoice {invoice}" : "no open invoice", numbers.OldestOpenDays > 30 ? "Critical" : "Information"));
-        NumbersPanel.Children.Add(new KpiCard("Received this month", ServiceDisplay.Whole(numbers.ReceivedThisMonth), ServiceDisplay.Month(numbers.AsOf), "Success"));
-        NumbersPanel.Children.Add(new KpiCard("Jobs waiting for parts", ServiceDisplay.Whole(numbers.JobsWaitingForParts), "latest S009 list", numbers.JobsWaitingForParts == 0 ? "Success" : "Warning"));
-        NumbersPanel.Children.Add(new KpiCard("GIT lines, last 30 days", ServiceDisplay.Whole(numbers.GitLinesLast30Days), ServiceDisplay.Text($"to {numbers.AsOf:dd MMM yyyy}"), "Information"));
+            numbers.OldestOpenInvoice is { } invoice ? $"invoice {invoice}" : "no open invoice", numbers.OldestOpenDays > 30 ? ServiceUi.StripeActToday : ServiceUi.StripeNone));
+        NumbersPanel.Children.Add(new KpiCard("Received this month", ServiceDisplay.Whole(numbers.ReceivedThisMonth), ServiceDisplay.Month(numbers.AsOf), ServiceUi.StripeNone));
+        NumbersPanel.Children.Add(new KpiCard("Jobs waiting for parts", ServiceDisplay.Whole(numbers.JobsWaitingForParts), "latest S009 list", numbers.JobsWaitingForParts == 0 ? ServiceUi.StripeFine : ServiceUi.StripeLookThisWeek));
+        NumbersPanel.Children.Add(new KpiCard("GIT lines, last 30 days", ServiceDisplay.Whole(numbers.GitLinesLast30Days), ServiceDisplay.Text($"to {numbers.AsOf:dd MMM yyyy}"), ServiceUi.StripeNone));
     }
 
     private void ShowWaiting(IReadOnlyList<ServiceWaitingJob> jobs)

@@ -57,13 +57,13 @@ public sealed class ServiceClaimsView : ServiceScreenView
         new("Claim type due", Width: 150), new("DC/RA number", Width: 150), new("Brand"), new("Model", Width: 150)
     ];
 
-    private readonly ComboBox typeFilter = new() { MinWidth = 180, MinHeight = 44, ItemsSource = ClaimTypes, SelectedIndex = 0 };
-    private readonly ComboBox modeFilter = new() { MinWidth = 240, MinHeight = 44, ItemsSource = Modes, SelectedIndex = 0 };
-    private readonly DatePicker fromMonth = new() { MinHeight = 44, MinWidth = 140 };
-    private readonly DatePicker toMonth = new() { MinHeight = 44, MinWidth = 140 };
-    private readonly WrapPanel numbers = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-    private readonly TextBlock gapWarning = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 2, 0, 6), Visibility = Visibility.Collapsed };
-    private readonly TextBlock drillStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly ComboBox typeFilter = new() { MinWidth = 180, ItemsSource = ClaimTypes, SelectedIndex = 0 };
+    private readonly ComboBox modeFilter = new() { MinWidth = 240, ItemsSource = Modes, SelectedIndex = 0 };
+    private readonly DatePicker fromMonth = new() { MinWidth = 140 };
+    private readonly DatePicker toMonth = new() { MinWidth = 140 };
+    private readonly WrapPanel numbers = new() { Orientation = Orientation.Horizontal, Margin = ServiceUi.Gap(0, ServiceUi.S4, 0, ServiceUi.S4) };
+    private readonly TextBlock gapWarning = new() { TextWrapping = TextWrapping.Wrap, Padding = ServiceUi.Gap(ServiceUi.S12), Margin = ServiceUi.Gap(0, ServiceUi.S4, 0, ServiceUi.S8), Visibility = Visibility.Collapsed };
+    private readonly TextBlock drillStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = ServiceUi.Gap(0, ServiceUi.S4, 0, 0) };
     private readonly Action<string>? openJob;
     private ServiceClaims loaded = new([], [], [], false, null, null, null);
     private string shownMode = SummaryMode;
@@ -77,26 +77,30 @@ public sealed class ServiceClaimsView : ServiceScreenView
         this.openJob = openJob;
 
         // R-UI cross-lane 4: the note, numbers and GPRC warning go in the shared Summary panel (after the filter bar), like the other Service screens.
-        Summary.Children.Add(new TextBlock { Text = SettlementNote, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
+        Summary.Children.Add(new TextBlock { Text = SettlementNote, TextWrapping = TextWrapping.Wrap, Margin = ServiceUi.Gap(0, 0, 0, ServiceUi.S4) });
         AutomationProperties.SetName(numbers, "Claims numbers");
         Summary.Children.Add(numbers);
+        // SVC-21: the gap is one warning banner (WarningSoft), shown only when the gap exists.
+        gapWarning.SetResourceReference(TextBlock.BackgroundProperty, "WarningSoft");
+        gapWarning.SetResourceReference(FrameworkElement.StyleProperty, "BodyText");
         AutomationProperties.SetName(gapWarning, "GPRC gap warning");
         Summary.Children.Add(gapWarning);
-        FilterBar.Children.Add(new TextBlock { Text = "Show", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Show", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0) });
         AutomationProperties.SetName(modeFilter, "Claims table");
         modeFilter.SelectionChanged += async (_, _) => { if (IsLoaded) await ActivateAsync(); };
         FilterBar.Children.Add(modeFilter);
-        FilterBar.Children.Add(new TextBlock { Text = "Claim type", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Claim type", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(ServiceUi.S12, 0, ServiceUi.S8, 0) });
         AutomationProperties.SetName(typeFilter, "Claim type");
         typeFilter.SelectionChanged += async (_, _) => { if (IsLoaded) await ActivateAsync(); };
         FilterBar.Children.Add(typeFilter);
         AutomationProperties.SetName(fromMonth, "From month");
         AutomationProperties.SetName(toMonth, "To month");
-        FilterBar.Children.Add(new TextBlock { Text = "From month", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "From month", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(ServiceUi.S12, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(fromMonth);
-        FilterBar.Children.Add(new TextBlock { Text = "To month", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "To month", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(ServiceUi.S12, 0, ServiceUi.S8, 0) });
         FilterBar.Children.Add(toMonth);
-        var show = new Button { Content = "Show", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0) };
+        var show = ServiceUi.MakeButton("Show");
+        show.Margin = ServiceUi.Gap(ServiceUi.S8, 0, 0, 0);
         show.Click += async (_, _) => await ActivateAsync();
         FilterBar.Children.Add(show);
 
@@ -105,7 +109,7 @@ public sealed class ServiceClaimsView : ServiceScreenView
         Footer.Children.Add(new TextBlock
         {
             Text = "Open a month row to see its claim lines; open a line or a job row to see the job's history.",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
+            TextWrapping = TextWrapping.Wrap, Margin = ServiceUi.Gap(0, ServiceUi.S4, 0, 0)
         });
         Footer.Children.Add(drillStatus);
         SetColumns(SummaryColumns);
@@ -252,9 +256,9 @@ public sealed class ServiceClaimsView : ServiceScreenView
         numbers.Children.Clear();
         foreach (var number in list)
             numbers.Children.Add(new KpiCard(number.Label, number.Value, number.Secondary,
-                number.Label == "DC/RA jobs not yet claimed" && loaded.NotYetClaimed.Count > 0 ? "Warning"
-                : number.Label == "GPRC claim export" && loaded.GprcGapWarning ? "Critical"
-                : "Accent"));
+                number.Label == "DC/RA jobs not yet claimed" && loaded.NotYetClaimed.Count > 0 ? ServiceUi.StripeLookThisWeek
+                : number.Label == "GPRC claim export" && loaded.GprcGapWarning ? ServiceUi.StripeActToday
+                : ServiceUi.StripeNone));
     }
 
     /// <summary>

@@ -41,8 +41,8 @@ public sealed class ServiceJobsView : ServiceScreenView
             new(OpenJobsCode, "Open jobs")
         }.Concat(ServiceJobStages.InOrder.Select(stage => new ServiceListChoice(stage, ServiceJobStages.Label(stage)))).ToArray();
 
-    private readonly ComboBox showFilter = new() { MinWidth = 260, MinHeight = 44, ItemsSource = Choices, SelectedIndex = 0 };
-    private readonly Button openButton = new() { Content = "Open job history", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
+    private readonly ComboBox showFilter = new() { MinWidth = 260, ItemsSource = Choices, SelectedIndex = 0 };
+    private readonly Button openButton = new() { Content = "Open job history", Margin = ServiceUi.Gap(ServiceUi.S8, 0, 0, 0), IsEnabled = false };
     private readonly Action<string>? openJob;
     private IReadOnlyList<ServiceJobHeader> shown = [];
 
@@ -52,7 +52,7 @@ public sealed class ServiceJobsView : ServiceScreenView
             "Service.Jobs", "SERVICE_JOBS_LOAD_FAILED", query, export)
     {
         this.openJob = openJob;
-        FilterBar.Children.Add(new TextBlock { Text = "Show", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Show", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0) });
         AutomationProperties.SetName(showFilter, "Show jobs");
         showFilter.SelectionChanged += async (_, _) => { if (IsLoaded) await ActivateAsync(); };
         FilterBar.Children.Add(showFilter);

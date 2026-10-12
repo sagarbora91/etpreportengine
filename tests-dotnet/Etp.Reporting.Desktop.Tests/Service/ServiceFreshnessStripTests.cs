@@ -81,4 +81,33 @@ public sealed class ServiceFreshnessStripTests
         Assert.Equal(ServiceFreshnessColour.Amber, status.Colour);
         Assert.Equal("Status views: last export 29 Sep 2026", ServiceFreshnessStrip.TextFor(status));
     }
+
+    private static ServiceFreshnessChip Chip(string group, ServiceFreshnessColour colour, string text, params string[] never) =>
+        new(group, ["S023", "S041"], new DateOnly(2026, 10, 5), "CONSOLIDATED", colour, text, never.Length == 0 ? null : never);
+
+    [Fact]
+    public void A_group_with_a_never_exported_family_is_drawn_at_least_amber_but_keeps_its_contract_colour()
+    {
+        var claims = Chip("Claims", ServiceFreshnessColour.Fresh, "last export 05 Oct 2026 (consolidated) · never exported: S041", "S041");
+        Assert.Equal(ServiceFreshnessColour.Fresh, claims.Colour);
+        Assert.Equal(ServiceFreshnessColour.Amber, ServiceFreshnessStrip.EffectiveColour(claims));
+        Assert.True(ServiceFreshnessStrip.NeedsLook(claims));
+        Assert.EndsWith("file not yet exported", ServiceFreshnessStrip.InlineTextFor(claims), StringComparison.Ordinal);
+        var red = Chip("SRN", ServiceFreshnessColour.Red, "last export 24 Sep 2026");
+        Assert.Equal(ServiceFreshnessColour.Red, ServiceFreshnessStrip.EffectiveColour(red));
+        Assert.Equal("SRN: last export 24 Sep 2026 - out of date", ServiceFreshnessStrip.InlineTextFor(red));
+    }
+
+    [Fact]
+    public void The_summary_chip_counts_fresh_groups_and_takes_the_worst_colour()
+    {
+        var fresh = Chip("Jobs", ServiceFreshnessColour.Fresh, "last export 05 Oct 2026");
+        var amber = Chip("Status views", ServiceFreshnessColour.Amber, "last export 29 Sep 2026");
+        Assert.Equal("All 2 groups fresh", ServiceFreshnessStrip.SummaryText([fresh, fresh]));
+        Assert.Equal("1 of 2 groups fresh", ServiceFreshnessStrip.SummaryText([fresh, amber]));
+        Assert.Equal(ServiceFreshnessColour.Fresh, ServiceFreshnessStrip.SummaryColour([fresh, fresh]));
+        Assert.Equal(ServiceFreshnessColour.Amber, ServiceFreshnessStrip.SummaryColour([fresh, amber]));
+        Assert.Equal(ServiceFreshnessColour.Red, ServiceFreshnessStrip.SummaryColour([amber, Chip("SRN", ServiceFreshnessColour.Red, "x")]));
+        Assert.False(ServiceFreshnessStrip.NeedsLook(fresh));
+    }
 }

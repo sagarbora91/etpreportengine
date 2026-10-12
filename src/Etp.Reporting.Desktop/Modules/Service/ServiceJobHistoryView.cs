@@ -22,9 +22,10 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// </summary>
 public sealed class ServiceJobHistoryView : ServiceScreenView
 {
-    private readonly TextBox jobNumber = new() { MinWidth = 220, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBox jobNumber = new() { MinWidth = 220, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly Border headerCard;
     private readonly Grid headerGrid = new();
+    private readonly StackPanel headline = new() { Orientation = Orientation.Horizontal, Margin = ServiceUi.Gap(0, 0, 0, ServiceUi.S8) };
     private string searched = "";
     private ServiceJobHeader? header;
     private IReadOnlyList<(string Label, string Value)> headerItems = [];
@@ -34,11 +35,12 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
             "Enter a job number, or open a job from any Service grid, to see every reading the Service Centre exported about it, newest first.",
             "Service.JobHistory", "SERVICE_JOB_HISTORY_LOAD_FAILED", query, export)
     {
-        FilterBar.Children.Add(new TextBlock { Text = "Job number", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        FilterBar.Children.Add(new TextBlock { Text = "Job number", VerticalAlignment = VerticalAlignment.Center, Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0) });
         AutomationProperties.SetName(jobNumber, "Job number");
         jobNumber.KeyDown += async (_, args) => { if (args.Key == Key.Enter) { args.Handled = true; await ActivateAsync(); } };
         FilterBar.Children.Add(jobNumber);
-        var show = new Button { Content = "Show history", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0) };
+        var show = ServiceUi.MakeButton("Show history");
+        show.Margin = ServiceUi.Gap(ServiceUi.S8, 0, 0, 0);
         show.Click += async (_, _) => await ActivateAsync();
         FilterBar.Children.Add(show);
 
@@ -46,7 +48,11 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
         headerGrid.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         headerGrid.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        headerCard = DsrUi.Card(headerGrid, new Thickness(0, 4, 0, 4));
+        // SVC-19: the job's state is the headline (stage dot and "Open 41 days ..." at section-title size), the other pairs sit below it.
+        var headerStack = new StackPanel();
+        headerStack.Children.Add(headline);
+        headerStack.Children.Add(headerGrid);
+        headerCard = DsrUi.Card(headerStack, ServiceUi.Gap(0, ServiceUi.S4, 0, ServiceUi.S4));
         headerCard.Visibility = Visibility.Collapsed;
         AutomationProperties.SetName(headerCard, "Job header");
         HeaderPanel.Children.Add(headerCard);
@@ -93,15 +99,30 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
         headerItems = value is null ? [] : DescribeHeader(value);
         headerGrid.Children.Clear();
         headerGrid.RowDefinitions.Clear();
+        headline.Children.Clear();
+        if (value is not null)
+        {
+            var dot = ServiceUi.StageDot(value.Stage);
+            dot.Margin = ServiceUi.Gap(0, 0, ServiceUi.S8, 0);
+            headline.Children.Add(dot);
+            var days = ServiceUi.SectionTitle(headerItems.FirstOrDefault(item => item.Label is "Days open" or "TAT").Value ?? value.JobOrderNumber);
+            days.VerticalAlignment = VerticalAlignment.Center;
+            days.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
+            headline.Children.Add(days);
+            var who = ServiceUi.Caption($"{value.JobOrderNumber} · {ServiceJobStages.Label(value.Stage)}");
+            who.VerticalAlignment = VerticalAlignment.Center; who.Margin = ServiceUi.Gap(ServiceUi.S12, 0, 0, 0);
+            headline.Children.Add(who);
+        }
         headerCard.Visibility = value is null ? Visibility.Collapsed : Visibility.Visible;
         for (var index = 0; index < headerItems.Count; index++)
         {
             var row = index / 2; var column = index % 2 * 2;
             if (column == 0) headerGrid.RowDefinitions.Add(new() { Height = GridLength.Auto });
-            var label = DsrUi.Text(headerItems[index].Label, 11, colour: "SecondaryText");
-            label.Margin = new Thickness(0, 2, 12, 2);
-            var text = DsrUi.Text(headerItems[index].Value, 13, index == 0 ? FontWeights.SemiBold : null, "PrimaryText");
-            text.Margin = new Thickness(0, 2, 16, 2);
+            var label = ServiceUi.Caption(headerItems[index].Label);
+            label.Margin = ServiceUi.Gap(0, ServiceUi.S4, ServiceUi.S12, ServiceUi.S4);
+            var text = ServiceUi.Body(headerItems[index].Value);
+            if (index == 0) text.FontWeight = FontWeights.SemiBold;
+            text.Margin = ServiceUi.Gap(0, ServiceUi.S4, ServiceUi.S16, ServiceUi.S4);
             Grid.SetRow(label, row); Grid.SetColumn(label, column);
             Grid.SetRow(text, row); Grid.SetColumn(text, column + 1);
             headerGrid.Children.Add(label); headerGrid.Children.Add(text);
