@@ -12,6 +12,10 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// The date and store columns are window partition keys, so a filter on them reaches the enrichment table; the
 /// sales-line side is an OUTER APPLY correlated on the R013 row's key, so only that invoice's lines for that item are
 /// numbered (IX_sales_invoices_date, IX_sales_lines_report), never the whole sales_lines table.
+/// AUDIT-4 spot 2 (1.11.2): migration 0060 adds IX_sales_line_enrichments_occurrence, keyed on the window's partition columns
+/// then source_lineage_id (the clustered key, sales_line_enrichment_id, follows), and covering the columns the staff report,
+/// the drill-down and the exceptions read, so the window reads the index in order and a store/date filter seeks it instead of
+/// sorting the whole table. The pairing rule and this SQL are unchanged.
 /// </summary>
 internal static class EnrichmentOccurrencePairing
 {
