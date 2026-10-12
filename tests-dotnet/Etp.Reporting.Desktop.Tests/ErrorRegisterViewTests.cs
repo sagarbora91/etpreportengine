@@ -16,6 +16,18 @@ public sealed class ErrorRegisterViewTests
 {
     private const string KnownRef = "1A2B3C4D5E6F";
 
+    // ---- plain words (UI lane U3, DS-22) ---------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("IMPORT_HISTORY_LOAD_FAILED", null, "Import history load failed")]
+    [InlineData("REPORT_STORE_REQUIRED", "STORE_MISSING", "Report store required (store missing)")]
+    public void The_what_happened_column_reads_the_event_code_as_a_sentence(string code, string? sub, string expected) =>
+        Assert.Equal(expected, ErrorRow.PlainEvent(code, sub));
+
+    [Fact]
+    public void The_headline_says_no_open_problems_for_an_empty_or_closed_register() =>
+        Assert.Equal("No open problems", ErrorRegisterView.HeadlineFor([], new DateTime(2026, 10, 12, 9, 0, 0)));
+
     // ---- roles ---------------------------------------------------------------------------------------------------
 
     [Fact]

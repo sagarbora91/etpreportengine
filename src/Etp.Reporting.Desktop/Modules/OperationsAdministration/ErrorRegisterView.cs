@@ -34,6 +34,18 @@ public interface IErrorRegisterPrompts
 public sealed record ErrorRow(ErrorRegisterEntry Entry)
 {
     public string Id => Entry.DisplayId;
+    /// <summary>DS-22: the event code read as a sentence ("IMPORT_HISTORY_LOAD_FAILED" is "Import history load failed").</summary>
+    public string WhatHappened => PlainEvent(Entry.EventCode, Entry.SubCode);
+    public static string PlainEvent(string eventCode, string? subCode)
+    {
+        static string Words(string code)
+        {
+            var text = code.Replace('_', ' ').Trim().ToLowerInvariant();
+            return text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+        }
+        var main = Words(eventCode);
+        return string.IsNullOrWhiteSpace(subCode) ? main : main + " (" + subCode.Replace('_', ' ').Trim().ToLowerInvariant() + ")";
+    }
     public string StatusKind => Entry.Status.ToString();
     public string Status => ErrorRegisterView.StatusLabel(Entry);
     public string Event => string.IsNullOrEmpty(Entry.SubCode) ? Entry.EventCode : $"{Entry.EventCode} / {Entry.SubCode}";
@@ -67,6 +79,7 @@ public sealed record ErrorOccurrenceRow(ErrorOccurrenceRecord Occurrence)
 public sealed class ErrorRegisterView : UserControl
 {
     public const string ScreenTitle = "Error register";
+    public const string AboutText = "Every failure ETP has logged, grouped by cause. Type the Ref from an error message to find its entry. Nothing here holds customer data.";
     public const string OwnerOnlyText = "The error register is for the Owner. Ask the Owner to open Settings > Database > Error register.";
     public const string NotAvailableText = "The error register is not available in this build.";
     public const string RefNotFoundText = "That Ref is not in the register. If the error happened on another PC or account, open the register there, or press Refresh here to read this account's log, then find it again.";
@@ -87,6 +100,9 @@ public sealed class ErrorRegisterView : UserControl
     private readonly TextBox findInput = new() { MinWidth = 180, MinHeight = 44, Padding = new Thickness(6), VerticalContentAlignment = VerticalAlignment.Center, MaxLength = 24 };
     private readonly ComboBox filterBox = new() { MinHeight = 44, MinWidth = 220, ItemsSource = FilterChoices, SelectedIndex = 0 };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
+    // DS-22: a headline band ("3 open problems, last 09:12 today") before the table.
+    private readonly Border headlineBand = new() { CornerRadius = new CornerRadius(12), Padding = new Thickness(16), BorderThickness = new Thickness(1), Visibility = Visibility.Collapsed };
+    private readonly TextBlock headlineText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly DataGrid grid = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
     private readonly DataGrid occurrenceGrid = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single, MaxHeight = 200 };
     private readonly TextBlock detailHeader = new() { FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 2) };
@@ -117,13 +133,13 @@ public sealed class ErrorRegisterView : UserControl
         root.RowDefinitions.Add(new() { Height = GridLength.Auto });
 
         var heading = new StackPanel();
-        heading.Children.Add(new TextBlock { Text = ScreenTitle, FontSize = 18, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock
-        {
-            Text = "Every failure ETP has logged, grouped by cause. Type the Ref from an error message to find its entry. Nothing here holds customer data.",
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 4)
-        });
+        // DS-22/DS-24: the shell header owns the title. The explanation is a tooltip on the headline, not a paragraph.
+        headlineText.SetResourceReference(FrameworkElement.StyleProperty, "MetricText");
+        headlineBand.Child = headlineText;
+        headlineBand.ToolTip = AboutText;
+        AutomationProperties.SetName(headlineBand, "Error register headline");
+        status.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
+        heading.Children.Add(headlineBand);
         var bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         bar.Children.Add(new TextBlock { Text = "Find Ref:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
         bar.Children.Add(findInput);
@@ -167,7 +183,15 @@ public sealed class ErrorRegisterView : UserControl
             MakeButton("Merge into…", async () => await MergeAsync()),
             MakeButton("Copy summary", () => { CopySummary(); return Task.CompletedTask; })
         ];
-        foreach (var button in actionButtons) actions.Children.Add(button);
+        // DS-23: Copy summary (primary) and Mark seen stay visible; the developer actions sit under "More".
+        actionButtons[5].SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
+        actions.Children.Add(actionButtons[5]);
+        actions.Children.Add(actionButtons[0]);
+        var more = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        foreach (var button in actionButtons.Skip(1).Take(4)) more.Children.Add(button);
+        var moreFold = new Expander { Header = "More", Content = more, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        AutomationProperties.SetName(moreFold, "More error register actions");
+        actions.Children.Add(moreFold);
         footer.Children.Add(actions);
         Grid.SetRow(footer, 2);
         root.Children.Add(footer);
@@ -353,7 +377,7 @@ public sealed class ErrorRegisterView : UserControl
     private void Clear()
     {
         loaded = []; Rows = []; grid.ItemsSource = null; detail = null; Occurrences = []; occurrenceGrid.ItemsSource = null;
-        detailHeader.Text = ""; detailText.Text = "";
+        detailHeader.Text = ""; detailText.Text = ""; headlineBand.Visibility = Visibility.Collapsed;
     }
 
     private void ApplyFilter()
@@ -367,7 +391,32 @@ public sealed class ErrorRegisterView : UserControl
             ? (loaded.Count == 0 ? "The error register is empty. Nothing has been logged, or the logs have not been read yet; press Refresh." : "No entries have this status.")
             : $"{Rows.Count.ToString("N0", PresentationCulture.Indian)} of {loaded.Count.ToString("N0", PresentationCulture.Indian)} entries shown.";
         if (SelectedRow is null) { detail = null; detailHeader.Text = ""; detailText.Text = ""; Occurrences = []; occurrenceGrid.ItemsSource = null; }
+        ShowHeadline();
         ApplyAccess();
+    }
+
+    /// <summary>DS-22: "3 open problems, last 09:12 today" - open is New, Seen and Recurred, as the default filter reads it.</summary>
+    public static string HeadlineFor(IReadOnlyList<ErrorRegisterEntry> entries, DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        var open = entries.Where(entry => entry.Status is ErrorStatus.New or ErrorStatus.Seen or ErrorStatus.Recurred).ToArray();
+        if (open.Length == 0) return "No open problems";
+        var last = open.Max(entry => entry.LastSeenUtc).ToLocalTime().DateTime;
+        var when = last.Date == now.Date ? "today" : last.Date == now.Date.AddDays(-1) ? "yesterday" : last.ToString("dd MMM", PresentationCulture.Indian);
+        return $"{open.Length.ToString("N0", PresentationCulture.Indian)} open {(open.Length == 1 ? "problem" : "problems")}, last {last.ToString("HH:mm", PresentationCulture.Indian)} {when}";
+    }
+
+    private void ShowHeadline()
+    {
+        if (loaded.Count == 0) { headlineBand.Visibility = Visibility.Collapsed; return; }
+        headlineText.Text = HeadlineFor(loaded, DateTime.Now);
+        var recurred = loaded.Any(entry => entry.Status == ErrorStatus.Recurred);
+        var open = loaded.Any(entry => entry.Status is ErrorStatus.New or ErrorStatus.Seen or ErrorStatus.Recurred);
+        var (fill, edge) = recurred ? ("CriticalSoft", "Critical") : open ? ("WarningSoft", "Warning") : ("SuccessSoft", "Success");
+        headlineBand.SetResourceReference(Border.BackgroundProperty, fill);
+        headlineBand.SetResourceReference(Border.BorderBrushProperty, edge);
+        headlineText.SetResourceReference(TextBlock.ForegroundProperty, edge);
+        headlineBand.Visibility = Visibility.Visible;
     }
 
     private async Task ShowDetailAsync()
@@ -553,14 +602,16 @@ public sealed class ErrorRegisterView : UserControl
             Width = width,
             ElementStyle = WrapStyle()
         };
-        grid.Columns.Add(Text("ID", nameof(ErrorRow.Id), 80));
-        grid.Columns.Add(Text("Status", nameof(ErrorRow.Status), 110));
-        grid.Columns.Add(Text("Event", nameof(ErrorRow.Event), 200));
-        grid.Columns.Add(new DataGridTextColumn { Header = "Where", Binding = new Binding(nameof(ErrorRow.Where)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 220, ElementStyle = WrapStyle() });
-        grid.Columns.Add(Text("Error", nameof(ErrorRow.Error), 150));
-        grid.Columns.Add(Text("Count", nameof(ErrorRow.Count), 70));
-        grid.Columns.Add(Text("First seen", nameof(ErrorRow.FirstSeen), 140));
+        // DS-22: reading order - what happened, when, how often, status; the developer columns come last.
+        grid.Columns.Add(new DataGridTextColumn { Header = "What happened", Binding = new Binding(nameof(ErrorRow.WhatHappened)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 260, ElementStyle = WrapStyle() });
         grid.Columns.Add(Text("Last seen", nameof(ErrorRow.LastSeen), 140));
+        grid.Columns.Add(Text("Count", nameof(ErrorRow.Count), 70));
+        grid.Columns.Add(Text("Status", nameof(ErrorRow.Status), 110));
+        grid.Columns.Add(Text("ID", nameof(ErrorRow.Id), 80));
+        grid.Columns.Add(Text("Event", nameof(ErrorRow.Event), 200));
+        grid.Columns.Add(Text("Where", nameof(ErrorRow.Where), 220));
+        grid.Columns.Add(Text("Error", nameof(ErrorRow.Error), 150));
+        grid.Columns.Add(Text("First seen", nameof(ErrorRow.FirstSeen), 140));
         grid.Columns.Add(Text("Versions", nameof(ErrorRow.Versions), 120));
         grid.Columns.Add(Text("Ticket", nameof(ErrorRow.Ticket), 80));
 
@@ -590,7 +641,7 @@ public sealed class ErrorRegisterView : UserControl
         recurred.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
         style.Triggers.Add(recurred);
         var created = new DataTrigger { Binding = new Binding(nameof(ErrorRow.StatusKind)), Value = nameof(ErrorStatus.New) };
-        created.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.Bold));
+        created.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
         style.Triggers.Add(created);
         var quiet = new DataTrigger { Binding = new Binding(nameof(ErrorRow.StatusKind)), Value = nameof(ErrorStatus.Expected) };
         quiet.Setters.Add(new Setter(Control.ForegroundProperty, ThemeBrushes.Get("SecondaryText")));

@@ -124,6 +124,7 @@ public sealed class HealthCheckView : UserControl
     public const string ScreenTitle = "Health check";
     public const string OwnerOnlyText = "The health check is for the Owner. Ask the Owner to open Settings > Database > Health check.";
     public const string NotAvailableText = "The health check is not available in this build.";
+    public const string AboutText = "54 read-only checks of the database, security, reports, imports, data, operations and errors. The nightly run is at 02:30; this screen shows the latest run.";
     public const string NoRunText = "No health check has run yet. Press Run health check.";
     public const string ShopHoursQuestion = "This takes about a minute and reads the database. Run now?";
     public const int MaxKnownDays = 90;
@@ -138,7 +139,11 @@ public sealed class HealthCheckView : UserControl
     private readonly Func<DateOnly, (string Reason, DateOnly Until)?> askKnown;
     private readonly Func<string?>? exportFolder;
     private readonly Action<string> openFolder;
-    private readonly TextBlock headline = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) };
+    // DS-20: the verdict band (what is wrong, in words) comes first; the run line below it is a caption.
+    private readonly Border verdictBand = new() { CornerRadius = new CornerRadius(12), Padding = new Thickness(16), BorderThickness = new Thickness(1), Visibility = Visibility.Collapsed };
+    private readonly TextBlock verdict = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock verdictFinding = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly TextBlock headline = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
     private readonly TextBlock changes = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
     private readonly TextBlock progress = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
@@ -188,29 +193,32 @@ public sealed class HealthCheckView : UserControl
         root.RowDefinitions.Add(new() { Height = GridLength.Auto });
 
         var heading = new StackPanel();
-        heading.Children.Add(new TextBlock { Text = ScreenTitle, FontSize = 18, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock
-        {
-            Text = "54 read-only checks of the database, security, reports, imports, data, operations and errors. The nightly run is at 02:30; this screen shows the latest run.",
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 4)
-        });
+        // DS-20/DS-24: the shell header owns the title; the explanation is a tooltip on the verdict, not a paragraph.
+        var bandContent = new StackPanel();
+        verdict.SetResourceReference(FrameworkElement.StyleProperty, "MetricText");
+        verdictFinding.SetResourceReference(FrameworkElement.StyleProperty, "BodyText");
+        bandContent.Children.Add(verdict);
+        bandContent.Children.Add(verdictFinding);
+        verdictBand.Child = bandContent;
+        verdictBand.ToolTip = AboutText;
+        AutomationProperties.SetName(verdictBand, "Health check verdict");
+        headline.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
+        changes.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
+        progress.SetResourceReference(FrameworkElement.StyleProperty, "BodyText");
+        status.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
+        heading.Children.Add(verdictBand);
         heading.Children.Add(headline);
         var buttons = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         runButton.Click += async (_, _) => await RunAsync();
         cancelButton.Click += (_, _) => Cancel();
         refreshButton.Click += async (_, _) => await LoadAsync();
         folderButton.Click += (_, _) => OpenExportFolder();
+        // One primary action: Run health check. Refresh, Compare and Open export folder sit under the grid (DS-20).
+        runButton.SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
         buttons.Children.Add(runButton);
         buttons.Children.Add(cancelButton);
-        buttons.Children.Add(refreshButton);
-        buttons.Children.Add(folderButton);
         heading.Children.Add(buttons);
         heading.Children.Add(progress);
-        var compareBar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        compareBar.Children.Add(new TextBlock { Text = "Compare with", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        compareBar.Children.Add(compareBox);
-        heading.Children.Add(compareBar);
         heading.Children.Add(changes);
         heading.Children.Add(status);
         root.Children.Add(heading);
@@ -239,6 +247,10 @@ public sealed class HealthCheckView : UserControl
         footerBar.Children.Add(showPassedBox);
         footerBar.Children.Add(knownButton);
         footerBar.Children.Add(endKnownButton);
+        footerBar.Children.Add(refreshButton);
+        footerBar.Children.Add(folderButton);
+        footerBar.Children.Add(new TextBlock { Text = "Compare with", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
+        footerBar.Children.Add(compareBox);
         footer.Children.Add(footerBar);
         footer.Children.Add(details);
         Grid.SetRow(footer, 2);
@@ -346,6 +358,30 @@ public sealed class HealthCheckView : UserControl
 
     private static string Plural(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count.ToString(PresentationCulture.Indian)} {noun}s";
 
+    /// <summary>DS-20: the one sentence the Owner reads first, e.g. "1 problem, 5 warnings" or "No problems".</summary>
+    public static string VerdictText(HealthCheckCounts counts)
+    {
+        if (counts.Fail == 0 && counts.Warning == 0) return "No problems";
+        return counts.Fail == 0 ? $"No problems, {Plural(counts.Warning, "warning")}"
+            : $"{Plural(counts.Fail, "problem")}, {Plural(counts.Warning, "warning")}";
+    }
+
+    private void ShowVerdict()
+    {
+        if (current is null) { verdictBand.Visibility = Visibility.Collapsed; return; }
+        var counts = current.Counts;
+        verdict.Text = VerdictText(counts);
+        var fail = AllRows.FirstOrDefault(row => row.Result.Outcome == HealthOutcome.Fail);
+        var warn = AllRows.FirstOrDefault(row => row.Result.Outcome == HealthOutcome.Warning);
+        verdictFinding.Text = (fail ?? warn)?.Finding ?? "";
+        verdictFinding.Visibility = verdictFinding.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        var (fill, edge) = counts.Fail > 0 ? ("CriticalSoft", "Critical") : counts.Warning > 0 ? ("WarningSoft", "Warning") : ("SuccessSoft", "Success");
+        verdictBand.SetResourceReference(Border.BackgroundProperty, fill);
+        verdictBand.SetResourceReference(Border.BorderBrushProperty, edge);
+        verdict.SetResourceReference(TextBlock.ForegroundProperty, edge);
+        verdictBand.Visibility = Visibility.Visible;
+    }
+
     /// <summary>"Last nightly run: Fri 10 Oct 2026 02:31, checked Thu 09 Oct - 1 problem, 5 warnings, 2 known".</summary>
     public static string RunLine(string label, HealthCheckRunSummary run)
     {
@@ -369,7 +405,7 @@ public sealed class HealthCheckView : UserControl
     {
         var result = row.Result;
         var text = new StringBuilder();
-        text.AppendLine($"{result.CheckId}  {row.Outcome}  finding {result.FindingCode}");
+        // DS-21: the finding sentence first, the codes on a last "Details" line.
         text.AppendLine(row.Finding);
         if (row.Fix.Label.Length > 0) text.AppendLine("Where to fix: " + row.Fix.Label);
         if (result.MetricValue is { } metric) text.AppendLine("Measured: " + metric.ToString("0.##", PresentationCulture.Indian));
@@ -386,6 +422,7 @@ public sealed class HealthCheckView : UserControl
                 text.AppendLine();
             }
         }
+        text.AppendLine($"Details: {result.CheckId}  {row.Outcome}  finding {result.FindingCode}");
         return text.ToString().TrimEnd();
     }
 
@@ -458,6 +495,7 @@ public sealed class HealthCheckView : UserControl
     {
         AllRows = []; Rows = []; grid.ItemsSource = null;
         headline.Text = ""; changes.Text = ""; details.Text = "";
+        verdictBand.Visibility = Visibility.Collapsed;
         FillCompareBox([], null);
     }
 
@@ -475,6 +513,7 @@ public sealed class HealthCheckView : UserControl
         if (current is not null && (nightly is null || nightly.HealthCheckRunId != current.HealthCheckRunId))
             lines.Add(RunLine(current.Trigger == HealthCheckTrigger.Manual ? "Shown: manual run" : "Shown: run", current));
         headline.Text = string.Join(Environment.NewLine, lines);
+        ShowVerdict();
         changes.Text = ChangesLine(compared, compared is null ? [] : Compare(results, earlierResults));
         ApplyFilter();
     }
@@ -695,21 +734,45 @@ public sealed class HealthCheckView : UserControl
             Header = header,
             Binding = new Binding(path),
             Width = width,
-            ElementStyle = WrapStyle()
+            ElementStyle = WrapStyle(secondary: true)
         };
-        grid.Columns.Add(Text("Result", nameof(HealthRow.Outcome), 80));
-        grid.Columns.Add(Text("Area", nameof(HealthRow.Area), 90));
-        grid.Columns.Add(Text("Check", nameof(HealthRow.Check), 80));
+        grid.Columns.Add(new DataGridTextColumn { Header = "Result", Binding = new Binding(nameof(HealthRow.Outcome)), Width = 96, ElementStyle = ResultChipStyle() });
         grid.Columns.Add(new DataGridTextColumn { Header = "What was found", Binding = new Binding(nameof(HealthRow.Finding)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 260, ElementStyle = WrapStyle() });
         grid.Columns.Add(BuildFixColumn());
+        grid.Columns.Add(Text("Area", nameof(HealthRow.Area), 90));
+        grid.Columns.Add(Text("Check", nameof(HealthRow.Check), 80));
         grid.Columns.Add(Text("Took", nameof(HealthRow.Took), 70));
         grid.Columns.Add(Text("Earlier run", nameof(HealthRow.EarlierText), 90));
         grid.Columns.Add(Text("Changed", nameof(HealthRow.ChangeText), 130));
     }
 
-    private static Style WrapStyle()
+    /// <summary>DS-21: Result as a tone chip (FAIL red, WARN amber, KNOWN/SKIPPED grey, PASS green), always with the word.</summary>
+    private static Style ResultChipStyle()
     {
         var style = new Style(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(8, 3, 8, 3)));
+        style.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left));
+        style.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center));
+        style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
+        void When(string kind, string fill, string ink)
+        {
+            var trigger = new DataTrigger { Binding = new Binding(nameof(HealthRow.OutcomeKind)), Value = kind };
+            trigger.Setters.Add(new Setter(TextBlock.BackgroundProperty, ThemeBrushes.Get(fill)));
+            trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty, ThemeBrushes.Get(ink)));
+            style.Triggers.Add(trigger);
+        }
+        When(nameof(HealthOutcome.Fail), "CriticalSoft", "Critical");
+        When(nameof(HealthOutcome.Warning), "WarningSoft", "Warning");
+        When(nameof(HealthOutcome.Pass), "SuccessSoft", "Success");
+        When(nameof(HealthOutcome.Known), "SurfaceSecondary", "SecondaryText");
+        When(nameof(HealthOutcome.Skipped), "SurfaceSecondary", "SecondaryText");
+        return style;
+    }
+
+    private static Style WrapStyle(bool secondary = false)
+    {
+        var style = new Style(typeof(TextBlock));
+        if (secondary) style.Setters.Add(new Setter(TextBlock.ForegroundProperty, ThemeBrushes.Get("SecondaryText")));
         style.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
         style.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(6, 4, 6, 4)));
         return style;
@@ -747,7 +810,7 @@ public sealed class HealthCheckView : UserControl
             fill(trigger);
             style.Triggers.Add(trigger);
         }
-        When(nameof(HealthOutcome.Fail), t => { t.Setters.Add(new Setter(Control.ForegroundProperty, ThemeBrushes.Get("Critical"))); t.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold)); });
+        When(nameof(HealthOutcome.Fail), t => { t.Setters.Add(new Setter(Control.BackgroundProperty, ThemeBrushes.Get("CriticalSoft"))); t.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold)); });
         When(nameof(HealthOutcome.Warning), t => t.Setters.Add(new Setter(Control.ForegroundProperty, ThemeBrushes.Get("Warning"))));
         When(nameof(HealthOutcome.Known), t => t.Setters.Add(new Setter(Control.ForegroundProperty, ThemeBrushes.Get("SecondaryText"))));
         When(nameof(HealthOutcome.Skipped), t => t.Setters.Add(new Setter(Control.ForegroundProperty, ThemeBrushes.Get("SecondaryText"))));

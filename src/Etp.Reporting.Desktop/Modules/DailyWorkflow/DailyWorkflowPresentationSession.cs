@@ -62,7 +62,7 @@ public sealed class DailyWorkflowPresentationSession
         snapshot = state;
         return new(
             true,
-            state.Status.ToString(),
+            StatusWord(state.Status),
             Tone(state.Status),
             state.StatusMessage,
             state.MissingReports.Count == 0
@@ -193,6 +193,16 @@ public sealed class DailyWorkflowPresentationSession
         Exception exception,
         string safeUnauthorizedMessage = "Your Windows account does not have permission for this action.") =>
         $"{operation}: {DesktopFriendlyError.Describe(exception, safeUnauthorizedMessage)}";
+
+    /// <summary>DS-09: plain words for the verdict instead of the enum names.</summary>
+    public static string StatusWord(DailyWorkflowStatus status) => status switch
+    {
+        DailyWorkflowStatus.Locked => "Finalised",
+        DailyWorkflowStatus.Reconciled => "Ready",
+        DailyWorkflowStatus.ReadyWithWarnings => "Ready, with warnings",
+        DailyWorkflowStatus.Partial => "Partly ready",
+        _ => "Blocked"
+    };
 
     private static DailyWorkflowTone Tone(DailyWorkflowStatus status) => status switch
     {

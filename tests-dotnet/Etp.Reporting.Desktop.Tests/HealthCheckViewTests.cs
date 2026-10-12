@@ -154,6 +154,14 @@ public sealed class HealthCheckViewTests
         });
     }
 
+    [Theory]
+    [InlineData(40, 0, 0, "No problems")]
+    [InlineData(40, 5, 0, "No problems, 5 warnings")]
+    [InlineData(40, 1, 1, "1 problem, 1 warning")]
+    [InlineData(40, 5, 1, "1 problem, 5 warnings")]
+    public void The_verdict_names_problems_and_warnings_in_words(int pass, int warnings, int fails, string expected) =>
+        Assert.Equal(expected, HealthCheckView.VerdictText(new HealthCheckCounts(pass, warnings, fails, 2, 0)));
+
     [Fact]
     public void The_headline_names_the_last_nightly_run_with_its_counts_and_the_business_date_it_checked()
     {
