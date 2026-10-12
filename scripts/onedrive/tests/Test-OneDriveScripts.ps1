@@ -186,6 +186,11 @@ try {
         Assert-True (@($errors).Count -eq 0) "$($file.Name) parses in this PowerShell ($($PSVersionTable.PSVersion))"
     }
 
+    foreach ($example in @(Get-ChildItem $scripts -Filter '*.example.json')) {
+        $parsed = $null; try { $parsed = Get-Content -Raw $example.FullName | ConvertFrom-Json } catch { }
+        Assert-True ($null -ne $parsed) "$($example.Name) is valid JSON"
+    }
+
     $badKeyConfig = Join-Path $root 'badkey.json'
     Write-Json $badKeyConfig @{ backupFolder = $backups; oneDriveRoot = $oneDrive; keyFile = (Join-Path $oneDrive 'k.key') }
     Assert-True ((Invoke-Script 'Copy-EtpBackupToOneDrive.ps1' @('-ConfigPath', $badKeyConfig, '-NewKey')) -eq 1) 'A key file inside OneDrive is refused'
