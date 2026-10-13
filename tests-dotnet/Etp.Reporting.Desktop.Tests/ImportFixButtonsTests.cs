@@ -102,7 +102,7 @@ public sealed class ImportFixButtonsTests
 
             await buttons.Single(b => b.Kind == ImportFixKind.ReopenDayAndReapply).Run();
 
-            Assert.Equal(("TST01", Day, "Synthetic reason"), fixes.Reopened);
+            Assert.Equal(("TST01", Day, "Synthetic reason"), fixes.Reopened!.Value);
             Assert.Equal(1, reloads);
             Assert.Equal("Reapplied.", Assert.Single(reports));
         });
@@ -224,14 +224,14 @@ public sealed class ImportFixButtonsTests
 
     private static ImportFixHandlers Handlers() => new(new UserControl(), _ => { }, () => Task.CompletedTask);
 
-    private sealed class FakeFixService(ImportFixLocation? location) : IImportFixService
+    private sealed class FakeFixService(ImportFixLocation? known) : IImportFixService
     {
         public ImportFixTarget? Located { get; private set; }
         public (string Store, DateOnly Day, string Reason)? Reopened { get; private set; }
         public int Retries { get; private set; }
 
         public Task<ImportFixLocation?> LocateAsync(ImportFixTarget target, CancellationToken cancellationToken = default)
-        { Located = target; return Task.FromResult(location); }
+        { Located = target; return Task.FromResult(known); }
 
         public Task<ImportFixOutcome> RetryAsync(ImportFixLocation location, ImportFixTarget target, CancellationToken cancellationToken = default)
         { Retries++; return Task.FromResult(new ImportFixOutcome(true, "Retried.", null)); }

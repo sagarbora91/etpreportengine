@@ -529,25 +529,24 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         foreach (var field in CashEntryFields.Prominent(inputs, input => input.FieldCode))
         {
             var recorded = field.NumericValue?.ToString("N2", CultureInfo.CurrentCulture);
-            var caption = new TextBlock { Text = field.DisplayName, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+            // 1.12 U2 (design system T1/B7): styles, not sizes; the button style owns height and padding.
+            var caption = new TextBlock { Text = field.DisplayName, TextWrapping = TextWrapping.Wrap };
+            caption.SetResourceReference(StyleProperty, "CaptionText");
             var amount = new TextBlock
             {
                 // Zero is a real answer and must not read the same as an empty field.
                 Text = recorded ?? "Not entered",
-                FontSize = 15,
-                FontWeight = recorded is null ? FontWeights.Normal : FontWeights.SemiBold,
-                Margin = new Thickness(0, 2, 0, 0)
+                Margin = DesignTokens.Gap(null, "Space4", null, null)
             };
+            amount.SetResourceReference(StyleProperty, recorded is null ? "BodyText" : "CardTitleText");
             var button = new Button
             {
                 Content = new StackPanel { Children = { caption, amount } },
-                MinHeight = 44,
-                MinWidth = 150,
-                Margin = new Thickness(0, 0, 8, 8),
-                Padding = new Thickness(10, 6, 10, 6),
+                Margin = DesignTokens.Gap(null, null, "Space8", "Space8"),
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Tag = field.FieldCode
             };
+            button.SetResourceReference(MinWidthProperty, "InputMedium");
             System.Windows.Automation.AutomationProperties.SetName(
                 button, $"{field.DisplayName}, {recorded ?? "not entered"}");
             button.Click += CashQuickField_Click;

@@ -65,9 +65,9 @@ public sealed partial class SqlServerImportSourceLocationStore(IEtpConnectionFac
         foreach (var row in rows)
         {
             await using var command = new SqlCommand(sql, connection, transaction);
-            command.Parameters.Add("@ref", SqlDbType.VarChar, 12).Value = RefPattern().IsMatch(row.AttemptRef ?? "") ? row.AttemptRef!.ToUpperInvariant() : DBNull.Value;
+            command.Parameters.Add("@ref", SqlDbType.VarChar, 12).Value = RefPattern().IsMatch(row.AttemptRef ?? "") ? row.AttemptRef!.ToUpperInvariant() : (object)DBNull.Value;
             command.Parameters.Add("@name", SqlDbType.NVarChar, FileNameLength).Value = Path.GetFileName(row.FileName.Trim());
-            command.Parameters.Add("@sha", SqlDbType.Char, 64).Value = NormalisedSha(row.SourceSha256) is { } sha ? sha : DBNull.Value;
+            command.Parameters.Add("@sha", SqlDbType.Char, 64).Value = NormalisedSha(row.SourceSha256) is { } sha ? sha : (object)DBNull.Value;
             command.Parameters.Add("@path", SqlDbType.NVarChar, PathLength).Value = row.RoutedPath.Trim();
             command.Parameters.Add("@route", SqlDbType.VarChar, 10).Value = row.Route.ToString();
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -94,7 +94,7 @@ public sealed partial class SqlServerImportSourceLocationStore(IEtpConnectionFac
             """;
         await using var connection = await connections.OpenAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
-        command.Parameters.Add("@sha", SqlDbType.Char, 64).Value = NormalisedSha(sourceSha256) is { } sha ? sha : DBNull.Value;
+        command.Parameters.Add("@sha", SqlDbType.Char, 64).Value = NormalisedSha(sourceSha256) is { } sha ? sha : (object)DBNull.Value;
         command.Parameters.Add("@name", SqlDbType.NVarChar, FileNameLength).Value = Path.GetFileName((fileName ?? "").Trim());
         try
         {

@@ -96,7 +96,7 @@ public sealed class ImportFixAdvisorTests
     {
         var text = ImportDiagnosticCatalogue.ShopSentence(code);
         foreach (var word in OfficeWords)
-            Assert.False(text.Contains(word, StringComparison.OrdinalIgnoreCase), $"{code}: shop text contains \"{word}\": {text}");
+            Assert.DoesNotContain(word, text, StringComparison.OrdinalIgnoreCase);
         Assert.NotEmpty(ImportDiagnosticCatalogue.MessageForShop(code));
         Assert.NotEmpty(ImportDiagnosticCatalogue.WhatToDoForShop(code));
         Assert.DoesNotMatch(@"\b[A-Z]{2,5}[0-9]{2,4}\b", text); // no store code
