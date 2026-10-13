@@ -127,7 +127,7 @@ public sealed class TodaySalesView : Grid
         return root;
     }
     /// <summary>True when the sheet holds a sales value for the business date itself.</summary>
-    internal static bool HasSalesToday(EveningStoreSheet sheet) => sheet.Rows.Any(r => r.Metric == "VALUE" && r.Ftd is > 0 or < 0);
+    internal static bool HasSalesToday(EveningStoreSheet sheet) => sheet.Rows.Any(r => r.Metric == "VALUE" && r.Ftd is > 0m or < 0m);
 
     /// <summary>
     /// The store card's one notice: a sentence and, when the role may use it (the factory returns a button), the mark or

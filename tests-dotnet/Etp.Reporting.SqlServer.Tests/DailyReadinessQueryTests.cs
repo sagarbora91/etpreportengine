@@ -13,9 +13,16 @@ public sealed class DailyReadinessQueryTests
         IEnumerable<(string, string)>? inputs = null,
         IEnumerable<string>? monthly = null,
         IEnumerable<string>? staff = null,
-        IEnumerable<string>? stores = null) =>
+        IEnumerable<string>? stores = null,
+        IEnumerable<string>? serviceCentres = null,
+        IEnumerable<string>? noSale = null) =>
         new((stores ?? ["WLMHW", "HEMW"]).ToArray(), (exports ?? []).ToArray(), (inputs ?? []).ToArray(),
-            (monthly ?? []).ToArray(), (staff ?? []).ToArray());
+            (monthly ?? []).ToArray(), (staff ?? []).ToArray())
+        {
+            // 1.12: the Service Centres come from the store catalogue; the legacy one is the default fixture here.
+            ServiceCentres = (serviceCentres ?? ["AW330"]).ToArray(),
+            NoSaleStores = (noSale ?? []).ToArray()
+        };
 
     private static IEnumerable<(string, string)> AllRetail(string store) =>
         [(store, "R025"), (store, "R022"), (store, "CLOSING_STOCK"), (store, "STOCK_LEDGER")];
@@ -153,7 +160,7 @@ public sealed class DailyReadinessQueryTests
     }
 
     [Fact]
-    public void Expected_export_list_is_R025_R022_R011_R030_per_Retail_store_and_the_AW330_service_pack()
+    public void Expected_export_list_is_R025_R022_R011_R030_per_Retail_store_and_the_service_pack()
     {
         Assert.Equal(["R025", "R022", "R011", "R030"],
             DailyReadinessExpectations.Exports.Where(x => x.Scope == ExpectedExportScope.RetailStore).Select(x => x.Code));
@@ -191,10 +198,19 @@ public sealed class DailyReadinessQueryTests
         Assert.Contains("b.status='Completed' AND f.is_superseded=0", sql, StringComparison.Ordinal);
         Assert.Contains("COALESCE(f.period_start,f.business_date)<=@date", sql, StringComparison.Ordinal);
         Assert.Contains("COALESCE(f.period_end,f.business_date)>=@date", sql, StringComparison.Ordinal);
-        Assert.Contains("u.business_unit_code<>'SERVICE'", sql, StringComparison.Ordinal);
+        // 1.12: Service Centres from the catalogue (unit_kind, COL_LENGTH-guarded with the legacy SERVICE unit as fallback).
+        Assert.Contains("COL_LENGTH(N'dbo.business_units',N'unit_kind') IS NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("u.unit_kind=''SERVICE''", sql, StringComparison.Ordinal);
+        Assert.Contains("u.business_unit_code=''SERVICE''", sql, StringComparison.Ordinal);
         Assert.Contains("t.target_month=@month", sql, StringComparison.Ordinal);
-        foreach (var verb in new[] { "INSERT", "UPDATE", "DELETE", "MERGE", "EXEC" })
+        // 1.12 N1: the no-sale marks, guarded for a database before 0068 (an empty result set keeps the reader in step).
+        Assert.Contains("IF OBJECT_ID(N'dbo.v_no_sale_days_current',N'V') IS NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("SELECT CAST(NULL AS varchar(30)) store_code WHERE 1=0;", sql, StringComparison.Ordinal);
+        foreach (var verb in new[] { "INSERT", "UPDATE", "DELETE", "MERGE" })
             Assert.DoesNotContain(verb, sql, StringComparison.OrdinalIgnoreCase);
+        // The only EXECUTE is the catalogue read through sp_executesql (a missing column cannot be compiled).
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(sql, @"\bEXEC(UTE)?\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count);
+        Assert.Contains("EXECUTE sys.sp_executesql @catalogue;", sql, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -203,6 +219,88 @@ public sealed class DailyReadinessQueryTests
         Assert.Throws<ArgumentNullException>(() => new SqlServerDailyReadinessQuery((Func<DateOnly, CancellationToken, Task<DailyReadinessFacts>>)null!));
         var query = new SqlServerDailyReadinessQuery((_, _) => Task.FromResult(Facts()));
         await Assert.ThrowsAsync<ArgumentNullException>(() => query.LoadAsync(null!));
+    }
+
+    // ---- 1.12 lane N1: no-sale day (decision 52; decision 55 = Q1 option a) and Service Centres from the catalogue ----------
+
+    [Fact]
+    public void A_no_sale_day_waives_the_exports_and_daily_entries_of_that_store_and_keeps_its_targets()
+    {
+        var result = DailyReadinessEvaluator.Evaluate(new(Day, [], IncludeServiceCentre: false), Facts(noSale: ["HEMW"]));
+
+        Assert.Equal(["HEMW"], result.NoSaleStoreCodes);
+        Assert.Equal(["MONTHLY_TARGET", "STAFF_TARGETS"], result.Missing.Where(x => x.StoreCode == "HEMW").Select(x => x.Code));
+        // The other store is unchanged: every export, input and target is still asked for.
+        Assert.Equal(10, result.Missing.Count(x => x.StoreCode == "WLMHW"));
+    }
+
+    [Fact]
+    public void A_no_sale_day_with_targets_set_is_complete()
+    {
+        var result = DailyReadinessEvaluator.Evaluate(new(Day, ["HEMW"], false),
+            Facts(monthly: ["HEMW"], staff: ["HEMW"], noSale: [" hemw "]));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(["HEMW"], result.NoSaleStoreCodes);
+    }
+
+    [Fact]
+    public void A_mark_for_a_store_outside_the_request_is_not_reported()
+    {
+        var result = DailyReadinessEvaluator.Evaluate(new(Day, ["WLMHW"], false), Facts(noSale: ["HEMW"]));
+
+        Assert.Empty(result.NoSaleStoreCodes);
+        Assert.Equal(10, result.Missing.Count);
+    }
+
+    [Fact]
+    public void A_marked_service_centre_is_not_asked_for_its_raw_pack_and_another_one_still_is()
+    {
+        var result = DailyReadinessEvaluator.Evaluate(new(Day, [], true),
+            Facts(stores: [], serviceCentres: ["AW330", "SC999"], noSale: ["SC999"]));
+
+        Assert.Equal(["SC999"], result.NoSaleStoreCodes);
+        var item = Assert.Single(result.Missing);
+        Assert.Equal(("AW330", "SERVICE_RAW"), (item.StoreCode, item.Code));
+    }
+
+    [Fact]
+    public void Every_service_centre_of_the_catalogue_is_checked_and_none_when_the_catalogue_has_none()
+    {
+        var two = DailyReadinessEvaluator.Evaluate(new(Day, [], true), Facts(stores: [], serviceCentres: ["SC999", "AW330", "sc999"]));
+        Assert.Equal(["AW330", "SC999"], two.Missing.Select(x => x.StoreCode));
+        Assert.Equal("The Service raw pack for Service Centre (SC999) on 09 Oct 2026 has not been imported.", two.Missing[1].Message);
+
+        var none = DailyReadinessEvaluator.Evaluate(new(Day, [], true), Facts(stores: [], serviceCentres: []));
+        Assert.True(none.IsComplete);
+    }
+
+    [Fact]
+    public void The_result_has_no_no_sale_stores_by_default_so_older_callers_keep_working()
+    {
+        var result = new DailyReadinessResult(Day, ["HEMW"], []);
+        Assert.Empty(result.NoSaleStoreCodes);
+        Assert.Empty(new DailyReadinessFacts([], [], [], [], []).NoSaleStores);
+        Assert.Empty(new DailyReadinessFacts([], [], [], [], []).ServiceCentres);
+    }
+
+    [Fact]
+    public void Readiness_code_names_no_service_centre_store_code()
+    {
+        // The Service Centre is store-catalogue data (A4); the AW330 literal left the readiness code in 1.12 (lane N1).
+        foreach (var file in new[] { "DailyReadinessContracts.cs", "DailyReadinessEvaluator.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(Src(), "Etp.Reporting.Application", "DailyReadiness", file));
+            Assert.DoesNotContain("AW330", text, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.DoesNotContain("AW330", SqlServerDailyReadinessQuery.FactsSql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Src()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)
+            if (File.Exists(Path.Combine(folder.FullName, "Etp.Reporting.slnx"))) return Path.Combine(folder.FullName, "src");
+        throw new DirectoryNotFoundException("src");
     }
 
     private static DailyReadinessItem Find(DailyReadinessResult result, string code) => Assert.Single(result.Missing, x => x.Code == code);
