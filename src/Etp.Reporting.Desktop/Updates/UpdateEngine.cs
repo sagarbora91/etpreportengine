@@ -25,7 +25,7 @@ internal sealed record UpdateInstallResult(UpdateInstallStatus Status, string Me
 
 /// <summary>
 /// 1.12 (B1, plan section B "Engine"). Not wired: wave 2 (B2) adds the banner, the confirm dialog, Settings and the result
-/// screen, and supplies the gate state, the feed path (product_settings.update_feed_path) and the connection string.
+/// screen, and supplies the gate state, the feed path (product_settings.update_feed_path) and the maintenance target (MaintenanceTarget.For(factory), built in the composition root).
 ///
 /// Install order, each step refusing on failure and changing nothing after a refusal except its own staging folder:
 /// 1. the gate (Owner, key, switched on, no import / health run / backup / drill / draft / other session);
@@ -53,7 +53,7 @@ internal sealed class UpdateEngine(string updatesRoot)
         string feedPath,
         ReleaseManifest offered,
         Func<UpdateGateState> gateNow,
-        string connectionString,
+        MaintenanceTarget target,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(offered);
@@ -79,7 +79,7 @@ internal sealed class UpdateEngine(string updatesRoot)
         PreUpdateBackupCheck backup;
         try
         {
-            backup = await PreUpdateBackupRunner.RunAsync(connectionString, staged.Folder, cancellationToken).ConfigureAwait(false);
+            backup = await PreUpdateBackupRunner.RunAsync(target, staged.Folder, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {

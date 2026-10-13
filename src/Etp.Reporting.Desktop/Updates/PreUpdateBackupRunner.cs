@@ -21,7 +21,7 @@ internal static class PreUpdateBackupRunner
     public const string ScriptName = "backup-etp-database.ps1";
     public const string ReceiptFileName = "pre-update-backup.json";
 
-    public static async Task<PreUpdateBackupCheck> RunAsync(string connectionString, string stagingFolder, CancellationToken cancellationToken)
+    public static async Task<PreUpdateBackupCheck> RunAsync(MaintenanceTarget target, string stagingFolder, CancellationToken cancellationToken)
     {
         var scriptRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "scripts")) + Path.DirectorySeparatorChar;
         var script = Path.GetFullPath(Path.Combine(scriptRoot, ScriptName));
@@ -31,7 +31,7 @@ internal static class PreUpdateBackupRunner
 
         var resultPath = Path.Combine(stagingFolder, ReceiptFileName);
         if (File.Exists(resultPath)) File.Delete(resultPath);
-        var start = BuildStartInfo(script, connectionString, resultPath);
+        var start = BuildStartInfo(script, target, resultPath);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("The backup could not be started.");
         var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var error = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -44,7 +44,7 @@ internal static class PreUpdateBackupRunner
                 "Updates.PreUpdateBackup", "PRE_UPDATE_BACKUP_FAILED");
             return new PreUpdateBackupCheck(PreUpdateBackupProblem.Unreadable, null, null);
         }
-        // The database the script was told to back up (ArchitectureGuardTests: no SqlClient here, so read it back from the arguments).
+        // The database the script was told to back up (the maintenance target, as passed on -Database).
         var database = DatabaseArgument(start);
         return PreUpdateBackupReceipt.Check(await File.ReadAllBytesAsync(resultPath, cancellationToken).ConfigureAwait(false), database, DateTimeOffset.UtcNow);
     }
@@ -55,7 +55,7 @@ internal static class PreUpdateBackupRunner
         return index >= 0 && index + 1 < start.ArgumentList.Count ? start.ArgumentList[index + 1] : "";
     }
 
-    internal static ProcessStartInfo BuildStartInfo(string script, string connectionString, string resultPath)
+    internal static ProcessStartInfo BuildStartInfo(string script, MaintenanceTarget target, string resultPath)
     {
         var start = new ProcessStartInfo
         {
@@ -68,7 +68,7 @@ internal static class PreUpdateBackupRunner
         };
         start.Environment.Remove("PSModulePath");
         foreach (var argument in new[] { "-NoProfile", "-ExecutionPolicy", "RemoteSigned", "-File", script }) start.ArgumentList.Add(argument);
-        PowerShellOperationsService.AddDatabaseArguments(start, connectionString);
+        PowerShellOperationsService.AddDatabaseArguments(start, target);
         start.ArgumentList.Add("-Purpose"); start.ArgumentList.Add("PreUpdate");
         start.ArgumentList.Add("-ResultPath"); start.ArgumentList.Add(resultPath);
         return start;

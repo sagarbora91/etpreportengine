@@ -33,7 +33,7 @@ public sealed class UpdateLaunchAndInstallerTests
     public void The_pre_update_backup_runs_the_installed_backup_script_with_purpose_PreUpdate_and_a_result_file()
     {
         var start = PreUpdateBackupRunner.BuildStartInfo(@"C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\backup-etp-database.ps1",
-            @"Data Source=localhost\SQLEXPRESS;Initial Catalog=EtpReporting;Integrated Security=true", @"C:\ProgramData\EtpReporting\Updates\1.12.0\pre-update-backup.json");
+            new MaintenanceTarget(@"localhost\SQLEXPRESS", "EtpReporting"), @"C:\ProgramData\EtpReporting\Updates\1.12.0\pre-update-backup.json");
         var arguments = start.ArgumentList.ToList();
         Assert.EndsWith(@"WindowsPowerShell\v1.0\powershell.exe", start.FileName, StringComparison.OrdinalIgnoreCase);
         Assert.False(start.Environment.ContainsKey("PSModulePath"));
