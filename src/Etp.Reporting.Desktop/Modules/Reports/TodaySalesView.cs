@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using Etp.Reporting.Desktop.Modules.NoSaleDays;
 using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop.Modules.Reports;
@@ -49,7 +50,7 @@ public sealed class TodaySalesView : Grid
         }
         for (var i = 0; i < sheets.Length; i++)
         {
-            var card = Store(sheets[i], document.BusinessDate);
+            var card = Store(sheets[i], document.BusinessDate, document.NoSaleLine(sheets[i].StoreCode), NoSaleDayActions.Current);
             if (narrow) SetRow(card,i); else SetColumn(card,i);
             cards.Children.Add(card);
         }
@@ -75,15 +76,31 @@ public sealed class TodaySalesView : Grid
 
     internal static string WaitingText(DateOnly businessDate) => $"No sales file for {businessDate.ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("en-IN"))} yet - waiting for the shop.";
 
-    private static FrameworkElement Store(EveningStoreSheet sheet, DateOnly businessDate)
+    /// <summary>1.12 N1: shown in place of the waiting line once the shop's day is marked from this card.</summary>
+    internal const string MarkedText = "Marked as a no-sale day. Refresh to see the report with it.";
+
+    /// <summary>1.12 N1: shown once the mark is withdrawn from this card.</summary>
+    internal const string WithdrawnText = "No-sale day withdrawn. Refresh to see the report without it.";
+
+    private static FrameworkElement Store(EveningStoreSheet sheet, DateOnly businessDate, string? noSaleLine = null, NoSaleDayActions? actions = null)
     {
         var root = new StackPanel { Margin = new Thickness(6) };
         root.Children.Add(Heading(sheet.StoreName,18));
-        if (HasNoSalesData(sheet))
+        // 1.12 N1 (decision 52): a marked day says so in one line; a day with no sales file says it is waiting and, for the
+        // Owner and a Store Manager, offers "Mark as no-sale day" (a Viewer sees the sentence only).
+        if (noSaleLine is not null && !HasSalesToday(sheet))
         {
-            root.Children.Add(Styled(WaitingText(businessDate), "BodyText"));
+            root.Children.Add(NoSaleNotice(noSaleLine, done => actions?.CreateWithdrawButton(sheet.StoreCode, businessDate, done), WithdrawnText));
             return root;
         }
+        if (HasNoSalesData(sheet))
+        {
+            root.Children.Add(NoSaleNotice(WaitingText(businessDate), done => actions?.CreateMarkButton(sheet.StoreCode, businessDate, done), MarkedText));
+            return root;
+        }
+        // Earlier days of the month are in, but not this day's sales file: the same notice above the matrix.
+        if (!sheet.Rows.Any(r => r.Metric == "VALUE" && r.Ftd is not null))
+            root.Children.Add(NoSaleNotice(WaitingText(businessDate), done => actions?.CreateMarkButton(sheet.StoreCode, businessDate, done), MarkedText));
         var sales = sheet.Rows.FirstOrDefault(r => r.Metric == "VALUE");
         var comparison = Text($"LY today {Format(sales?.Ly,"currency")} · Growth {Format(sales?.Growth,"percent")}",12);
         // RA-SALES-14 (1.10.1): no growth figure (LY or Growth shown as "—") is neutral, not green.
@@ -109,6 +126,37 @@ public sealed class TodaySalesView : Grid
         root.Children.Add(table);
         return root;
     }
+    /// <summary>True when the sheet holds a sales value for the business date itself.</summary>
+    internal static bool HasSalesToday(EveningStoreSheet sheet) => sheet.Rows.Any(r => r.Metric == "VALUE" && r.Ftd is > 0m or < 0m);
+
+    /// <summary>
+    /// The store card's one notice: a sentence and, when the role may use it (the factory returns a button), the mark or
+    /// withdraw button. After a saved change the sentence becomes <paramref name="doneText"/> and the button goes.
+    /// </summary>
+    internal static Border NoSaleNotice(string text, Func<Action, Button?> createAction, string doneText)
+    {
+        var panel = new StackPanel();
+        var sentence = Styled(text, "BodyText");
+        sentence.TextWrapping = TextWrapping.Wrap;
+        panel.Children.Add(sentence);
+        Button? action = null;
+        action = createAction(() =>
+        {
+            sentence.Text = doneText;
+            if (action is not null) action.Visibility = Visibility.Collapsed;
+        });
+        if (action is not null)
+        {
+            action.HorizontalAlignment = HorizontalAlignment.Left;
+            action.Margin = DesignTokens.Gap(null, "Space8", null, null);
+            panel.Children.Add(action);
+        }
+        var notice = new Border { Child = panel };
+        notice.SetResourceReference(FrameworkElement.StyleProperty, "Notice");
+        AutomationProperties.SetName(notice, text);
+        return notice;
+    }
+
     private static string Label(string metric) => metric switch { "VALUE" => "Sales (₹)", "VOL" => "Units", "RETAIL WALKIN" => "Walk-ins", "INVOICE" => "Invoices", "CONVERSION %" => "Conversion %", _ => metric };
     private static TextBlock Text(string value,double size,bool bold=false)
     {

@@ -7,7 +7,7 @@ public enum ExpectedExportScope
 {
     /// <summary>Every active Retail store in the request.</summary>
     RetailStore,
-    /// <summary>The Service Centre store (AW330), when the request includes it.</summary>
+    /// <summary>Every Service Centre of the store catalogue, when the request includes them.</summary>
     ServiceCentre
 }
 
@@ -31,14 +31,13 @@ public sealed record RequiredManualInput(string FieldCode, string Name, DailyRea
 /// </summary>
 public static class DailyReadinessExpectations
 {
-    public const string ServiceCentreStoreCode = "AW330";
     public const string ServiceRawPackCode = "SERVICE_RAW";
     public const string MonthlyTargetCode = "MONTHLY_TARGET";
     public const string StaffTargetsCode = "STAFF_TARGETS";
 
     /// <summary>
     /// The Service families that land in an etp_landing_snnn table (ServiceInterimFamilies.Importable);
-    /// any one of them for AW330 covering the date means the day's raw pack was imported.
+    /// any one of them for a Service Centre covering the date means the day's raw pack was imported.
     /// A test keeps this list equal to the importer's.
     /// </summary>
     public static IReadOnlyList<string> ServiceRawPackFamilies { get; } =
@@ -77,17 +76,26 @@ public static class DailyReadinessExpectations
 /// received per store (a completed, current import file whose period covers the date), the manual
 /// inputs with a value, and the stores with a monthly target / a staff target for the month.
 /// Store and code comparisons ignore case.
+/// <para>1.12: <see cref="ServiceCentres"/> are the Service Centre store codes of the catalogue (stores of the Service unit,
+/// read from the database, never a literal); <see cref="NoSaleStores"/> are the stores whose date is marked as a no-sale
+/// day (lane N1, decision 52).</para>
 /// </summary>
 public sealed record DailyReadinessFacts(
     IReadOnlyList<string> ActiveRetailStores,
     IReadOnlyCollection<(string StoreCode, string ReportCode)> ReceivedExports,
     IReadOnlyCollection<(string StoreCode, string FieldCode)> EnteredManualInputs,
     IReadOnlyCollection<string> StoresWithMonthlyTarget,
-    IReadOnlyCollection<string> StoresWithStaffTargets);
+    IReadOnlyCollection<string> StoresWithStaffTargets)
+{
+    public IReadOnlyList<string> ServiceCentres { get; init; } = [];
+    public IReadOnlyCollection<string> NoSaleStores { get; init; } = [];
+}
 
 /// <summary>
 /// The application service: turns the request and the facts into the missing-item list. Pure, so the
 /// rules are tested without SQL.
+/// <para>No-sale day (decision 55, Q1 option a): for a store whose date is marked, the exports and the manual inputs are
+/// not asked for; the monthly and staff targets still are. A marked Service Centre is not asked for its raw pack.</para>
 /// </summary>
 public static class DailyReadinessEvaluator
 {
@@ -113,6 +121,8 @@ public static class DailyReadinessEvaluator
         var entered = facts.EnteredManualInputs.Select(x => Key(x.StoreCode, x.FieldCode)).ToHashSet(Codes);
         var monthly = facts.StoresWithMonthlyTarget.ToHashSet(Codes);
         var staff = facts.StoresWithStaffTargets.ToHashSet(Codes);
+        var noSale = (facts.NoSaleStores ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToHashSet(Codes);
+        var marked = new List<string>();
         var date = request.BusinessDate;
         var day = Etp.Reporting.Application.Formatting.DisplayText.Date(date);
         var month = Etp.Reporting.Application.Formatting.DisplayText.Month(date);
@@ -120,14 +130,22 @@ public static class DailyReadinessEvaluator
 
         foreach (var store in stores)
         {
-            foreach (var export in DailyReadinessExpectations.Exports.Where(x => x.Scope == ExpectedExportScope.RetailStore))
-                if (!export.StoredReportCodes.Any(code => received.Contains(Key(store, code))))
-                    missing.Add(new(DailyReadinessItemKind.MissingExport, store, export.Code,
-                        $"{export.Code} {export.Name} for {store} on {day} has not been imported.", DailyReadinessDestination.ImportIntake));
-            foreach (var input in DailyReadinessExpectations.ManualInputs)
-                if (!entered.Contains(Key(store, input.FieldCode)))
-                    missing.Add(new(DailyReadinessItemKind.MissingManualInput, store, input.FieldCode,
-                        $"{input.Name} for {store} on {day} has not been entered.", input.Destination));
+            // Decision 55: a no-sale day waives the shop's exports and daily entries, never its targets.
+            if (noSale.Contains(store))
+            {
+                marked.Add(store);
+            }
+            else
+            {
+                foreach (var export in DailyReadinessExpectations.Exports.Where(x => x.Scope == ExpectedExportScope.RetailStore))
+                    if (!export.StoredReportCodes.Any(code => received.Contains(Key(store, code))))
+                        missing.Add(new(DailyReadinessItemKind.MissingExport, store, export.Code,
+                            $"{export.Code} {export.Name} for {store} on {day} has not been imported.", DailyReadinessDestination.ImportIntake));
+                foreach (var input in DailyReadinessExpectations.ManualInputs)
+                    if (!entered.Contains(Key(store, input.FieldCode)))
+                        missing.Add(new(DailyReadinessItemKind.MissingManualInput, store, input.FieldCode,
+                            $"{input.Name} for {store} on {day} has not been entered.", input.Destination));
+            }
             if (!monthly.Contains(store))
                 missing.Add(new(DailyReadinessItemKind.MissingMonthlyTarget, store, DailyReadinessExpectations.MonthlyTargetCode,
                     $"The monthly sales target for {store} for {month} has not been set.", DailyReadinessDestination.SettingsMonthlyTargets));
@@ -138,14 +156,28 @@ public static class DailyReadinessEvaluator
 
         if (request.IncludeServiceCentre)
         {
-            const string service = DailyReadinessExpectations.ServiceCentreStoreCode;
-            foreach (var export in DailyReadinessExpectations.Exports.Where(x => x.Scope == ExpectedExportScope.ServiceCentre))
-                if (!export.StoredReportCodes.Any(code => received.Contains(Key(service, code))))
-                    missing.Add(new(DailyReadinessItemKind.MissingExport, service, export.Code,
-                        $"The {export.Name} for Service Centre ({service}) on {day} has not been imported.", DailyReadinessDestination.ImportIntake));
+            foreach (var service in ServiceCentres(facts))
+            {
+                if (noSale.Contains(service))
+                {
+                    marked.Add(service);
+                    continue;
+                }
+                foreach (var export in DailyReadinessExpectations.Exports.Where(x => x.Scope == ExpectedExportScope.ServiceCentre))
+                    if (!export.StoredReportCodes.Any(code => received.Contains(Key(service, code))))
+                        missing.Add(new(DailyReadinessItemKind.MissingExport, service, export.Code,
+                            $"The {export.Name} for Service Centre ({service}) on {day} has not been imported.", DailyReadinessDestination.ImportIntake));
+            }
         }
 
-        return new(date, stores, missing);
+        return new(date, stores, missing) { NoSaleStoreCodes = marked.Distinct(Codes).Order(Codes).ToArray() };
+    }
+
+    /// <summary>The Service Centres of the catalogue, trimmed, distinct and ordered.</summary>
+    public static IReadOnlyList<string> ServiceCentres(DailyReadinessFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        return (facts.ServiceCentres ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Codes).Order(Codes).ToArray();
     }
 
     private static string Key(string store, string code) => store.Trim() + "|" + code.Trim();

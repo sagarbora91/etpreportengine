@@ -409,7 +409,10 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 .Select(x=>new DsrStoreDefinition(x.Code,x.Name)).ToArray(),
             supplementary.ServiceMoneyStores,
             await LoadFirstImportedSalesDateAsync(cancellationToken));
-        return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
+        document = document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
+        // 1.12 N1 (decision 52): a store-day marked as a no-sale day reads "No sales (marked by ...)", not "not imported".
+        var noSaleDays = await NoSaleDays.SqlServerNoSaleDayService.LoadDsrMarksAsync(connectionString, businessDate, cancellationToken);
+        return DailySalesReportBuilder.ApplyNoSaleDays(document, noSaleDays);
     }
 
     /// <summary>

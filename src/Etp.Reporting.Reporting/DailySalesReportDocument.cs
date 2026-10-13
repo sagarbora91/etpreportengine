@@ -38,10 +38,21 @@ public sealed record DailySalesReportDocument(DateOnly BusinessDate, string Titl
     public IReadOnlyList<EveningStoreSheet> EveningSheets { get; init; } = [];
     /// <summary>Combined FTD gift-card sales, shown on their own line; never part of VALUE, VOL or INVOICE (owner decision 13).</summary>
     public decimal? CombinedFtdGiftCards { get; init; }
+    /// <summary>
+    /// 1.12 N1 (decision 52): the stores of this report whose business date is marked as a no-sale day and that hold no sales
+    /// for it. Each carries the one line the DSR, its PDF and the pack print ("No sales (marked by ... on dd MMM yyyy)").
+    /// </summary>
+    public IReadOnlyList<DsrNoSaleDay> NoSaleDays { get; init; } = [];
+    /// <summary>The no-sale line for a store, or null when the store's day is not marked.</summary>
+    public string? NoSaleLine(string storeCode) =>
+        NoSaleDays.FirstOrDefault(x => string.Equals(x.StoreCode, storeCode, StringComparison.OrdinalIgnoreCase))?.Line;
     public string Weekday(CultureInfo? culture = null) => BusinessDate.ToString("dddd", culture ?? CultureInfo.GetCultureInfo("en-IN"));
 }
 
 public sealed record DsrStoreDefinition(string Code, string Name);
+
+/// <summary>One store-day marked as a no-sale day, with the line printed for it (built by the caller from the mark).</summary>
+public sealed record DsrNoSaleDay(string StoreCode, string Line);
 
 public static class DailySalesReportBuilder
 {
@@ -82,6 +93,59 @@ public static class DailySalesReportBuilder
             Achievement(combinedMtd?.TySales, combinedTarget), combinedYtd?.TySales,
             engine.Growth(combinedYtd?.TySales, combinedYtd?.LySales), storeCards, serviceSummary, targets, metricPolicy)
         { CombinedFtdGiftCards = combinedFtd?.TyGiftCards };
+    }
+
+    /// <summary>The evening-matrix metrics that are a real zero on a day with no sales (never walk-ins or targets).</summary>
+    internal static readonly string[] NoSaleZeroMetrics = ["VALUE", "VOL", "INVOICE", "GIFT CARD"];
+
+    /// <summary>
+    /// 1.12 N1 (decision 52): applies the store-days marked as no-sale days to a built DSR. A marked store whose FTD holds no
+    /// sales gets: FTD sales, units, invoices and gift cards of 0 (a real zero, not "not imported"), the no-sale line as
+    /// the first row of its evening matrix (so the screen, the PDF, Excel and the pack carry the same line), and an entry in
+    /// <see cref="DailySalesReportDocument.NoSaleDays"/>. MTD and YTD are left as they are. A marked store that does hold
+    /// sales for the day (a file imported after the mark) is shown with its sales and no line. Combined figures are summed
+    /// again only where every store is now known.
+    /// </summary>
+    public static DailySalesReportDocument ApplyNoSaleDays(DailySalesReportDocument document, IReadOnlyCollection<DsrNoSaleDay> marks)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(marks);
+        var lines = marks.Where(x => !string.IsNullOrWhiteSpace(x.StoreCode) && !string.IsNullOrWhiteSpace(x.Line))
+            .GroupBy(x => x.StoreCode.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First().Line.Trim(), StringComparer.OrdinalIgnoreCase);
+        if (lines.Count == 0) return document;
+
+        var applied = new List<DsrNoSaleDay>();
+        var stores = document.Stores.Select(card =>
+        {
+            if (!lines.TryGetValue(card.StoreCode, out var line) || card.Periods.Count == 0 || card.Periods[0].TyValue is not null) return card;
+            applied.Add(new(card.StoreCode, line));
+            var ftd = card.Periods[0] with { TyValue = 0m, TyQuantity = card.Periods[0].TyQuantity ?? 0m };
+            return card with { Periods = [ftd, .. card.Periods.Skip(1)] };
+        }).ToArray();
+        var sheets = document.EveningSheets.Select(sheet =>
+        {
+            if (sheet.StoreCode == "COMBINED" || !lines.TryGetValue(sheet.StoreCode, out var line)) return sheet;
+            if (sheet.Rows.Any(row => row.Metric == "VALUE" && row.Ftd is not null)) return sheet;
+            if (!applied.Any(x => string.Equals(x.StoreCode, sheet.StoreCode, StringComparison.OrdinalIgnoreCase))) applied.Add(new(sheet.StoreCode, line));
+            var rows = sheet.Rows.Select(row => NoSaleZeroMetrics.Contains(row.Metric) && row.Ftd is null ? row with { Ftd = 0m } : row);
+            return sheet with { Rows = [new EveningMetricRow(line, null, null, null, null, null, null, "text", "No-sale day"), .. rows] };
+        }).ToArray();
+        if (applied.Count == 0) return document;
+
+        // The combined FTD is known again when every store now has a value (a marked store counts as 0).
+        var combinedFtd = document.CombinedFtd ?? (stores.Length > 0 && stores.All(x => x.Periods.Count > 0 && x.Periods[0].TyValue is not null)
+            ? stores.Sum(x => x.Periods[0].TyValue!.Value) : null);
+        var units = document.Units ?? (stores.Length > 0 && stores.All(x => x.Periods.Count > 0 && x.Periods[0].TyQuantity is not null)
+            ? stores.Sum(x => x.Periods[0].TyQuantity!.Value) : null);
+        return document with
+        {
+            Stores = stores,
+            CombinedFtd = combinedFtd,
+            Units = units,
+            EveningSheets = sheets,
+            NoSaleDays = applied.OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray()
+        };
     }
 
     public static CalculatedMetric Achievement(decimal? actual, decimal? target)

@@ -3,7 +3,7 @@ namespace Etp.Reporting.Application.DailyReadiness;
 /// <summary>What kind of thing is missing for the business date.</summary>
 public enum DailyReadinessItemKind
 {
-    /// <summary>An expected export (R025, R022, R011, R030 per Retail store; the Service raw pack for AW330) has no successful import covering the date.</summary>
+    /// <summary>An expected export (R025, R022, R011, R030 per Retail store; the Service raw pack per Service Centre) has no successful import covering the date.</summary>
     MissingExport,
     /// <summary>A required manual input (WALK_INS, OPENING_CASH, EXPENSES, CASH_DEPOSIT) has no value for the store and date.</summary>
     MissingManualInput,
@@ -46,7 +46,8 @@ public sealed record DailyReadinessItem(
 /// The request: one business date and a store set.
 /// <para><see cref="StoreCodes"/> empty means every active Retail store ("All stores").
 /// Codes that are not active Retail stores are ignored for the Retail checks.</para>
-/// <para><see cref="IncludeServiceCentre"/> adds the Service raw pack check for AW330.</para>
+/// <para><see cref="IncludeServiceCentre"/> adds the Service raw pack check for every Service Centre in the store catalogue
+/// (stores of the Service unit, 1.12 A4).</para>
 /// </summary>
 public sealed record DailyReadinessRequest(
     DateOnly BusinessDate,
@@ -64,6 +65,12 @@ public sealed record DailyReadinessResult(
     IReadOnlyList<DailyReadinessItem> Missing)
 {
     public bool IsComplete => Missing.Count == 0;
+
+    /// <summary>
+    /// 1.12 N1 (decision 52/55): the checked stores (Retail stores and Service Centres) whose business date is marked as a
+    /// no-sale day. Their exports and daily entries are not asked for; their targets still are. Ordered, never null.
+    /// </summary>
+    public IReadOnlyList<string> NoSaleStoreCodes { get; init; } = [];
 }
 
 /// <summary>

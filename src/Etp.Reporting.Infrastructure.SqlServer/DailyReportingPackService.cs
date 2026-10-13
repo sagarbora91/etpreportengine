@@ -219,6 +219,12 @@ public sealed class DailyReportingPackService(string connectionString)
             new(FinalisationSectionName, workflow.Status == DailyReadinessStatus.Locked ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun,
                 null, null, workflow.StatusMessage)
         };
+        // 1.12 N1 (decision 55): on a no-sale day a missing source is expected, so a section blocked for it is "not run", never
+        // a reason to refuse finalisation (Close day refuses only on Blocked sections).
+        if (workflow.IsNoSaleDay)
+            sections = sections.Select(x => x.Status == ReconciliationStatus.Blocked
+                ? x with { Status = ReconciliationStatus.NotRun, Message = NoSaleDaySectionPrefix + x.Message }
+                : x).ToList();
         var status = sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed)
             ? ReconciliationStatus.Failed
             : sections.All(x => x.Status == ReconciliationStatus.Passed) ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun;
@@ -244,6 +250,9 @@ public sealed class DailyReportingPackService(string connectionString)
             storeCode, businessDate, generatedBy, controlJson, ReportPackArchiveCodec.Serialize(document), cancellationToken);
         return new(storeCode, businessDate, status, sections, message, generatedAt, document, generation.GenerationNumber, generation.ContentSha256);
     }
+
+    /// <summary>The start of a section message on a day marked as a no-sale day (lane N1).</summary>
+    public const string NoSaleDaySectionPrefix = "No-sale day, nothing to reconcile. ";
 
     /// <summary>
     /// Decision 32: Service cash/card/UPI are not required to finalise. A cash balance that is incomplete only because

@@ -438,9 +438,10 @@ public partial class ReportsWorkspaceView : UserControl
             var scope=ReportScope();var repo=operationalReportQueryFactory();
             var rows=await repo.LoadDsrAsync(scope.DateTo,[]);var document=await repo.ComposeDsrDocumentAsync(scope.DateTo,rows);
             if(revision!=reportRevision)return;ReportGrid.ItemsSource=rows;
-            var coverageBlock=DsrCoverageBlock(rows,scope.DateTo);
-            var status=coverageBlock is null&&rows.Any(x=>x.TySales is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
-            ReportResult.Text=DsrStatus(status,coverageBlock,scope.DateTo);
+            // 1.12 N1 (decision 52): a store-day marked as a no-sale day is not "not imported"; its line is part of the status.
+            var coverageBlock=DsrCoverageBlock(rows.Where(x=>document.NoSaleLine(x.Store) is null),scope.DateTo);
+            var status=coverageBlock is null&&(rows.Any(x=>x.TySales is not null)||document.NoSaleDays.Count>0)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
+            ReportResult.Text=DsrStatus(status,coverageBlock,scope.DateTo)+DsrNoSaleNote(document);
             var data=EveningReportTables.Dsr(document.EveningSheets);
             SetExport("Daily Sales Report",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals,document,scope.DateTo);
             ApplyReportFilter();
@@ -455,6 +456,10 @@ public partial class ReportsWorkspaceView : UserControl
         coverageBlock is not null ? $"{StatusWords.Label(ReconciliationStatus.Blocked)}: {coverageBlock} {DsrNote}"
         : status == ReconciliationStatus.Passed ? $"{StatusWords.Label(status)}: {DsrNote}"
         : $"{StatusWords.Label(status)}: No sales found for {DayText(businessDate)}; import the sales lines export for that date. {DsrNote}";
+
+    /// <summary>1.12 N1: " ZZ002: No sales (marked by ... on ...)." per marked store-day; empty when none.</summary>
+    internal static string DsrNoSaleNote(Etp.Reporting.Reporting.DailySalesReportDocument document) =>
+        string.Concat(document.NoSaleDays.Select(x => $" {x.StoreCode}: {x.Line}."));
 
     // RA-SALES-01: a business date no current R025 covers for a store in scope reads "-" for FTD and MTD. That is a
     // Blocked report naming the store and the last imported day, not a Passed one; YTD stays as it is.

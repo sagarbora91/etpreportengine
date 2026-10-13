@@ -185,9 +185,11 @@ public sealed class DataProbes : IHealthProbe
 
     internal static HealthCheckResult EvaluateCompleteness(DateOnly businessDate, DailyReadinessResult readiness, TimeSpan duration)
     {
+        // 1.12 N1 (decision 52): a store-day marked as a no-sale day asks for no exports or entries; the OK line counts them.
+        var noSale = readiness.NoSaleStoreCodes?.Count ?? 0;
         if (readiness.IsComplete)
             return ImportDataProbeSupport.Make(HealthCheckId.Data01, HealthOutcome.Pass, "OK",
-                ImportDataProbeSupport.Text($"Everything expected for {ImportDataProbeSupport.Day(businessDate)} is in: exports, manual inputs and targets."),
+                ImportDataProbeSupport.Text($"Everything expected for {ImportDataProbeSupport.Day(businessDate)} is in: exports, manual inputs and targets.{NoSaleNote(noSale)}"),
                 null, duration, 0);
 
         // Grouped by kind, in the order of the Today checklist; one sub-result per kind with codes and store codes only.
@@ -210,6 +212,14 @@ public sealed class DataProbes : IHealthProbe
             ImportDataProbeSupport.Text($"{ImportDataProbeSupport.Day(businessDate)} is not complete: {summary}."),
             fix, duration, readiness.Missing.Count, subs);
     }
+
+    /// <summary>" (2 store-days marked no-sale)" when any store-day of the date is marked; empty otherwise.</summary>
+    internal static string NoSaleNote(int count) => count switch
+    {
+        <= 0 => "",
+        1 => " (1 store-day marked no-sale)",
+        _ => $" ({count} store-days marked no-sale)"
+    };
 
     private static string Describe(string subCode) => subCode switch
     {
