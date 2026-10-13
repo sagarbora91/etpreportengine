@@ -9,7 +9,7 @@ param(
     # change, so it is recorded as such and rotation never deletes it. Setup's own backup
     # used to be removed by the same day's rotation: on the owner's PC on 25 September 2026
     # the 08:50 pre-migration file was already gone and only the 10:22 daily one remained.
-    [ValidateSet('Scheduled','PreMigration','PreRollback')][string]$Purpose = 'Scheduled'
+    [ValidateSet('Scheduled','PreMigration','PreRollback','PreUpdate')][string]$Purpose = 'Scheduled'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -111,7 +111,7 @@ try {
         # New in this receipt, and deliberately not a schema bump: a receipt without it is an
         # ordinary scheduled backup, so an installation still running the previous scripts
         # reads these receipts and an older receipt is read here.
-        purpose=$(switch ($Purpose) { 'PreMigration' { 'PRE_MIGRATION' } 'PreRollback' { 'PRE_ROLLBACK' } default { 'SCHEDULED' } })
+        purpose=$(switch ($Purpose) { 'PreMigration' { 'PRE_MIGRATION' } 'PreRollback' { 'PRE_ROLLBACK' } 'PreUpdate' { 'PRE_UPDATE' } default { 'SCHEDULED' } })
         certificateReceipt=$certificateReceipt; certificateThumbprint=$certificateThumbprint
         files=$files
     }
