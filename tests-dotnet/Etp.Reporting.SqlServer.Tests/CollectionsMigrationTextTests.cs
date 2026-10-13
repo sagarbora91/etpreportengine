@@ -47,6 +47,10 @@ public sealed class CollectionsMigrationTextTests
 
         var deposits = File.ReadAllText(Path.Combine(Repository("database", "migrations"), "0064_cash_deposit_confirmations.sql"));
         Assert.Contains("DENY INSERT,UPDATE,DELETE ON dbo.cash_deposit_confirmations TO etp_store_manager,etp_viewer;", deposits, StringComparison.Ordinal);
+        // Review m-4 (decision 53): the Viewer reads the line and confirmation tables through the views only.
+        Assert.Contains("DENY SELECT ON dbo.bank_statement_lines TO etp_viewer;", sql, StringComparison.Ordinal);
+        Assert.Contains("DENY SELECT ON dbo.provider_settlement_lines TO etp_viewer;", sql, StringComparison.Ordinal);
+        Assert.Contains("DENY SELECT ON dbo.cash_deposit_confirmations TO etp_viewer;", deposits, StringComparison.Ordinal);
         // Banking facts arrive after the lock: no day-lock check on confirmations.
         Assert.DoesNotContain("daily_reporting_days", deposits, StringComparison.Ordinal);
     }

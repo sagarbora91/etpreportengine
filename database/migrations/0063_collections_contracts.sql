@@ -376,6 +376,11 @@ DENY INSERT,UPDATE,DELETE ON dbo.bank_statement_lines TO etp_store_manager,etp_v
 DENY INSERT,UPDATE,DELETE ON dbo.provider_settlement_lines TO etp_store_manager,etp_viewer;
 DENY INSERT,UPDATE,DELETE ON dbo.collections_setup_history TO etp_store_manager,etp_viewer;
 
+-- Review m-4 (decision 53): the Viewer sees collections as totals, through the views only (ownership chaining keeps them
+-- working); the line tables themselves are not readable by the Viewer at all.
+DENY SELECT ON dbo.bank_statement_lines TO etp_viewer;
+DENY SELECT ON dbo.provider_settlement_lines TO etp_viewer;
+
 -- PII (customer names in UPI narrations and payer fields; raw_json holds every cell): Owner only.
 DENY SELECT ON dbo.bank_statement_lines(narration,raw_json) TO etp_store_manager,etp_viewer;
 DENY SELECT ON dbo.provider_settlement_lines(payer_name,payer_vpa,raw_json) TO etp_store_manager,etp_viewer;

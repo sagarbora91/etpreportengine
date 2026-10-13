@@ -210,11 +210,15 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
 
         foreach (var user in new[] { "col_manager", "col_viewer" })
         {
+            // 230: column denied; 229: the whole table denied (the Viewer, review m-4).
             foreach (var probe in new[] { "SELECT TOP(1) narration FROM dbo.bank_statement_lines", "SELECT TOP(1) raw_json FROM dbo.bank_statement_lines",
                          "SELECT TOP(1) payer_vpa FROM dbo.provider_settlement_lines", "SELECT TOP(1) payer_name FROM dbo.provider_settlement_lines" })
-                Assert.Equal(230, await ProbeAsync(user, probe));
-            Assert.Equal(0, await ProbeAsync(user, "SELECT TOP(1) bank_reference,credit_amount,line_date FROM dbo.bank_statement_lines"));
+                Assert.Contains(await ProbeAsync(user, probe), new[] { 229, 230 });
+            Assert.Equal(user == "col_viewer" ? 229 : 0, await ProbeAsync(user, "SELECT TOP(1) bank_reference,credit_amount,line_date FROM dbo.bank_statement_lines"));
+            Assert.Equal(user == "col_viewer" ? 229 : 0, await ProbeAsync(user, "SELECT TOP(1) merchant_id FROM dbo.provider_settlement_lines"));
+            Assert.Equal(user == "col_viewer" ? 229 : 0, await ProbeAsync(user, "SELECT TOP(1) amount FROM dbo.cash_deposit_confirmations"));
             Assert.Equal(0, await ProbeAsync(user, "SELECT TOP(1) * FROM dbo.v_collection_evidence"));
+            Assert.Equal(0, await ProbeAsync(user, "SELECT TOP(1) * FROM dbo.v_cash_deposit_status"));
             Assert.NotEqual(0, await ProbeAsync(user, "INSERT dbo.bank_accounts(account_key,display_name,bank_name,change_reason) VALUES('SYN_X',N'x',N'x',N'x')"));
         }
         Assert.NotEqual(0, await ProbeAsync("col_viewer", "SELECT TOP(1) * FROM dbo.v_cash_deposits_in_transit"));

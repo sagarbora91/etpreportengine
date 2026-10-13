@@ -88,4 +88,6 @@ BEGIN
 END');
 
 DENY INSERT,UPDATE,DELETE ON dbo.cash_deposit_confirmations TO etp_store_manager,etp_viewer;
+-- Review m-4 (decision 53): the Viewer reads deposit states through the views only.
+DENY SELECT ON dbo.cash_deposit_confirmations TO etp_viewer;
 DENY INSERT,UPDATE,DELETE ON dbo.cash_deposit_confirmation_history TO etp_store_manager,etp_viewer;
