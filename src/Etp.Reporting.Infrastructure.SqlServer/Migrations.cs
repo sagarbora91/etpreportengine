@@ -50,6 +50,9 @@ public static class MigrationChecksum
 
 public sealed class DirectoryMigrationSource(string directory) : IMigrationSource
 {
+    /// <summary>The migrations folder; the bootstrapper finds <c>database/objects</c> next to it (1.12 A3).</summary>
+    public string DirectoryPath => directory;
+
     public async Task<IReadOnlyList<MigrationScript>> DiscoverAsync(CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(directory)) return [];
