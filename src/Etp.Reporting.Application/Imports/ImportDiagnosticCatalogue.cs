@@ -208,9 +208,9 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.Contract.LegacyBlocks] = ["The workbook has legacy blocks; they are imported but never used to infer missing documents."]
     };
 
-    /// <summary>The SERVICE_STORE_DEFAULTED text (1.12: names no store code; the Service Centre is data from 0067 on).</summary>
-    public const string ServiceStoreDefaultedMessage =
-        "This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre.";
+    /// <summary>The SERVICE_STORE_DEFAULTED text (1.12: names no store code; the Service Centre is data from 0067 on).
+    /// Integration (U2 x A4): one text, A4's, so the folder import's note and the catalogue cannot drift.</summary>
+    public const string ServiceStoreDefaultedMessage = Etp.Reporting.Application.Stores.ServiceCentreRules.StoreDefaultedMessage;
 
     // ----- Shop-facing text (1.12 U2, review m-2) -----
     // A shop result (ShopResultBuilder) shows the shop what happened and what to do. "What happened" is the first sentence of

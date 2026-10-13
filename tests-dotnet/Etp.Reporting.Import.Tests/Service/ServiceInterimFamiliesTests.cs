@@ -97,7 +97,6 @@ public sealed class ServiceInterimFamiliesTests
         Assert.Equal(["S003", "S004", "S019", "S023", "S024", "S025", "S026", "S039", "S040", "S041"],
             ServiceInterimFamilies.MoneyLogs.Order(StringComparer.Ordinal));
         Assert.All(ServiceInterimFamilies.MoneyLogs, code => Assert.Contains(code, ServiceInterimFamilies.Importable));
-        Assert.Equal("AW330", ServiceInterimFamilies.ServiceStoreCode);
     }
 
     [Fact]

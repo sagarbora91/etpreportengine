@@ -105,7 +105,7 @@ public sealed class ServiceGprcClaimsSqlTests
             Assert.All(days, row => Assert.Equal(0m, row.Difference));
             var unmatched = Assert.Single(ServiceMoneyCheck.Unmatched(entries));
             Assert.Equal(("HEMW", "SERVICE_CASH", 300m), (unmatched.StoreCode, unmatched.FieldCode, unmatched.Amount));
-            Assert.Equal("Service entry at Helios: not matched to AW330.", unmatched.Note);
+            Assert.Equal("Service entry at Helios: not matched to the Service Centre.", unmatched.Note);
         }
         finally { await database.DisposeAsync(); }
     }

@@ -220,7 +220,9 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
         accepted.Scope.RequireOwnSnapshotDate();
         var end = accepted.Scope.PeriodEnd ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Keep this file beside the other exports for its store.");
         var start = accepted.Scope.PeriodStart ?? end;
-        var store = accepted.Scope.StoreCode ?? ImportScope.ServiceStoreFallback(report)
+        // 1.12 A4: a Service file naming no store goes to the only Service Centre of the catalogue (refused when there are several).
+        var store = accepted.Scope.StoreCode
+            ?? await ServiceCentreFallback.StoreForAsync(new SqlServerServiceCentreCatalog(connectionString), report, cancellationToken)
             ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Store could not be detected.");
         var files = new SqlServerImportFileRepository(connectionString);
         var persistence = new SqlServerImportPersistenceUseCase(connectionString);

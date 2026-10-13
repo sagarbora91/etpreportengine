@@ -36,7 +36,7 @@ public sealed class ServiceImportSqlTests
             Assert.Single(notNeeded, file => file.FileName.StartsWith("00_", StringComparison.Ordinal));
             Assert.All(week1.Files.Where(file => file.Status is "Imported" or "empty export"), file =>
             {
-                Assert.Equal(ServiceInterimFamilies.ServiceStoreCode, file.StoreCode);
+                Assert.Equal("AW330", file.StoreCode); // the seeded Service Centre (0048); 1.12 A4 reads it from the catalogue
                 Assert.Equal(new DateOnly(2026, 9, 28), file.PeriodEnd);
             });
             Assert.Equal(35, await database.ExecuteAsync(

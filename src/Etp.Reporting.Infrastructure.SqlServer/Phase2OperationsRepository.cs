@@ -130,8 +130,8 @@ public sealed class Phase2OperationsRepository(string connectionString)
         masterType = NormalizeMasterType(masterType);
         await using var connection = await OpenAsync(cancellationToken);
         var rows = new List<ControlledMasterRow>();
-        // Service interim (0048): the business unit tells Settings > Stores that AW330 is the
-        // Service Centre, not a shop. A NULL unit is Retail, as on every database before 0048.
+        // Service interim (0048): the business unit tells Settings > Stores that the Service
+        // Centre store is not a shop. A NULL unit is Retail, as on every database before 0048.
         const string sql = """
             SELECT 'STORE',s.store_code,s.store_name,'APPROVED',s.is_active,s.modified_utc,s.modified_by,u.business_unit_code
             FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id ORDER BY s.store_code
@@ -166,8 +166,8 @@ public sealed class Phase2OperationsRepository(string connectionString)
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@type", masterType); command.Parameters.AddWithValue("@code", code); command.Parameters.AddWithValue("@name", displayName);
         command.Parameters.AddWithValue("@approval", approvalStatus); command.Parameters.AddWithValue("@active", isActive); command.Parameters.AddWithValue("@reason", reason);
-        // The MERGE never names business_unit_id, so a save keeps a store's unit (AW330 stays
-        // SERVICE). Activating a SERVICE-unit store is refused by the 0048 trigger (51900); the
+        // The MERGE never names business_unit_id, so a save keeps a store's unit (a Service Centre
+        // stays SERVICE). Activating a SERVICE-unit store is refused by the 0048 trigger (51900); the
         // statement is one batch, so nothing was written, and the Owner gets a plain message.
         // 51904 (a move out of the SERVICE unit) cannot come from this MERGE today; it is mapped
         // defensively in case the statement ever names business_unit_id.
