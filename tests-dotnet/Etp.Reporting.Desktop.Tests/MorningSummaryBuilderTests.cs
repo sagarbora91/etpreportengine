@@ -113,6 +113,25 @@ public sealed class MorningSummaryBuilderTests
     }
 
     [Fact]
+    public void A_mark_that_no_longer_applies_is_judged_like_an_ordinary_day_and_keeps_the_mark_for_withdraw()
+    {
+        // Review M-1: sales or a non-zero entry were saved after the mark; Close day no longer waives anything.
+        var mark = new NoSaleDay("SC906", Day, "CLOSED_HOLIDAY", "Festival", @"SYNTH\owner", new DateTimeOffset(2026, 10, 9, 18, 0, 0, TimeSpan.Zero))
+        {
+            NoLongerApplies = true
+        };
+        var blocked = Build(Store("SC906", "Shop Six", Workflow("SC906", missingReports: ["R022"], missingInputs: ["WALK_INS"]), noSale: mark));
+
+        var card = Assert.Single(blocked.Stores);
+        Assert.Equal(MorningStoreStatus.Blocked, card.Status);
+        Assert.False(card.IsReady);
+        Assert.Same(mark, card.NoSale);
+        Assert.Empty(blocked.ReadyStoreCodes);
+        Assert.Contains(card.Actions, action => action.Label == "Enter walk-ins");
+        Assert.NotEqual("Not needed on a no-sale day", card.Lines.Single(line => line.Label == "Entries").Detail);
+    }
+
+    [Fact]
     public void A_store_whose_day_could_not_be_read_is_not_checked_and_says_why()
     {
         var summary = Build(new MorningStoreSource("SC907", "Shop Seven", null, [], [], LoadFailure: "SQL Server did not answer in time."));

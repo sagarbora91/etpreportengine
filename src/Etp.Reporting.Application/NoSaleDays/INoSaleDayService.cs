@@ -6,7 +6,14 @@ namespace Etp.Reporting.Application.NoSaleDays;
 /// 1.12 lane N1 (decision 52): one store-day marked as a day with no sales. <see cref="Reason"/> is empty when the caller may
 /// not read it (the Viewer: the free-text reason is Owner / Store Manager only).
 /// </summary>
-public sealed record NoSaleDay(string StoreCode, DateOnly BusinessDate, string ReasonCode, string Reason, string MarkedBy, DateTimeOffset MarkedUtc);
+public sealed record NoSaleDay(string StoreCode, DateOnly BusinessDate, string ReasonCode, string Reason, string MarkedBy, DateTimeOffset MarkedUtc)
+{
+    /// <summary>
+    /// Review M-1: sales or a daily entry other than zero were saved for the store-day after it was marked. The mark no longer
+    /// applies (the day needs its normal files and entries, the DSR shows the sales) and should be withdrawn.
+    /// </summary>
+    public bool NoLongerApplies { get; init; }
+}
 
 /// <summary>
 /// Mark as no-sale day (frozen contract, 112-W2-PLAN section 4). Decision 55 (Q1 option a): a marked store-day no longer asks
@@ -61,6 +68,17 @@ public static class NoSaleDayText
 
     /// <summary>The local calendar date a mark was made.</summary>
     public static DateOnly MarkedOn(DateTimeOffset markedUtc) => DateOnly.FromDateTime(markedUtc.ToLocalTime().DateTime);
+
+    /// <summary>
+    /// Review M-1: what Close day, Morning and the Today checklist say when a mark no longer applies because sales or a daily
+    /// entry other than zero were saved for the day after it was marked.
+    /// </summary>
+    public const string NoLongerAppliesSentence =
+        "This day is marked as a no-sale day, but sales or a daily entry were saved for it afterwards, so the mark no longer applies: the day needs its normal files and entries. Withdraw the mark.";
+
+    /// <summary>"Shop One: no-sale mark no longer applies (marked by manager on 21 Aug 2026)" - short form for lists.</summary>
+    public static string NoLongerAppliesLine(string? markedBy, DateTimeOffset markedUtc) =>
+        $"No-sale mark no longer applies: sales or a daily entry were saved after it was made (marked by {Who(markedBy)} on {DisplayText.Date(MarkedOn(markedUtc))}). Withdraw the mark.";
 
     /// <summary>"No sales (marked by manager on 21 Aug 2026)" - the DSR, its PDF and the pack.</summary>
     public static string NoSalesLine(string? markedBy, DateTimeOffset markedUtc) =>

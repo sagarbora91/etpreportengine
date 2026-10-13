@@ -96,7 +96,10 @@ public static class MorningSummaryBuilder
         }
 
         lines.Add(FilesLine(workflow, refused, store.Imports, zone));
-        lines.Add(EntriesLine(workflow, store.NoSale is not null));
+        // Review M-1: a mark whose day has sales or a non-zero entry since no longer applies; the card says so (MorningView)
+        // and the day is judged like any other.
+        var markApplies = store.NoSale is { NoLongerApplies: false };
+        lines.Add(EntriesLine(workflow, markApplies));
         lines.Add(ChecksLine(workflow));
         lines.Add(SentBack(store, results, zone));
 
@@ -109,7 +112,7 @@ public static class MorningSummaryBuilder
         IReadOnlyList<string> blockers = workflow.CanFinalise ? [] : Blockers(workflow, refused);
         foreach (var entry in refused.Take(3))
             actions.Add(new("Fix " + FileName(entry.Result.ReportCode).ToLowerInvariant(), ImportFixTask, entry.Key));
-        if (!workflow.CanFinalise && store.NoSale is null)
+        if (!workflow.CanFinalise && !markApplies)
         {
             if (workflow.MissingRequiredInputs.Contains("WALK_INS", StringComparer.OrdinalIgnoreCase)) actions.Add(new("Enter walk-ins", "walk-ins"));
             if (workflow.MissingRequiredInputs.Any(code => !code.Equals("WALK_INS", StringComparison.OrdinalIgnoreCase))) actions.Add(new("Enter cash", "cash-input"));
@@ -119,11 +122,11 @@ public static class MorningSummaryBuilder
         // Decision 52: a store-day with no sales file at all can be marked as a no-sale day; N1's procedure has the last word.
         var canMark = store.NoSale is null && !workflow.ImportedReports.Contains("R025", StringComparer.OrdinalIgnoreCase);
 
-        if (store.NoSale is not null)
+        if (markApplies)
             return new(store.StoreCode, name, MorningStoreStatus.NoSaleDay, "No-sale day", MorningTone.Information, lines, blockers, actions, store.NoSale, false);
         return workflow.CanFinalise
-            ? new(store.StoreCode, name, MorningStoreStatus.Ready, "Ready", MorningTone.Success, lines, [], actions, null, canMark)
-            : new(store.StoreCode, name, MorningStoreStatus.Blocked, "Blocked", MorningTone.Critical, lines, blockers, actions, null, canMark);
+            ? new(store.StoreCode, name, MorningStoreStatus.Ready, "Ready", MorningTone.Success, lines, [], actions, store.NoSale, canMark)
+            : new(store.StoreCode, name, MorningStoreStatus.Blocked, "Blocked", MorningTone.Critical, lines, blockers, actions, store.NoSale, canMark);
     }
 
     public static IReadOnlyList<string> Blockers(DailyWorkflowState workflow, IReadOnlyList<ImportHistoryEntry> refused)

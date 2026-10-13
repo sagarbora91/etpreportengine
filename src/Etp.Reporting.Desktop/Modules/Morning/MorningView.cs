@@ -11,6 +11,7 @@ using MorningChip = EtpApplication::Etp.Reporting.Application.Morning.MorningChi
 using MorningCardLine = EtpApplication::Etp.Reporting.Application.Morning.MorningCardLine;
 using MorningMonthStartCard = EtpApplication::Etp.Reporting.Application.Morning.MorningMonthStartCard;
 using MorningFinaliseResult = EtpApplication::Etp.Reporting.Application.Morning.MorningFinaliseResult;
+using NoSaleDayText = EtpApplication::Etp.Reporting.Application.NoSaleDays.NoSaleDayText;
 
 namespace Etp.Reporting.Desktop.Modules.Morning;
 
@@ -283,7 +284,9 @@ public sealed class MorningView : UserControl, IShellScreen
 
         if (store.NoSale is { } mark)
         {
-            var marked = Styled($"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", English)})", "BodyText");
+            var marked = Styled(mark.NoLongerApplies
+                ? NoSaleDayText.NoLongerAppliesLine(mark.MarkedBy, mark.MarkedUtc)
+                : $"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", English)})", "BodyText");
             marked.Margin = DesignTokens.Gap(null, "Space8", null, null);
             panel.Children.Add(marked);
         }

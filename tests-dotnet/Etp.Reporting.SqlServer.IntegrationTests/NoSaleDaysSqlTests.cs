@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.HealthCheck;
+using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Application.NoSaleDays;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Infrastructure.SqlServer.Connections;
@@ -101,6 +102,92 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
         // History is append-only and a mark is never deleted.
         Assert.Equal(51989, await ErrorNumberAsync("DELETE dbo.no_sale_days WHERE store_code='ZN001'"));
         Assert.Equal(51989, await ErrorNumberAsync("UPDATE dbo.no_sale_day_history SET reason=N'x' WHERE store_code='ZN001'"));
+    }
+
+    /// <summary>
+    /// Review M-1 (cross-layer): the sales check of dbo.mark_no_sale_day runs only when the mark is made. A sales file imported
+    /// for the store-day afterwards (here the real R025 fixture through the real importer) must void the mark everywhere:
+    /// readiness asks for the files and entries again, Close day cannot finalise (and says the mark no longer applies), the pack
+    /// does not turn sections into "No-sale day, nothing to reconcile", the DSR prints no "No sales" line and DATA-01 does not
+    /// count it. The mark can still be withdrawn. Two fresh databases: the first only tells which store-day the fixture holds.
+    /// </summary>
+    [SqlFact]
+    public async Task A_sales_file_imported_after_the_mark_voids_it_and_finalise_needs_the_normal_checks()
+    {
+        var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R025_*.xlsx").Single();
+        string store;
+        DateOnly day;
+        var probe = new SqlDatabaseFixture();
+        try
+        {
+            await probe.InitializeAsync();
+            var first = Assert.Single((await new FolderImportService(new SqlServerImportPersistenceUseCase(probe.ConnectionString))
+                .RunAsync(path, new("Synthetic Owner"))).Files);
+            Assert.Equal("Imported", first.Status);
+            store = Convert.ToString(await probe.ExecuteAsync("SELECT TOP(1) store_code FROM dbo.sales_invoices ORDER BY transaction_date,store_code"),
+                System.Globalization.CultureInfo.InvariantCulture)!;
+            day = DateOnly.FromDateTime(Convert.ToDateTime(await probe.ExecuteAsync(
+                $"SELECT MIN(transaction_date) FROM dbo.sales_invoices WHERE store_code='{store}'"), System.Globalization.CultureInfo.InvariantCulture));
+        }
+        finally { await probe.DisposeAsync(); }
+
+        var fresh = new SqlDatabaseFixture();
+        try
+        {
+            await fresh.InitializeAsync();
+            await fresh.ExecuteAsync(
+                $"IF NOT EXISTS(SELECT 1 FROM dbo.stores WHERE store_code='{store}') INSERT dbo.stores(store_code,store_name) VALUES('{store}',N'Synthetic no-sale store');");
+            var service = new SqlServerNoSaleDayService(new TestConnections(fresh.ConnectionString));
+            var readinessQuery = new SqlServerDailyReadinessQuery(fresh.ConnectionString);
+            var workflow = new DailyReportingWorkflowRepository(fresh.ConnectionString);
+
+            await service.MarkAsync(store, day, NoSaleDayText.ClosedHoliday, "Synthetic holiday");
+            Assert.True((await workflow.LoadAsync(store, day)).IsNoSaleDay);
+            Assert.False(Assert.Single(await service.LoadAsync(day), x => x.StoreCode == store).NoLongerApplies);
+
+            // The shop's sales file for that day arrives after the mark (late file, next-morning automation).
+            var imported = Assert.Single((await new FolderImportService(new SqlServerImportPersistenceUseCase(fresh.ConnectionString))
+                .RunAsync(path, new("Synthetic Owner"))).Files);
+            Assert.Equal("Imported", imported.Status);
+            Assert.True(Convert.ToInt32(await fresh.ExecuteAsync(
+                $"SELECT COUNT(*) FROM dbo.sales_invoices WHERE store_code='{store}' AND transaction_date='{day:yyyyMMdd}'"),
+                System.Globalization.CultureInfo.InvariantCulture) > 0);
+
+            // The mark is still there (only a person withdraws it) but no longer applies.
+            var mark = Assert.Single(await service.LoadAsync(day), x => x.StoreCode == store);
+            Assert.True(mark.NoLongerApplies);
+
+            // Readiness and DATA-01: the day asks for its entries again and is not counted as a no-sale day.
+            var readiness = await readinessQuery.LoadAsync(new(day, [store], false));
+            Assert.Empty(readiness.NoSaleStoreCodes);
+            Assert.Contains(readiness.Missing, x => x.StoreCode == store && x.Code == "WALK_INS");
+            var data01 = DataProbes.EvaluateCompleteness(day, readiness, TimeSpan.Zero);
+            Assert.DoesNotContain("no-sale", data01.Explanation, StringComparison.Ordinal);
+
+            // Close day: the normal checks stand, the Owner is told the mark no longer applies, and Finalise is refused.
+            var snapshot = await workflow.LoadAsync(store, day);
+            Assert.False(snapshot.IsNoSaleDay);
+            Assert.True(snapshot.NoSaleMarkNoLongerApplies);
+            Assert.False(snapshot.CanFinalise);
+            Assert.Contains("WALK_INS", snapshot.MissingRequiredInputs);
+            Assert.StartsWith(NoSaleDayText.NoLongerAppliesSentence, snapshot.StatusMessage, StringComparison.Ordinal);
+            var pack = await new DailyReportingPackService(fresh.ConnectionString).GenerateAsync(store, day, "test");
+            Assert.DoesNotContain(pack.Sections, x => x.Message.StartsWith(DailyReportingPackService.NoSaleDaySectionPrefix, StringComparison.Ordinal));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => workflow.FinaliseAsync(store, day, "test", hasBlockingReconciliationExceptions: false));
+            Assert.NotEqual("LOCKED", Convert.ToString(await fresh.ExecuteAsync(
+                $"SELECT status FROM dbo.daily_reporting_days WHERE store_code='{store}' AND business_date='{day:yyyyMMdd}'"),
+                System.Globalization.CultureInfo.InvariantCulture));
+
+            // The DSR shows the sales and no "No sales (marked by ...)" line.
+            var dsr = await new OperationalReportRepository(fresh.ConnectionString).LoadDailySalesReportDocumentAsync(day);
+            Assert.Null(dsr.NoSaleLine(store));
+
+            // The Owner can withdraw the stale mark; the day then reads as an ordinary day.
+            await service.WithdrawAsync(store, day, "Sales file arrived");
+            Assert.DoesNotContain(await service.LoadAsync(day), x => x.StoreCode == store);
+            Assert.False((await workflow.LoadAsync(store, day)).NoSaleMarkNoLongerApplies);
+        }
+        finally { await fresh.DisposeAsync(); }
     }
 
     [SqlFact]

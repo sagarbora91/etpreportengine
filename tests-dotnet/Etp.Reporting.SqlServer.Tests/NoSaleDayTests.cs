@@ -196,6 +196,24 @@ public sealed class NoSaleDayTests
     }
 
     [Fact]
+    public void A_mark_with_sales_or_entries_saved_since_no_longer_waives_anything_in_any_reader()
+    {
+        // Review M-1: the view says whether the store-day has sales or a non-zero entry (the procedure's own refusal tests),
+        // and every reader that waives or prints a mark leaves such a mark out.
+        var view = ObjectText(ObjectFiles[0]);
+        Assert.Contains("FROM dbo.sales_invoices s WHERE s.store_code=n.store_code AND s.transaction_date=n.business_date", view, StringComparison.Ordinal);
+        Assert.Contains("COALESCE(i.numeric_value,0)<>0 OR NULLIF(LTRIM(RTRIM(i.text_value)),N'') IS NOT NULL", view, StringComparison.Ordinal);
+        Assert.Contains("AS has_day_data", view, StringComparison.Ordinal);
+        Assert.Contains("n.has_day_data=0", SqlServerDailyReadinessQuery.FactsSql, StringComparison.Ordinal);
+        Assert.Contains("n.has_day_data=0", SqlServerNoSaleDayService.DsrMarksSql, StringComparison.Ordinal);
+        Assert.Contains("CASE WHEN has_day_data=1 THEN 2 ELSE 1 END", DailyReportingWorkflowRepository.NoSaleDaySql, StringComparison.Ordinal);
+        Assert.Contains("n.has_day_data", SqlServerNoSaleDayService.LoadSql, StringComparison.Ordinal);
+        Assert.Equal(NoSaleDayText.NoLongerAppliesSentence, DailyReportingWorkflowRepository.NoSaleMarkNoLongerAppliesMessage);
+        Assert.EndsWith("Withdraw the mark.", NoSaleDayText.NoLongerAppliesLine(@"SHOPPC\manager", DateTimeOffset.UnixEpoch), StringComparison.Ordinal);
+        Assert.Contains("marked by manager", NoSaleDayText.NoLongerAppliesLine(@"SHOPPC\manager", DateTimeOffset.UnixEpoch), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Texts_name_the_marker_without_the_domain_and_the_date_in_the_screen_format()
     {
         var at = new DateTimeOffset(2026, 8, 21, 6, 30, 0, TimeSpan.Zero);

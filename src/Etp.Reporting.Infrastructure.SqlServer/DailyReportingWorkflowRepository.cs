@@ -31,6 +31,12 @@ public sealed record DailyWorkflowSnapshot(
 {
     /// <summary>1.12 N1 (decision 52): the store-day is marked as a no-sale day (no source report or entry is needed).</summary>
     public bool IsNoSaleDay { get; init; }
+
+    /// <summary>
+    /// Review M-1: the store-day is marked as a no-sale day, but sales or a daily entry other than zero were saved for it since.
+    /// The mark is ignored (<see cref="IsNoSaleDay"/> is false, the normal checks stand) and should be withdrawn.
+    /// </summary>
+    public bool NoSaleMarkNoLongerApplies { get; init; }
 }
 
 public sealed class DailyReportingWorkflowRepository(string connectionString)
@@ -55,7 +61,11 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
         var missingInputs = inputs.Where(x => x.IsRequired && !x.IsPresent).Select(x => x.FieldCode).ToArray();
         // 1.12 N1 (decision 55, Q1 option a): a day marked as a no-sale day needs no source report and no daily entry; it is
         // finalised and locked like any other day.
-        var noSaleDay = await ScalarAsync<int>(connection, NoSaleDaySql, storeCode, businessDate, cancellationToken) == 1;
+        // Review M-1: a mark whose store-day has sales or a non-zero daily entry since (2) no longer applies: the normal checks
+        // stand and the Owner is told to withdraw it.
+        var mark = await ScalarAsync<int>(connection, NoSaleDaySql, storeCode, businessDate, cancellationToken);
+        var noSaleDay = mark == 1;
+        var markNoLongerApplies = mark == 2;
         if (noSaleDay) { missingReports = []; missingInputs = []; }
         var status = ResolveStatus(storedStatus, noSaleDay ? Math.Max(1, imported.Count) : imported.Count, missingReports.Length, missingInputs.Length);
         var canFinalise = status != DailyReadinessStatus.Locked && missingReports.Length == 0 && missingInputs.Length == 0;
@@ -69,17 +79,29 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
             DailyReadinessStatus.ReadyWithWarnings => "Required sources and inputs are present; review reconciliation exceptions before finalising.",
             _ => "Required sources, inputs and controls are reconciled."
         };
-        return new(storeCode, businessDate, status, imported, missingReports, inputs, missingInputs, canFinalise, message) { IsNoSaleDay = noSaleDay };
+        if (markNoLongerApplies && status != DailyReadinessStatus.Locked) message = NoSaleMarkNoLongerAppliesMessage + " " + message;
+        return new(storeCode, businessDate, status, imported, missingReports, inputs, missingInputs, canFinalise, message)
+        {
+            IsNoSaleDay = noSaleDay,
+            NoSaleMarkNoLongerApplies = markNoLongerApplies
+        };
     }
 
     /// <summary>The Close day line for a store-day marked as a no-sale day (lane N1).</summary>
     public const string NoSaleDayStatusMessage = "Marked as a no-sale day: no source reports or daily entries are needed. Finalise the day when you are ready.";
 
-    /// <summary>1 when the store-day has a current no-sale mark, else 0. Guarded (nested IF): a database before 0068 has no view.</summary>
+    /// <summary>The Close day sentence put before the status when the store-day's no-sale mark no longer applies (review M-1).</summary>
+    public const string NoSaleMarkNoLongerAppliesMessage = Etp.Reporting.Application.NoSaleDays.NoSaleDayText.NoLongerAppliesSentence;
+
+    /// <summary>
+    /// 1 when the store-day has a current no-sale mark that applies, 2 when it has one but sales or a daily entry other than
+    /// zero were saved for the day since (the mark no longer applies, review M-1), else 0. Guarded (nested IF): a database
+    /// before 0068 has no view.
+    /// </summary>
     internal const string NoSaleDaySql = """
         DECLARE @marked int=0;
         IF OBJECT_ID(N'dbo.v_no_sale_days_current',N'V') IS NOT NULL
-          IF EXISTS(SELECT 1 FROM dbo.v_no_sale_days_current WHERE store_code=@store AND business_date=@date) SET @marked=1;
+          SELECT @marked=CASE WHEN has_day_data=1 THEN 2 ELSE 1 END FROM dbo.v_no_sale_days_current WHERE store_code=@store AND business_date=@date;
         SELECT @marked;
         """;
 

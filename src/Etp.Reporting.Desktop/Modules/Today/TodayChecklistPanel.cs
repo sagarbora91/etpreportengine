@@ -160,7 +160,8 @@ public sealed class TodayChecklistPanel : Border
             return;
         }
         // DS-03: waiting for files is amber; red is kept for a check that could not run. Only no-sale marks: information.
-        SetResourceReference(BorderBrushProperty, items.Count == 0 ? "Information" : "Warning");
+        // Review M-1: a mark that no longer applies (sales or entries saved since) asks for action: amber.
+        SetResourceReference(BorderBrushProperty, items.Count == 0 && !marks.Any(mark => mark.NoLongerApplies) ? "Information" : "Warning");
         heading.Text = items.Count == 0 ? TodayChecklist.NoSaleHeading(businessDate, marks.Count) : TodayChecklist.Heading(businessDate, items.Count);
         var buttons = NoSaleButtons?.Invoke();
         // The day's lines grouped by shop (named), then the month's targets apart from them.

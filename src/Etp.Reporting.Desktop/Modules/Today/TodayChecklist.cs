@@ -154,8 +154,9 @@ public static class TodayChecklist
             && string.Equals(line.Code, "R025", StringComparison.OrdinalIgnoreCase) && line.StoreCode.Length > 0);
 
     /// <summary>The line for a marked store-day (its exports and entries are no longer asked for): who marked it and when.</summary>
-    public static string NoSaleLine(NoSaleDay mark) =>
-        $"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", Etp.Reporting.Reporting.IndianFormat.Culture)})";
+    public static string NoSaleLine(NoSaleDay mark) => mark.NoLongerApplies
+        ? EtpApplication::Etp.Reporting.Application.NoSaleDays.NoSaleDayText.NoLongerAppliesLine(mark.MarkedBy, mark.MarkedUtc)
+        : $"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", Etp.Reporting.Reporting.IndianFormat.Culture)})";
 
     public static string NoSaleHeading(DateOnly businessDate, int stores) =>
         stores == 1 ? $"No-sale day for {businessDate:dd MMM yyyy}: 1 store" : $"No-sale days for {businessDate:dd MMM yyyy}: {stores} stores";

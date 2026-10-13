@@ -48,9 +48,10 @@ public sealed class SqlServerDailyReadinessQuery : IDailyReadinessQuery
 
         SELECT DISTINCT t.store_code FROM dbo.staff_sales_targets t WHERE t.target_month=@month;
 
-        -- 1.12 N1 (decision 52): the store-days marked as no-sale days, guarded: a database before 0068 has no view.
+        -- 1.12 N1 (decision 52): the store-days marked as no-sale days, guarded: a database before 0068 has no view. A mark
+        -- whose store-day has sales or a non-zero daily entry since (has_day_data, review M-1) no longer waives anything.
         IF OBJECT_ID(N'dbo.v_no_sale_days_current',N'V') IS NOT NULL
-          SELECT n.store_code FROM dbo.v_no_sale_days_current n WHERE n.business_date=@date;
+          SELECT n.store_code FROM dbo.v_no_sale_days_current n WHERE n.business_date=@date AND n.has_day_data=0;
         ELSE
           SELECT CAST(NULL AS varchar(30)) store_code WHERE 1=0;
         """;

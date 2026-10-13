@@ -28,12 +28,13 @@ public sealed class SqlServerNoSaleDayService : INoSaleDayService
         SET NOCOUNT ON;
         IF OBJECT_ID(N'dbo.v_no_sale_days_current',N'V') IS NULL
           SELECT CAST(NULL AS varchar(30)) store_code,CAST(NULL AS date) business_date,CAST(NULL AS varchar(30)) reason_code,
-                 CAST(NULL AS nvarchar(500)) reason,CAST(NULL AS nvarchar(100)) marked_by,CAST(NULL AS datetime2(3)) marked_utc WHERE 1=0;
+                 CAST(NULL AS nvarchar(500)) reason,CAST(NULL AS nvarchar(100)) marked_by,CAST(NULL AS datetime2(3)) marked_utc,
+                 CAST(0 AS bit) has_day_data WHERE 1=0;
         ELSE IF COALESCE(HAS_PERMS_BY_NAME(N'dbo.v_no_sale_days_current',N'OBJECT',N'SELECT',N'reason',N'COLUMN'),0)=1
-          SELECT n.store_code,n.business_date,n.reason_code,n.reason,n.marked_by,n.marked_utc
+          SELECT n.store_code,n.business_date,n.reason_code,n.reason,n.marked_by,n.marked_utc,n.has_day_data
           FROM dbo.v_no_sale_days_current n WHERE n.business_date=@date ORDER BY n.store_code;
         ELSE
-          SELECT n.store_code,n.business_date,n.reason_code,CAST(NULL AS nvarchar(500)) reason,n.marked_by,n.marked_utc
+          SELECT n.store_code,n.business_date,n.reason_code,CAST(NULL AS nvarchar(500)) reason,n.marked_by,n.marked_utc,n.has_day_data
           FROM dbo.v_no_sale_days_current n WHERE n.business_date=@date ORDER BY n.store_code;
         """;
 
@@ -58,7 +59,10 @@ public sealed class SqlServerNoSaleDayService : INoSaleDayService
                     reader.GetString(2),
                     reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
                     reader.GetString(4),
-                    new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc))));
+                    new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)))
+                {
+                    NoLongerApplies = reader.GetBoolean(6)
+                });
         }
         catch (SqlException exception) when (exception.Number is 229 or 230)
         {
@@ -124,12 +128,13 @@ public sealed class SqlServerNoSaleDayService : INoSaleDayService
 
     /// <summary>
     /// The DSR's marks for a business date (OperationalReportRepository): store and the printed line only, so it needs no
-    /// access to the reason. Guarded: a database before 0068 returns none.
+    /// access to the reason. Guarded: a database before 0068 returns none. A mark whose store-day has sales or a non-zero
+    /// daily entry since (has_day_data, review M-1) is left out: the DSR never prints "No sales" over real sales.
     /// </summary>
     internal const string DsrMarksSql = """
         SET NOCOUNT ON;
         IF OBJECT_ID(N'dbo.v_no_sale_days_current',N'V') IS NOT NULL
-          SELECT n.store_code,n.marked_by,n.marked_utc FROM dbo.v_no_sale_days_current n WHERE n.business_date=@date ORDER BY n.store_code;
+          SELECT n.store_code,n.marked_by,n.marked_utc FROM dbo.v_no_sale_days_current n WHERE n.business_date=@date AND n.has_day_data=0 ORDER BY n.store_code;
         """;
 
     internal static async Task<IReadOnlyList<Etp.Reporting.Reporting.DsrNoSaleDay>> LoadDsrMarksAsync(string connectionString, DateOnly businessDate, CancellationToken ct)
