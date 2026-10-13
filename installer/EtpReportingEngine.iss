@@ -34,6 +34,10 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupLogging=yes
+; 1.12 (B1). The in-app update compares the setup file's ProductVersion with the signed release.json before running it,
+; so the version must be exactly AppVersion ("1.12.0"), not Inno's default.
+VersionInfoVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
 
 [Files]
 Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -66,6 +70,9 @@ Name: "newdatabase"; Description: "Create a new empty ETP database if this PC ha
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent; Check: ShouldOfferLaunch
+; 1.12 (B1). An in-app update (/ETPUPDATE=1, always silent) starts ETP again, only when setup succeeded, and as the user who
+; started setup - not as the administrator setup elevated to (ETP is never meant to run elevated; AUDIT-2 S-13).
+Filename: "{app}\{#AppExeName}"; Description: "Start {#AppName} again"; Flags: nowait postinstall runasoriginaluser; Check: ShouldRestartAfterUpdate
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\SqlSetupMedia"
@@ -96,11 +103,76 @@ const
 var
   MandatorySetupFailed: Boolean;
   DatabaseRestorePending: Boolean;
+  // 1.12 (B1): for setup-result.json of an in-app update.
+  SetupFinished: Boolean;
+  EtpStillRunning: Boolean;
 
 // A failed setup, or one waiting for a restore, has no database ETP can open yet.
 function ShouldOfferLaunch(): Boolean;
 begin
   Result := (not MandatorySetupFailed) and (not DatabaseRestorePending);
+end;
+
+// 1.12 (B1). Started by ETP's in-app update: /ETPUPDATE=1 /ETPATTEMPT=<32 lower-case hex>.
+function IsEtpUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:ETPUPDATE|0}') = '1';
+end;
+
+// The attempt id is copied into setup-result.json, so only the exact form ETP writes is accepted.
+function EtpUpdateAttemptId(): String;
+var
+  I: Integer;
+begin
+  Result := ExpandConstant('{param:ETPATTEMPT|}');
+  if Length(Result) <> 32 then
+  begin
+    Result := '';
+    Exit;
+  end;
+  for I := 1 to Length(Result) do
+    if Pos(Result[I], '0123456789abcdef') = 0 then
+    begin
+      Result := '';
+      Exit;
+    end;
+end;
+
+function ShouldRestartAfterUpdate(): Boolean;
+begin
+  Result := IsEtpUpdate() and ShouldOfferLaunch();
+end;
+
+// %ProgramData%\EtpReporting\Updates\setup-result.json, read by ETP at its next start (UpdateSetupResult). Fixed reason
+// codes only. Written only when the folder exists (setup prepares it; an in-app update cannot start without it).
+procedure RecordEtpUpdateResult();
+var
+  Folder, Outcome, Reason: String;
+begin
+  Folder := ExpandConstant('{commonappdata}\EtpReporting\Updates');
+  if not DirExists(Folder) then Exit;
+  if EtpStillRunning then
+  begin
+    Outcome := 'FAILED'; Reason := 'ETP_STILL_RUNNING';
+  end
+  else if MandatorySetupFailed then
+  begin
+    Outcome := 'FAILED'; Reason := 'SETUP_STEP_FAILED';
+  end
+  else if DatabaseRestorePending then
+  begin
+    Outcome := 'FAILED'; Reason := 'DATABASE_RESTORE_PENDING';
+  end
+  else if SetupFinished then
+  begin
+    Outcome := 'SUCCEEDED'; Reason := '';
+  end
+  else
+  begin
+    Outcome := 'CANCELLED'; Reason := 'SETUP_CANCELLED';
+  end;
+  SaveStringToFile(Folder + '\setup-result.json',
+    '{"attemptId":"' + EtpUpdateAttemptId() + '","version":"{#AppVersion}","outcome":"' + Outcome + '","reason":"' + Reason + '"}', False);
 end;
 
 function RestoreInstructions(): String;
@@ -141,6 +213,8 @@ end;
 
 procedure DeinitializeSetup();
 begin
+  if IsEtpUpdate() then
+    RecordEtpUpdateResult();
   if MandatorySetupFailed then
     ExitProcess(SetupIncompleteExitCode);
 end;
@@ -151,12 +225,26 @@ end;
 // setup failure. Setup never closes the application itself: it may be holding cash or
 // walk-in entries behind its own unsaved-draft guards.
 function InitializeSetup(): Boolean;
+var
+  Waited: Integer;
 begin
   Result := True;
+  // 1.12 (B1). ETP starts this setup and then closes itself: give it up to two minutes to finish closing. After that the
+  // rule below is unchanged: setup never closes ETP.
+  if IsEtpUpdate() then
+  begin
+    Waited := 0;
+    while CheckForMutexes('{#AppMutexName}') and (Waited < 240) do
+    begin
+      Sleep(500);
+      Waited := Waited + 1;
+    end;
+  end;
   if CheckForMutexes('{#AppMutexName}') then
   begin
     Result := False;
     MandatorySetupFailed := True;
+    EtpStillRunning := True;
     if not WizardSilent then
       MsgBox('ETP Reporting Engine is running. Close it and run setup again. Setup will not close it for you, because it may be holding entries that have not been saved.', mbError, MB_OK);
   end;
@@ -210,4 +298,6 @@ begin
     else
       RecordSetupOutcome(True, '');
   end;
+  if CurStep = ssDone then
+    SetupFinished := True;
 end;
