@@ -303,7 +303,7 @@ public sealed class ServiceTodayViewTests
             Assert.Equal(view.Cards.Select(card => card.Value), export.Data.Rows.Select(row => (string)row[1]!));
             Assert.DoesNotContain(export.Data.Columns, column => ForbiddenHeaderWords.Any(word => column.Header.Contains(word, StringComparison.OrdinalIgnoreCase)));
             Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), (export.Metadata.DateFrom, export.Metadata.DateTo));
-            Assert.Equal(ServiceScreenView.ServiceCentreLabel, export.Metadata.AppliedScope);
+            Assert.Equal(ServiceScreenView.DefaultCentreLabel, export.Metadata.AppliedScope);
         });
     }
 

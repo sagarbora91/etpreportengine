@@ -46,9 +46,9 @@ public sealed class ServicePartsView : ServiceScreenView
     /// <summary>The caption above the jobs-waiting grid (SVC-26); the full explanation is <see cref="NoLinkExplanation"/>, behind its tooltip.</summary>
     public const string NoLinkText = "Not linked to purchase invoices";
     public const string NoLinkExplanation = "No data link exists between a pending job and a purchase invoice: the Service exports carry none. The two lists are shown side by side and are not joined.";
-    public const string WaitingTitle = "Jobs waiting for parts (S009)";
+    public const string WaitingTitle = "Jobs waiting for parts";
     public const string LinesTitle = "Invoice lines";
-    public const string GitTitle = "Goods in transit (S013), last 30 days";
+    public const string GitTitle = "Goods in transit, last 30 days";
     public const string NoLinesText = "Select an invoice to see its lines.";
 
     private readonly ServiceExcelExport export;
@@ -71,7 +71,7 @@ public sealed class ServicePartsView : ServiceScreenView
 
     public ServicePartsView(Func<ServiceReportQuery> query, ServiceExcelExport export, Action<string>? openJob = null)
         : base("Service parts and purchases",
-            "Purchase invoices created (S007) against received (S008): open until a GRN or received date is exported. Days open count from the invoice date to the Service snapshot while open, and to the received date once closed.",
+            "Purchase invoices created against received: open until a GRN or received date is exported. Days open count from the invoice date to the Service snapshot while open, and to the received date once closed.",
             "Service.Parts", "SERVICE_PARTS_LOAD_FAILED", query, export)
     {
         this.export = export;
@@ -235,9 +235,9 @@ public sealed class ServicePartsView : ServiceScreenView
     }
 
     public static string DescribeClosingStock(ServiceParts parts) => parts.Stock is { } stock
-        ? ServiceDisplay.Text($"Latest closing stock (S006) as at {stock.SnapshotDate:dd MMM yyyy}: {stock.Items:N0} items") +
+        ? ServiceDisplay.Text($"Latest closing stock as at {stock.SnapshotDate:dd MMM yyyy}: {stock.Items:N0} items") +
           (stock.Quantity is { } quantity ? ServiceDisplay.Text($", quantity {quantity:N0}") : "") + (stock.Value is { } value ? ServiceDisplay.Text($", value {value:N2}") : "") + "."
-        : "No S006 closing stock reading imported yet.";
+        : "No closing stock reading imported yet.";
 
     /// <summary>Shows the lines of one invoice below the grid. Selecting a row does it; tests call it by number.</summary>
     public void SelectInvoice(string invoiceNumber)
@@ -266,7 +266,7 @@ public sealed class ServicePartsView : ServiceScreenView
         NumbersPanel.Children.Add(new KpiCard("Oldest open", numbers.OldestOpenDays is { } days ? ServiceDisplay.Text($"{days:N0} days") : "—",
             numbers.OldestOpenInvoice is { } invoice ? $"invoice {invoice}" : "no open invoice", numbers.OldestOpenDays > 30 ? ServiceUi.StripeActToday : ServiceUi.StripeNone));
         NumbersPanel.Children.Add(new KpiCard("Received this month", ServiceDisplay.Whole(numbers.ReceivedThisMonth), ServiceDisplay.Month(numbers.AsOf), ServiceUi.StripeNone));
-        NumbersPanel.Children.Add(new KpiCard("Jobs waiting for parts", ServiceDisplay.Whole(numbers.JobsWaitingForParts), "latest S009 list", numbers.JobsWaitingForParts == 0 ? ServiceUi.StripeFine : ServiceUi.StripeLookThisWeek));
+        NumbersPanel.Children.Add(new KpiCard("Jobs waiting for parts", ServiceDisplay.Whole(numbers.JobsWaitingForParts), "latest pending list", numbers.JobsWaitingForParts == 0 ? ServiceUi.StripeFine : ServiceUi.StripeLookThisWeek));
         NumbersPanel.Children.Add(new KpiCard("GIT lines, last 30 days", ServiceDisplay.Whole(numbers.GitLinesLast30Days), ServiceDisplay.Text($"to {numbers.AsOf:dd MMM yyyy}"), ServiceUi.StripeNone));
     }
 
@@ -329,7 +329,7 @@ public sealed class ServicePartsView : ServiceScreenView
     {
         var (from, to) = WaitingExportPeriod;
         var metadata = new ExcelReportMetadata("Service jobs waiting for parts", from, to, "Read only", ExportRuleVersion,
-            AsAtText, DateTimeOffset.UtcNow, ServiceCentreLabel);
+            AsAtText, DateTimeOffset.UtcNow, CentreLabel);
         await export(path, metadata, BuildWaitingExportData());
     }
 
@@ -389,7 +389,7 @@ public sealed class ServicePartsView : ServiceScreenView
     }
 
     protected override string EmptyRowsText => parts.Invoices.Count == 0
-        ? "No purchase invoices (S007/S008) imported yet."
+        ? "No purchase invoices imported yet."
         : "No purchase invoice matches these filters.";
     protected override string Summarise(int count) =>
         ServiceDisplay.Text($"{count:N0} invoice{(count == 1 ? "" : "s")} · open first, oldest first") + (OpenOnly ? " · open only" : "") +

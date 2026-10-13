@@ -212,6 +212,11 @@ WITH live AS (
   FROM facts_by_job u WHERE u.job_order_number IS NOT NULL GROUP BY u.job_order_number
 ), snap AS (
   SELECT MAX(snapshot_date) as_at FROM live
+), centres AS (
+  SELECT s.store_code,s.service_job_prefix FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
+  WHERE u.unit_kind='SERVICE' AND s.service_job_prefix IS NOT NULL
+), only_centre AS (
+  SELECT CASE WHEN COUNT(*)=1 THEN MIN(store_code) END store_code FROM centres
 )
 SELECT a.job_order_number,bd.booking_date,COALESCE(a.ls_jo_type,N'Booking') jo_type,a.ls_exported_status exported_status,
   COALESCE(a.sv_brand,a.st9_brand,a.ls_brand,a.srn_brand,a.w_brand) brand,COALESCE(a.sv_model,a.st9_model) model,
@@ -221,10 +226,10 @@ SELECT a.job_order_number,bd.booking_date,COALESCE(a.ls_jo_type,N'Booking') jo_t
   COALESCE(a.sv_guarantee,a.ls_guarantee) guarantee,COALESCE(a.sv_customer_type,a.ls_customer_type) customer_type,
   COALESCE(a.st9_s009_edd,a.sv_edd) edd,sg.stage,sd.stage_date,
   CASE WHEN sg.stage IN('DELIVERED','RWR') THEN NULL
-       WHEN sg.stage IN('IN_TRANSIT_BACK','READY_FOR_DELIVERY') AND a.st9_in_s010=1 THEN COALESCE(a.st9_s010_store,N'AW330')
-       WHEN sg.stage='SRN_OUT' THEN COALESCE(a.srn_to_store,a.st9_s009_store,a.sv_srn_to_store_code,N'AW330')
-       WHEN a.st9_in_s009=1 THEN COALESCE(a.st9_s009_store,N'AW330')
-       ELSE N'AW330' END pending_at,
+       WHEN sg.stage IN('IN_TRANSIT_BACK','READY_FOR_DELIVERY') AND a.st9_in_s010=1 THEN COALESCE(a.st9_s010_store,jc.store_code)
+       WHEN sg.stage='SRN_OUT' THEN COALESCE(a.srn_to_store,a.st9_s009_store,a.sv_srn_to_store_code,jc.store_code)
+       WHEN a.st9_in_s009=1 THEN COALESCE(a.st9_s009_store,jc.store_code)
+       ELSE jc.store_code END pending_at,
   a.st9_spare_required spare_required,COALESCE(a.st9_s009_indent_date,a.sv_indent_date) indent_date,
   COALESCE(a.srn_srn_date,a.sv_srn_issued_date) srn_date,COALESCE(a.srn_to_store,a.sv_srn_to_store_code) srn_to_store,
   COALESCE(a.sv_delivered_repair_date,a.w_repair_date,a.sv_pd_repair_date,a.st9_s010_repair_date) repair_date,COALESCE(a.sv_delivery_date,a.w_delivered_date) delivery_date,
@@ -245,16 +250,21 @@ SELECT a.job_order_number,bd.booking_date,COALESCE(a.ls_jo_type,N'Booking') jo_t
   a.last_reading_date,snap.as_at,
   CASE sg.stage WHEN 'DC_ISSUED' THEN a.o_wdc_claim_date WHEN 'RA_ISSUED' THEN a.o_wra_claim_date END claim_date,
   CASE WHEN sg.stage IN('DELIVERED','RWR') THEN sd.stage_date WHEN sg.stage='DC_ISSUED' AND COALESCE(a.o_wdc_claimed,0)=1 THEN a.o_wdc_claim_date
-       WHEN sg.stage='RA_ISSUED' AND COALESCE(a.o_wra_claimed,0)=1 THEN a.o_wra_claim_date END closed_date
+       WHEN sg.stage='RA_ISSUED' AND COALESCE(a.o_wra_claimed,0)=1 THEN a.o_wra_claim_date END closed_date,
+  jc.store_code service_store_code
 FROM agg a
 CROSS JOIN snap
+CROSS JOIN only_centre oc
+OUTER APPLY (SELECT COALESCE((SELECT TOP (1) c.store_code FROM centres c
+    WHERE a.job_order_number LIKE CONVERT(nvarchar(20),c.service_job_prefix)+N'%' ORDER BY LEN(c.service_job_prefix) DESC,c.store_code),
+  oc.store_code) store_code) jc
 CROSS APPLY (SELECT MIN(v.d) booking_date FROM (VALUES(a.ls_s002_created),(a.ls_list_created),(a.sv_job_date),(a.st9_s009_job_date),(a.st9_s010_job_date),(a.srn_job_date),(a.w_srf_date)) v(d)) bd
 CROSS APPLY (SELECT
   CASE WHEN a.sv_in_delivered=1 OR a.w_is_delivered=1 THEN 'DELIVERED'
        WHEN a.sv_in_rwr=1 OR a.w_is_rwr=1 THEN 'RWR'
        WHEN a.sv_in_dc=1 THEN 'DC_ISSUED'
        WHEN a.sv_in_ra=1 THEN 'RA_ISSUED'
-       WHEN a.st9_in_s010=1 AND COALESCE(a.st9_s010_store,N'')<>N'AW330' THEN 'IN_TRANSIT_BACK'
+       WHEN a.st9_in_s010=1 AND COALESCE(a.st9_s010_store,N'')<>COALESCE(jc.store_code,N'') THEN 'IN_TRANSIT_BACK'
        WHEN a.st9_in_s010=1 OR a.sv_in_pd=1 THEN 'READY_FOR_DELIVERY'
        WHEN a.st9_in_s009=1 THEN
          CASE WHEN a.st9_s009_status LIKE 'SRN%' AND a.st9_s009_status<>'SRN_For_Repair' THEN 'SRN_OUT'

@@ -34,7 +34,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
 
     public ServiceMoneyView(Func<ServiceReportQuery> query, ServiceExcelExport export)
         : base("Service money check",
-            "S004 tender collection from the Service centre beside the manual Service cash, card and UPI entries. The manual entries stay the cash-book figures; this screen only compares them.",
+            "The Service centre's own tender collection export beside the manual Service cash, card and UPI entries. The manual entries stay the cash-book figures; this screen only compares them.",
             "Service.Money", "SERVICE_MONEY_LOAD_FAILED", query, export)
     {
         var today = DateTime.Today;
@@ -54,7 +54,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
         FilterBar.Children.Add(show);
         SetColumns(
         [
-            new("Date", DisplayFormat: "dd MMM yyyy"), new("Tender", Width: 110), new("S004 amount", "#,##0.00", "N2", 130),
+            new("Date", DisplayFormat: "dd MMM yyyy"), new("Tender", Width: 110), new("Collected (export)", "#,##0.00", "N2", 130),
             new("Manual amount", "#,##0.00", "N2", 130), new("Difference", "#,##0.00", "N2", 120, NonZeroBrush: "Critical", ZeroBrush: "Success"), new("Manual entries from", Width: 200)
         ]);
 
@@ -136,7 +136,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
     }
 
     private bool HasS004Reading => Refreshes.Any(refresh => string.Equals(refresh.ReportCode, "S004", StringComparison.OrdinalIgnoreCase));
-    private string S004Note => HasS004Reading ? "" : " No S004 reading is imported yet, so only the manual entries are shown.";
+    private string S004Note => HasS004Reading ? "" : " No tender collection export is imported yet, so only the manual entries are shown.";
 
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {

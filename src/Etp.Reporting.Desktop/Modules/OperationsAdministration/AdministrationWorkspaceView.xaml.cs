@@ -2,7 +2,10 @@ extern alias EtpApplication;
 
 using System.Windows;
 using System.Windows.Controls;
+using Etp.Reporting.Desktop.Modules.Service;
 using IAdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IAdministrationService;
+using ServiceCentre = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentre;
+using ServiceCentreRules = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules;
 
 namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;
 
@@ -26,12 +29,19 @@ public partial class AdministrationWorkspaceView : UserControl
         UserActiveInput.Checked += (_, _) => UpdateSaveUserAccessState();
         UserActiveInput.Unchecked += (_, _) => UpdateSaveUserAccessState();
         MasterCodeInput.TextChanged += (_, _) => UpdateMasterActiveState();
+        MasterServiceInput.Checked += (_, _) => UpdateMasterActiveState();
+        MasterServiceInput.Unchecked += (_, _) => UpdateMasterActiveState();
     }
 
-    // Service interim (0048). AW330 is the Service Centre, not a shop: the database refuses to
-    // make it active (51900), so Settings > Stores turns the Active toggle off for it before
+    // Service interim (0048). A Service Centre store is not a shop: the database refuses to
+    // make it active (51900, 51972), so Settings > Stores turns the Active toggle off for it before
     // the Owner can try. Retail codes keep the toggle exactly as before.
+    // 1.12 A4: the Owner can add a Service Centre here: tick "Service Centre" and give its job-number
+    // prefix (JO and the store code is offered). An existing Service Centre's code ticks the box and
+    // fills its prefix; an existing shop store's code leaves the box off (a store never changes kind).
     private IReadOnlySet<string> serviceStoreCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlySet<string> shopStoreCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<ServiceCentre> serviceCentres = [];
     private object? masterActiveToolTip;
     private bool masterActiveToolTipCaptured;
     private bool masterActiveBeforeLock = true;
@@ -46,14 +56,53 @@ public partial class AdministrationWorkspaceView : UserControl
     /// <summary>Types a store code into the editor, as the Owner would (tests use it).</summary>
     public void TypeMasterCode(string code) => MasterCodeInput.Text = code;
 
+    /// <summary>Ticks or clears "Service Centre", as the Owner would (tests use it).</summary>
+    public void SetMasterServiceCentre(bool value) => MasterServiceInput.IsChecked = value;
+
+    /// <summary>Types the job-number prefix, as the Owner would (tests use it).</summary>
+    public void TypeMasterPrefix(string prefix) => MasterPrefixInput.Text = prefix;
+
+    /// <summary>Types the store name and the reason, as the Owner would (tests use it).</summary>
+    public void TypeMasterNameAndReason(string name, string reason) { MasterNameInput.Text = name; MasterReasonInput.Text = reason; }
+
+    public bool MasterServiceChecked => MasterServiceInput.IsChecked == true;
+    public bool CanToggleMasterService => MasterServiceInput.IsEnabled;
+    public bool CanTypeMasterPrefix => MasterPrefixInput.IsEnabled;
+    public string MasterPrefixText => MasterPrefixInput.Text;
+
+    /// <summary>The Service Centres the editor knows (from the catalogue at refresh); a test may set them.</summary>
+    internal IReadOnlyList<ServiceCentre> ServiceCentres { get => serviceCentres; set { serviceCentres = value ?? []; UpdateMasterActiveState(); } }
+
+    private bool updatingServiceState;
+
+    private void UpdateServiceCentreState()
+    {
+        var code = MasterCodeInput.Text.Trim();
+        var existingService = serviceStoreCodes.Contains(code);
+        var existingShop = !existingService && shopStoreCodes.Contains(code);
+        if (existingService) MasterServiceInput.IsChecked = true;
+        else if (existingShop) MasterServiceInput.IsChecked = false;
+        MasterServiceInput.IsEnabled = !existingService && !existingShop;
+        var service = MasterServiceInput.IsChecked == true;
+        MasterPrefixInput.IsEnabled = service;
+        if (!service) return;
+        if (MasterPrefixInput.Text.Trim().Length == 0)
+            MasterPrefixInput.Text = serviceCentres.FirstOrDefault(centre => string.Equals(centre.StoreCode, code, StringComparison.OrdinalIgnoreCase))?.JobNumberPrefix
+                ?? ServiceCentreRules.SuggestedPrefix(code);
+    }
+
     private void UpdateMasterActiveState()
     {
+        if (updatingServiceState) return;
+        updatingServiceState = true;
+        try { UpdateServiceCentreState(); }
+        finally { updatingServiceState = false; }
         if (!masterActiveToolTipCaptured) { masterActiveToolTip = MasterActiveInput.ToolTip; masterActiveToolTipCaptured = true; }
-        var locked = serviceStoreCodes.Contains(MasterCodeInput.Text.Trim());
+        var locked = serviceStoreCodes.Contains(MasterCodeInput.Text.Trim()) || MasterServiceInput.IsChecked == true;
         var wasLocked = MasterActiveLockedForServiceStore;
         MasterActiveLockedForServiceStore = locked;
-        // Remember the Owner's tick when AW330 locks the box and give it back when the code
-        // stops being AW330, so the Retail store saved next is never switched off by accident.
+        // Remember the Owner's tick when a Service Centre code locks the box and give it back when the
+        // code stops being one, so the Retail store saved next is never switched off by accident.
         if (locked && !wasLocked) masterActiveBeforeLock = MasterActiveInput.IsChecked == true;
         if (locked) MasterActiveInput.IsChecked = false;
         else if (wasLocked) MasterActiveInput.IsChecked = masterActiveBeforeLock;
@@ -133,6 +182,9 @@ public partial class AdministrationWorkspaceView : UserControl
             var state = session.Capture(dashboard);
             ControlledMastersGrid.ItemsSource = state.MasterRows;
             serviceStoreCodes = state.ServiceStoreCodes;
+            shopStoreCodes = state.ShopStoreCodes;
+            serviceCentres = await ServiceCentreServices.LoadOrEmptyAsync();
+            if (revision != refreshRevision) return;
             UpdateMasterActiveState();
             ApplicationUsersGrid.ItemsSource = state.Users;
             KpiCatalogueGrid.ItemsSource = state.Kpis;
@@ -195,9 +247,15 @@ public partial class AdministrationWorkspaceView : UserControl
         try
         {
             RequireOwnerAccess();
-            await Service.SaveMasterAsync(OperationsAdministrationPresentationSession.CreateMasterCommand(
-                SelectedContent(MasterTypeInput), MasterCodeInput.Text, MasterNameInput.Text,
-                SelectedContent(MasterApprovalInput), MasterActiveInput.IsChecked == true, MasterReasonInput.Text));
+            if (MasterServiceInput.IsChecked == true)
+            {
+                if (!await SaveServiceCentreDraftAsync()) return false;
+            }
+            else
+                await Service.SaveMasterAsync(OperationsAdministrationPresentationSession.CreateMasterCommand(
+                    SelectedContent(MasterTypeInput), MasterCodeInput.Text, MasterNameInput.Text,
+                    SelectedContent(MasterApprovalInput), MasterActiveInput.IsChecked == true, MasterReasonInput.Text));
+            MasterServiceInput.IsChecked = false; MasterPrefixInput.Clear();
             MasterCodeInput.Clear(); MasterNameInput.Clear(); MasterReasonInput.Clear();
             masterBaselines[editingMaster] = CaptureMaster();
             await RefreshAsync();
@@ -206,6 +264,29 @@ public partial class AdministrationWorkspaceView : UserControl
         }
         catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "MASTER_VALUE_SAVE_FAILED"); AdministrationStatus.Text = DesktopDiagnostics.WithReference($"Master value was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", reference); return false; }
         finally { EndSave(); }
+    }
+
+    /// <summary>
+    /// 1.12 A4: saves the editor as a Service Centre store (Owner). A missing or malformed prefix, or one that overlaps
+    /// another centre's, is refused here in plain words before anything is sent; the database refuses the same (0067).
+    /// </summary>
+    private async Task<bool> SaveServiceCentreDraftAsync()
+    {
+        var code = MasterCodeInput.Text.Trim();
+        var prefix = MasterPrefixInput.Text.Trim().ToUpperInvariant();
+        var others = serviceCentres.Where(centre => !string.Equals(centre.StoreCode, code, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (OperationsAdministrationPresentationSession.ServiceCentreDraftProblem(code, MasterNameInput.Text, prefix, MasterReasonInput.Text, others) is { } problem)
+        {
+            AdministrationStatus.Text = "Service Centre was not saved: " + problem;
+            return false;
+        }
+        if (ServiceCentreServices.Administration is not { } administration)
+        {
+            AdministrationStatus.Text = "Service Centre was not saved: adding a Service Centre is not available in this window. Reopen ETP and try again.";
+            return false;
+        }
+        await administration().SaveServiceCentreAsync(code, MasterNameInput.Text.Trim(), prefix, MasterReasonInput.Text.Trim());
+        return true;
     }
 
     private async void SaveUserAccess_Click(object sender, RoutedEventArgs e) => await SaveUserDraftAsync();

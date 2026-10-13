@@ -151,7 +151,7 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
             ("Current stage", stage),
             (closed ? "TAT" : "Days open", days),
             ("EDD", job.Edd is { } edd ? ServiceDisplay.Date(edd) : "—"),
-            ("Labour / spares (S003)", $"Labour {Money(job.LabourCharge)} · Spares {Money(job.SpareValue)}")
+            ("Labour / spares", $"Labour {Money(job.LabourCharge)} · Spares {Money(job.SpareValue)}")
         };
         if (!closed && job.SpareRequired is { Length: > 0 }) items.Add(("Spare required", job.SpareRequired));
         return items;

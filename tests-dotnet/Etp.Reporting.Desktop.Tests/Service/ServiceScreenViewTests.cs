@@ -49,7 +49,7 @@ public sealed class ServiceScreenViewTests
             Assert.Equal("Out of Warranty", rwr.Cells[11]);
             Assert.Equal("Sample Customer 03", rwr.Cells[12]);
             Assert.Same(view.Rows, view.Table.ItemsSource);
-            Assert.Contains(Descendants<TextBlock>(view), block => block.Text.StartsWith(ServiceScreenView.ServiceCentreLabel, StringComparison.Ordinal));
+            Assert.Contains(Descendants<TextBlock>(view), block => block.Text.StartsWith(ServiceScreenView.DefaultCentreLabel + " · read only", StringComparison.Ordinal));
         });
     }
 
@@ -284,7 +284,7 @@ public sealed class ServiceScreenViewTests
             Assert.Equal("JOAW330SYN0101", query.LastJob);
             Assert.Equal("JOAW330SYN0101", view.SearchedJobNumber);
             Assert.True(view.IsHeaderVisible);
-            Assert.Equal(["Job number", "Booked on", "Brand / model / product", "Guarantee", "Customer type", "Customer name", "Current stage", "TAT", "EDD", "Labour / spares (S003)"],
+            Assert.Equal(["Job number", "Booked on", "Brand / model / product", "Guarantee", "Customer type", "Customer name", "Current stage", "TAT", "EDD", "Labour / spares"],
                 view.HeaderItems.Select(item => item.Label));
             Assert.Equal("JOAW330SYN0101", view.HeaderItems[0].Value);
             Assert.Equal("20 Sept 2026 · Booking", view.HeaderItems[1].Value);
@@ -368,7 +368,7 @@ public sealed class ServiceScreenViewTests
         Assert.Equal("Indent raised, parts awaited · 25 Sept 2026 · at AW330", items.Single(item => item.Label == "Current stage").Value);
         Assert.Equal("Open 20 days · 10 in this stage · EDD passed", items.Single(item => item.Label == "Days open").Value);
         Assert.Equal("Crown", items.Single(item => item.Label == "Spare required").Value);
-        Assert.Equal("Labour — · Spares —", items.Single(item => item.Label == "Labour / spares (S003)").Value);
+        Assert.Equal("Labour — · Spares —", items.Single(item => item.Label == "Labour / spares").Value);
         Assert.DoesNotContain(items, item => item.Label == "TAT");
         var dc = ServiceJobHistoryView.DescribeHeader(FakeServiceQuery.Jobs.Single(job => job.JobOrderNumber == "JOAW330SYN0108"));
         Assert.Equal("DC issued · 29 Sept 2026 · claim not raised · at AW330", dc.Single(item => item.Label == "Current stage").Value);
@@ -555,7 +555,7 @@ public sealed class ServiceScreenViewTests
             Assert.Equal((today.AddDays(-30), today), query.LastMoneyRange);
             Assert.Equal(3, view.Rows.Count);
             Assert.Same(view.Rows, view.Table.ItemsSource);
-            Assert.EndsWith(" No S004 reading is imported yet, so only the manual entries are shown.", view.StatusText, StringComparison.Ordinal);
+            Assert.EndsWith(" No tender collection export is imported yet, so only the manual entries are shown.", view.StatusText, StringComparison.Ordinal);
             Assert.DoesNotContain(ServiceScreenView.NoDataText, view.StatusText);
             Assert.Single(view.UnmatchedRows);
             Assert.Single(view.ChangeRows);
@@ -614,7 +614,7 @@ public sealed class ServiceScreenViewTests
             Assert.All(export.Data.Rows, row => Assert.Equal(export.Data.Columns.Count, row.Count));
             Assert.DoesNotContain(export.Data.Columns, column => ForbiddenHeaderWords.Any(word => column.Header.Contains(word, StringComparison.OrdinalIgnoreCase)));
             Assert.DoesNotContain(ForbiddenHeaderWords, word => export.Metadata.Message.Contains(word, StringComparison.OrdinalIgnoreCase));
-            Assert.Equal(ServiceScreenView.ServiceCentreLabel, export.Metadata.AppliedScope);
+            Assert.Equal(ServiceScreenView.DefaultCentreLabel, export.Metadata.AppliedScope);
             Assert.StartsWith(view.AsAtText, export.Metadata.Message, StringComparison.Ordinal);
             if (screen is "jobs") Assert.Contains("Customer name", export.Data.Columns.Select(column => column.Header));
             // SD-09: the export period is the screen's range, not today; history also carries the header card in the message line.

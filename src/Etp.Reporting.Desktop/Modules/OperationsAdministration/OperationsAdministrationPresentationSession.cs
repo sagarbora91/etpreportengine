@@ -65,7 +65,7 @@ public sealed record ProductSettingsPresentation(
 /// <summary>
 /// One row of the Settings > Stores grid. Its columns are those of ControlledMaster, so Retail
 /// rows look exactly as before; a Service Centre store (0048) reads
-/// "Service Centre (AW330), Service, not a shop store" (the 0048 trigger keeps it inactive).
+/// "Service Centre (code), Service, not a shop store" (the 0048 trigger keeps it inactive).
 /// </summary>
 public sealed record ControlledMasterPresentation(
     string MasterType,
@@ -104,6 +104,11 @@ public sealed record AdministrationPresentationState(
     /// <summary>Codes of Service Centre stores: Settings > Stores never lets them be made active.</summary>
     public IReadOnlySet<string> ServiceStoreCodes => Masters
         .Where(master => ServiceCentreStores.IsServiceUnit(master.BusinessUnitCode))
+        .Select(master => master.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Codes of shop (Retail) stores: Settings > Stores never offers to make them a Service Centre (1.12 A4).</summary>
+    public IReadOnlySet<string> ShopStoreCodes => Masters
+        .Where(master => !ServiceCentreStores.IsServiceUnit(master.BusinessUnitCode))
         .Select(master => master.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -206,6 +211,20 @@ public sealed class OperationsAdministrationPresentationSession
         bool isActive,
         string reason) =>
         new(masterType, code, displayName, approvalStatus, isActive, reason);
+
+    /// <summary>
+    /// 1.12 A4: the plain reason a Service Centre draft cannot be saved (code, name, reason, prefix shape, overlap with
+    /// <paramref name="otherCentres"/>), or null when it can.
+    /// </summary>
+    public static string? ServiceCentreDraftProblem(string code, string name, string prefix, string reason,
+        IReadOnlyList<EtpApplication::Etp.Reporting.Application.Stores.ServiceCentre> otherCentres)
+    {
+        ArgumentNullException.ThrowIfNull(otherCentres);
+        if (string.IsNullOrWhiteSpace(code)) return "Enter the store code.";
+        if (string.IsNullOrWhiteSpace(name)) return "Enter the store name.";
+        if (string.IsNullOrWhiteSpace(reason)) return "Enter a reason.";
+        return EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules.PrefixProblem(prefix, otherCentres);
+    }
 
     public static SaveApplicationUser CreateUserCommand(
         string windowsIdentity,
