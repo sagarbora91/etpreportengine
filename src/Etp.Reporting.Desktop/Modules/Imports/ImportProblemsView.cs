@@ -138,7 +138,7 @@ public sealed class ImportProblemRow(ImportProblem problem) : INotifyPropertyCha
     public string Verdict { get; } = ImportProblems.VerdictOf(problem.Status).Word;
     public string VerdictTone { get; } = ImportProblems.VerdictOf(problem.Status).Tone.ToString();
     public string File => Problem.File;
-    public string Store => TablePresentation.StoreLabel(Problem.Store);
+    public string StoreLabel => TablePresentation.StoreLabel(Problem.Store);
     public string Period => Problem.Period;
     public string NextStep => Problem.NextStep;
     public string Detail => Problem.Detail;
@@ -195,16 +195,19 @@ public sealed class ImportProblemsView : UserControl
     private readonly Button refresh;
     private readonly Button retry;
 
-    public ImportProblemsView(ImportWorkspaceView imports, Func<Task<IReadOnlyList<ImportProblem>>> load,
+    /// <param name="imports">The import workspace for "Retry failed" of this session's batch; null (the "import-problems" screen a Fix
+    /// link opens) hides that button: the rows' own Retry buttons remain.</param>
+    public ImportProblemsView(ImportWorkspaceView? imports, Func<Task<IReadOnlyList<ImportProblem>>> load,
         ImportEvidenceView? evidence = null, bool revealEvidence = false)
     {
-        this.imports = imports ?? throw new ArgumentNullException(nameof(imports));
+        this.imports = imports;
         this.load = load ?? throw new ArgumentNullException(nameof(load));
         FixHandlers = new ImportFixHandlers(this, text => message.Text = text, RefreshCoreAsync);
         var root = new DockPanel();
         var actions = new WrapPanel();
         refresh = new Button { Content = "Refresh", Margin = DesignTokens.Gap(null, null, "Space8", null) };
-        retry = new Button { Content = "Retry failed", Margin = DesignTokens.Gap(null, null, "Space8", null), IsEnabled = imports.CanRetry };
+        retry = new Button { Content = "Retry failed", Margin = DesignTokens.Gap(null, null, "Space8", null), IsEnabled = imports?.CanRetry == true,
+            Visibility = imports is null ? Visibility.Collapsed : Visibility.Visible };
         status.SetResourceReference(WidthProperty, "InputMedium");
         status.Margin = DesignTokens.Gap(null, null, "Space8", null);
         // R3. A Viewer sees the button disabled; without this they see a dead control
@@ -215,7 +218,7 @@ public sealed class ImportProblemsView : UserControl
             Margin = DesignTokens.Gap(null, null, "Space8", null),
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
-            Visibility = imports.CanRetryByRole ? Visibility.Collapsed : Visibility.Visible
+            Visibility = imports is null || imports.CanRetryByRole ? Visibility.Collapsed : Visibility.Visible
         };
         retryDenied.SetResourceReference(StyleProperty, "CaptionText");
         AutomationProperties.SetName(retryDenied, "Owner or store manager can retry");
@@ -247,6 +250,7 @@ public sealed class ImportProblemsView : UserControl
         AutomationProperties.SetHelpText(retry,"Retry only failed files from the latest import. Keyboard shortcut: Ctrl+R.");
         void UpdateRetry(object? sender, EventArgs args)
         {
+            if (imports is null) return;
             retry.IsEnabled = imports.CanRetry;
             retryDenied.Visibility = imports.CanRetryByRole ? Visibility.Collapsed : Visibility.Visible;
         }
@@ -255,18 +259,18 @@ public sealed class ImportProblemsView : UserControl
         refresh.Click += async (_,_) => await RefreshCoreAsync();
         retry.Click += async (_,_) =>
         {
-            if (!imports.CanRetry) return;
+            if (imports is null || !imports.CanRetry) return;
             await imports.RetryFailedBatchAsync();
             await RefreshCoreAsync();
         };
         Loaded += async (_,_) =>
         {
-            imports.RetryAvailabilityChanged += UpdateRetry;
+            if (imports is not null) imports.RetryAvailabilityChanged += UpdateRetry;
             UpdateEvidenceAccess();
             if (revealEvidence && evidence is { IsOwner: true }) evidence.Reveal();
             await RefreshCoreAsync();
         };
-        Unloaded += (_,_) => imports.RetryAvailabilityChanged -= UpdateRetry;
+        Unloaded += (_,_) => { if (imports is not null) imports.RetryAvailabilityChanged -= UpdateRetry; };
     }
 
     private async Task RefreshCoreAsync()
@@ -290,8 +294,14 @@ public sealed class ImportProblemsView : UserControl
     /// <summary>The Fix buttons of each row with an attempt behind it (one location lookup per row, the first 60 rows).</summary>
     private async Task LoadFixesAsync(int current)
     {
-        if (FixServices is not { } services || imports is null) return;
-        var access = imports.Access;
+        if (FixServices is not { } services) return;
+        ImportWorkspaceAccess access;
+        try { access = imports?.Access ?? await services.LoadAccess(CancellationToken.None); }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Imports.Problems", "IMPORT_FIX_LOOKUP_FAILED", DesktopDiagnosticSeverity.Warning);
+            return;
+        }
         foreach (var row in problemRows.Where(row => row.Problem.Source is not null).Take(ImportFixServices.MaximumLookups))
         {
             if (current != revision) return;
@@ -311,7 +321,7 @@ public sealed class ImportProblemsView : UserControl
         rows.Columns.Add(new DataGridTextColumn { Header = "File", Binding = new Binding(nameof(ImportProblemRow.File)), Width = 230, ElementStyle = WrapStyle() });
         rows.Columns.Add(new DataGridTextColumn { Header = "What to do", Binding = new Binding(nameof(ImportProblemRow.NextStep)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 260, ElementStyle = WrapStyle() });
         rows.Columns.Add(FixColumn("Fix"));
-        rows.Columns.Add(new DataGridTextColumn { Header = "Store", Binding = new Binding(nameof(ImportProblemRow.Store)), Width = 120 });
+        rows.Columns.Add(new DataGridTextColumn { Header = "Store", Binding = new Binding(nameof(ImportProblemRow.StoreLabel)), Width = 120 });
         rows.Columns.Add(new DataGridTextColumn { Header = "Period", Binding = new Binding(nameof(ImportProblemRow.Period)), Width = 200 });
         rows.Columns.Add(new DataGridTextColumn { Header = "Rows", Binding = new Binding(nameof(ImportProblemRow.Detail)), Width = 220, ElementStyle = WrapStyle() });
     }

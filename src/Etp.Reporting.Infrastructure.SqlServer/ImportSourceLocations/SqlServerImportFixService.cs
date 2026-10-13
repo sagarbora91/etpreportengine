@@ -160,7 +160,7 @@ public sealed partial class SqlServerImportFixService : IImportFixService
     private static partial Regex RoutingPrefix();
 
     /// <summary>The shop zip behind a routed name: the run prefixes a time (or a GUID) to the zip's own name when it moves it.</summary>
-    internal static bool TryParseRoutedShopZip(string routedPath, out string role, out DateOnly day)
+    public static bool TryParseRoutedShopZip(string routedPath, out string role, out DateOnly day)
     {
         var name = Path.GetFileName(routedPath ?? "");
         var original = RoutingPrefix().Replace(name, "", 1);
