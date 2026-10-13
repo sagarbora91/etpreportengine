@@ -154,6 +154,12 @@ public sealed class ShopResultTests
         {
             var result = ShopResultBuilder.Build("TITAN", Day, 1, "1", Produced, [Imported("a.xlsx")]);
             Assert.Null(new ShopResultWriter(Path.Combine(blocker, "pending")).TryWrite(result));
+            // Review B-1: the failure is not silent; the unattended run adds this sentence to its automation-run line.
+            Assert.Null(new ShopResultWriter(Path.Combine(blocker, "pending")).TryWrite(result, out var failure));
+            Assert.Equal(ShopResultWriter.WriteFailed, failure);
+            Assert.Contains("could not be written", ShopResultWriter.FailureSentence(failure), StringComparison.Ordinal);
+            Assert.Contains("run setup again", ShopResultWriter.FailureSentence(ShopResultWriter.FolderDenied), StringComparison.Ordinal);
+            Assert.Equal("", ShopResultWriter.FailureSentence(null));
         }
         finally { File.Delete(blocker); }
     }

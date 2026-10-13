@@ -63,7 +63,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 duplicates+=batch.Duplicates;
                 foreach(var date in ImportedDates(batch)) importedDates.Add(date);
                 var route=RouteOf(batch);
-                if(route!=AutomationSourceRoute.Inbound) WriteShopResult(source,batch.Files);
+                var shopResultNote=route!=AutomationSourceRoute.Inbound ? WriteShopResult(source,batch.Files) : "";
                 if(route==AutomationSourceRoute.Inbound)
                 {
                     // Files the cancel left unhandled are imported by the next run; the source stays in Inbound.
@@ -76,7 +76,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                     failed++;
                     MoveCompletedSource(source,paths.FailedPath);
                     await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),null,null,"Failed",
-                        $"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed.",started,cancellationToken);
+                        $"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed."+shopResultNote,started,cancellationToken);
                     continue;
                 }
                 MoveCompletedSource(source,route==AutomationSourceRoute.Duplicate ? duplicatePath : paths.ProcessedPath);
@@ -89,17 +89,17 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),stores.Length==1?stores[0]:null,
                     dates.Length==1?dates[0]:null,imported==0?"Skipped":"Succeeded",
                     $"{imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed."+(warnings>0?$" {warnings} warning(s); review the file results.":"")+
-                    (unread>0?$" {unread} saved but not read back; see Import History.":""),started,cancellationToken);
+                    (unread>0?$" {unread} saved but not read back; see Import History.":"")+shopResultNote,started,cancellationToken);
             }
             catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
             {
                 failed++;
-                WriteShopResult(source, null);
+                var shopResultNote = WriteShopResult(source, null);
                 var safe = new SqlImportFailureClassifier().Describe(ex).SafeMessage;
                 try { MoveCompletedSource(source, paths.FailedPath); }
                 catch (Exception moveException) when (moveException is IOException or UnauthorizedAccessException)
                 { safe = $"{safe} The source could not be moved to Failed and remains available for the next run."; }
-                await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null, "Failed", safe, started, cancellationToken);
+                await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null, "Failed", safe + shopResultNote, started, cancellationToken);
             }
         }
 
@@ -128,16 +128,19 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
 
     /// <summary>
     /// Item C: a verdict file for the shop whose zip this is (<c>ROLE-yyyy-MM-dd[-rN].zip</c>); any other source is not a shop's.
-    /// Files is null when the import threw before any file result existed. Never changes the import outcome.
+    /// Files is null when the import threw before any file result existed. Never changes the import outcome; a write that fails
+    /// returns a sentence for the run's automation line (review B-1), otherwise "".
     /// </summary>
-    private void WriteShopResult(string source, IReadOnlyList<FolderImportFileResult>? files)
+    private string WriteShopResult(string source, IReadOnlyList<FolderImportFileResult>? files)
     {
-        if (!ShopResultBuilder.TryParseShopZip(source, out var role, out var day, out var sequence)) return;
+        if (!ShopResultBuilder.TryParseShopZip(source, out var role, out var day, out var sequence)) return "";
         var version = typeof(AutomatedOperationsService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
         var result = files is null
             ? ShopResultBuilder.BuildNotCompleted(role, day, sequence, version, DateTime.UtcNow, Path.GetFileName(source))
             : ShopResultBuilder.Build(role, day, sequence, version, DateTime.UtcNow, files);
-        if (result.Files.Count > 0) shopResults.TryWrite(result);
+        if (result.Files.Count == 0) return "";
+        shopResults.TryWrite(result, out var failure);
+        return ShopResultWriter.FailureSentence(failure);
     }
 
     /// <summary>

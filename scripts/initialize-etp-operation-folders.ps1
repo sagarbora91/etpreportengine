@@ -85,6 +85,25 @@ New-Item -ItemType Directory -Path (Join-Path $root 'Backups\RecoveryDrill') -Fo
 foreach ($folder in @(Get-EtpWatchFolderNames)) { Set-PrivateDirectory (Join-Path $root $folder) }
 New-Item -ItemType Directory -Path (Join-Path $root 'Processed\Duplicate') -Force | Out-Null
 Set-PrivateDirectory (Join-Path $root 'Operations') -ReadOnlyAutomation
+# 1.12 integration (review B-1): shop results. The unattended run (automation account) writes a
+# verdict into ShopResults\pending; Publish-ShopResults.ps1 (Sagar, elevated task) moves it to
+# published or rejected. All three inherit the Operations rule above (SYSTEM and Administrators full
+# control, SQL Server and the automation account read); the automation account also gets Modify on
+# pending only. Set after the Operations line, which resets every child to inherited rules.
+$shopResults = Join-Path $root 'Operations\ShopResults'
+foreach ($folder in @('pending','published','rejected')) {
+    $full = Join-Path $shopResults $folder
+    Assert-EtpNoLinks $full
+    New-Item -ItemType Directory -Path $full -Force | Out-Null
+}
+if ($automationSid) {
+    $pendingPath = Join-Path $shopResults 'pending'
+    Assert-EtpNoLinks $pendingPath
+    $pendingAcl = Get-Acl -LiteralPath $pendingPath
+    $pendingAcl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
+    $pendingAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($automationSid,'Modify','ContainerInherit,ObjectInherit','None','Allow'))
+    Set-Acl -LiteralPath $pendingPath -AclObject $pendingAcl
+}
 if ($GrantAutomationFolderAccess) {
     Write-EtpJsonAtomically -Path (Join-Path $root 'Operations\operations.json') -Value @{
         serverInstance=$ServerInstance; database=$Database; automationPrincipal=$AutomationPrincipal; allowAutomationFolderAccess=$true
