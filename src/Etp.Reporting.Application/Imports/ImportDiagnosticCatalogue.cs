@@ -134,7 +134,8 @@ public static class ImportDiagnosticCatalogue
         // template may not hold, and an importer refusal whose code the catalogue does not know keeps its own text.
         ["SERVICE_FAMILY_NOT_NEEDED"] = ["This Service report is not needed; the other files are processed."],
         ["SERVICE_FAMILY_DEFERRED"] = ["This Service report is not imported yet; it waits for the full Service import."],
-        ["SERVICE_STORE_DEFAULTED"] = ["This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre (AW330)."],
+        // 1.12 U2: no store code in a template (A4 makes the Service Centre data; FolderImportService writes this exact text).
+        ["SERVICE_STORE_DEFAULTED"] = [ServiceStoreDefaultedMessage],
         ["SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY"] =
             ["The latest date on the Snapshot History sheet differs from the snapshot date this file is imported under. Check the folder date."],
 
@@ -206,6 +207,75 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.Contract.CellNotText] = ["A contract cell is not text."],
         [ImportCodes.Contract.LegacyBlocks] = ["The workbook has legacy blocks; they are imported but never used to infer missing documents."]
     };
+
+    /// <summary>The SERVICE_STORE_DEFAULTED text (1.12: names no store code; the Service Centre is data from 0067 on).</summary>
+    public const string ServiceStoreDefaultedMessage =
+        "This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre.";
+
+    // ----- Shop-facing text (1.12 U2, review m-2) -----
+    // A shop result (ShopResultBuilder) shows the shop what happened and what to do. "What happened" is the first sentence of
+    // the code's template. "What to do" is never an office instruction (no watch folder, no reopening, no Settings): the
+    // shop can correct its own sheet, send a file again, or tell the office. Every other code says "Tell the office."
+
+    /// <summary>What a shop does about a code nobody on the shop floor can fix.</summary>
+    public const string TellTheOffice = "Tell the office.";
+
+    /// <summary>"What happened" for a code the catalogue does not know (an importer refusal with a code of its own).</summary>
+    public const string ShopUnknownMessage = "ETP could not import this file.";
+
+    private const string UseTheSheet = "Use the daily-inputs sheet made for this shop PC, fill it in, save it and send it again.";
+    private const string CorrectAndSend = ", save, send again.";
+
+    private static readonly Dictionary<string, string> ShopWhatToDo = new(StringComparer.Ordinal)
+    {
+        ["DUPLICATE_FILE"] = "Nothing to do: ETP already has this file.",
+        ["FILE_EMPTY"] = "Export the file again and send it. If it is refused again, tell the office.",
+        ["FILE_HASH_INVALID"] = "Export the file again and send it. If it is refused again, tell the office.",
+        ["WORKBOOK_NO_SHEETS"] = "Export the file again and send it. If it is refused again, tell the office.",
+        [ImportCodes.WorkbookEditedAfterExport] = "Export it again and send the new file without opening or changing it.",
+        ["EMPTY_EXPORT"] = "Nothing to do if the shop had nothing to export that day. Otherwise export it again and send it.",
+        ["WORKBOOK_MULTIPLE_STORES"] = "Export one file per store and send them again.",
+
+        ["DAILY_INPUTS_TEMPLATE_VERSION"] = UseTheSheet + " If this PC has no current sheet, tell the office.",
+        ["DAILY_INPUTS_KIND_INVALID"] = UseTheSheet,
+        ["DAILY_INPUTS_STORE_MISSING"] = UseTheSheet,
+        ["DAILY_INPUTS_DATE_MISSING"] = "Open the sheet, type the day the figures belong to in the date box" + CorrectAndSend,
+        ["DAILY_INPUTS_DATE_INVALID"] = "Open the sheet, type the date in the date box as dd-mmm-yyyy" + CorrectAndSend,
+        ["DAILY_INPUTS_DATE_IN_FUTURE"] = "Open the sheet, correct the date in the box" + CorrectAndSend,
+        ["DAILY_INPUTS_DATE_TOO_OLD"] = "Tell the office: a day this old is corrected in ETP by the office, not by a sheet.",
+        ["DAILY_INPUTS_UNKNOWN_FIELD"] = "Use the sheet made for this shop PC without adding or renaming rows, and send it again.",
+        ["DAILY_INPUTS_FIELD_NOT_FOR_SHEET"] = "Use the sheet made for this shop PC without adding or renaming rows, and send it again.",
+        ["DAILY_INPUTS_DUPLICATE_FIELD"] = "Use the sheet made for this shop PC without adding or renaming rows, and send it again.",
+        ["DAILY_INPUTS_VALUE_INVALID"] = "Open the sheet, correct the figure (counts are whole numbers)" + CorrectAndSend,
+        ["DAILY_INPUTS_VALUE_NEGATIVE"] = "Open the sheet, correct the figure (only the cash adjustment may be below zero)" + CorrectAndSend,
+        ["DAILY_INPUTS_TEXT_TOO_LONG"] = "Open the sheet, shorten the text" + CorrectAndSend,
+        ["DAILY_INPUTS_NAME_MISMATCH"] = "Check the store and the sheet type, save the file under the matching name and send it again.",
+        ["DAILY_INPUTS_NAME_DATE_DIFFERS"] = "Next time save the file under a name with the sheet's date.",
+        ["DAILY_INPUTS_NAME_UNUSUAL"] = "Nothing to do now. Next time save the file under the name the sheet suggests.",
+        ["DAILY_INPUTS_NO_VALUES"] = "Fill in the figures, save it and send it again.",
+        ["DAILY_INPUTS_FILLED_BY_MISSING"] = "Type the name of the person who filled in the sheet, save it and send it again.",
+        // The office takes the sheet in from where ETP keeps it (Fix buttons, 1.12): the shop does not send it again.
+        ["DAILY_INPUTS_DAY_FINALISED"] = "Tell the office. This day is already closed in ETP; the office takes the sheet in from here, so do not send it again.",
+    };
+
+    /// <summary>"What happened", for the shop: the first sentence of the code's template, or <see cref="ShopUnknownMessage"/>.</summary>
+    public static string MessageForShop(string? code) =>
+        code is not null && Templates.TryGetValue(code, out var messages) ? FirstSentence(messages[0]).First : ShopUnknownMessage;
+
+    /// <summary>"What to do", for the shop (review m-2): never an office instruction; <see cref="TellTheOffice"/> by default.</summary>
+    public static string WhatToDoForShop(string? code) =>
+        code is not null && ShopWhatToDo.TryGetValue(code, out var text) ? text : TellTheOffice;
+
+    /// <summary>The one sentence "Tell the shop" copies: what happened, then what to do.</summary>
+    public static string ShopSentence(string? code) => $"{MessageForShop(code)} {WhatToDoForShop(code)}";
+
+    /// <summary>First sentence = what happened; the rest = the office's instruction. A one-sentence text has no rest.</summary>
+    public static (string First, string Rest) FirstSentence(string template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        var index = template.IndexOf(". ", StringComparison.Ordinal);
+        return index < 0 ? (template, string.Empty) : (template[..(index + 1)], template[(index + 2)..]);
+    }
 
     public static IReadOnlyCollection<string> Codes => Templates.Keys;
 

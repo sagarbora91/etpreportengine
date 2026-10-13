@@ -53,6 +53,8 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     // running, or because nothing failed. Only the first deserves an explanation
     // beside the button; the other two are obvious from the screen.
     public bool CanRetryByRole => accessProvider().CanImport;
+    /// <summary>The signed-in role as the host gave it (1.12 U2: the Problems Fix buttons are Owner or Store Manager, Reopen Owner).</summary>
+    public ImportWorkspaceAccess Access => accessProvider();
     public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<Task<ImportWorkspaceAccess>> currentAccessLoader,
         Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
     {
@@ -141,7 +143,8 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             latestResults = retry ? MergeRetryResults(previousResults, summary.Files) : summary.Files;
             SelectTask(currentTask);
             ShowScope();
-            ValidationResult.Text = $"{summary.Imported:N0} imported · {summary.Duplicates:N0} duplicate/already present · {summary.NewRows:N0} new rows · {summary.Conflicts:N0} conflicts · {summary.Failed:N0} failed · {summary.UnknownLayouts:N0} unknown layouts.";
+            ValidationResult.Text = $"{summary.Imported:N0} imported · {summary.Duplicates:N0} duplicate/already present · {summary.NewRows:N0} new rows · {summary.Conflicts:N0} conflicts · {summary.Failed:N0} failed · {summary.UnknownLayouts:N0} unknown layouts."
+                + (!retry && coordinator.LastShopResultNote.Length > 0 ? " " + coordinator.LastShopResultNote : "");
             ShowHandOffs();
             ReadinessChanged?.Invoke(this, summary.Failed > 0 ? "Review import results" : "Import completed");
             await dashboardRefresher();

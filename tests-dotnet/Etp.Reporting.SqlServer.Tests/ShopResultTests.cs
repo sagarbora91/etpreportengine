@@ -34,10 +34,12 @@ public sealed class ShopResultTests
 
         Assert.Equal(ShopResultVerdict.Refused, file.Verdict);
         Assert.Equal(code, file.Code);
-        var template = ImportDiagnosticCatalogue.Template(code);
-        Assert.Equal(template, (file.Message + " " + file.WhatToDo).Trim());
+        // 1.12 U2 (m-2): what happened is the template's first sentence; what to do is the catalogue's shop text.
+        Assert.Equal(ImportDiagnosticCatalogue.FirstSentence(ImportDiagnosticCatalogue.Template(code)).First, file.Message);
+        Assert.Equal(ImportDiagnosticCatalogue.WhatToDoForShop(code), file.WhatToDo);
         Assert.DoesNotContain("1234567", file.Message + file.WhatToDo);
         Assert.NotEmpty(file.Message);
+        Assert.NotEmpty(file.WhatToDo);
     }
 
     [Fact]
@@ -80,7 +82,9 @@ public sealed class ShopResultTests
 
         var bare = ShopResultBuilder.Map(new FolderImportFileResult("a.xlsx", null, null, null, null, "Failed"))!;
         Assert.Equal(ShopResultVerdict.Refused, bare.Verdict);
-        Assert.Equal(ImportDiagnosticCatalogue.GenericMessage, (bare.Message + " " + bare.WhatToDo).Trim());
+        // The office's generic text ("Review the indicated source column...") is not for the shop.
+        Assert.Equal(ImportDiagnosticCatalogue.ShopUnknownMessage, bare.Message);
+        Assert.Equal(ImportDiagnosticCatalogue.TellTheOffice, bare.WhatToDo);
     }
 
     [Fact]
@@ -198,7 +202,8 @@ public sealed class ShopResultTests
         ["HELIOS-2026-10-11-1.json", new ShopResult("HELIOS", Day, 1, "1.12.0.0", Produced,
         [
             Row("ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx", 'C', ShopResultVerdict.Refused, DailyInputsCodes.DayFinalised,
-                "This business day is finalised, so its manual entries cannot change.", "Reopen the day, then put the file in the watch folder again."),
+                "This business day is finalised, so its manual entries cannot change.",
+                "Tell the office. This day is already closed in ETP; the office takes the sheet in from here, so do not send it again."),
             Row("stock.csv", 'D', ShopResultVerdict.Accepted, "", "", "")
         ])],
         ["SERVICE-2026-10-11-2.json", new ShopResult("SERVICE", Day, 2, "1.12.0.0", Produced,
@@ -217,6 +222,18 @@ public sealed class ShopResultTests
         var fromCode = JsonNode.Parse(ShopResultBuilder.ToJson(expected));
         Assert.True(JsonNode.DeepEquals(fromFile, fromCode), $"{fixture} differs from ShopResultBuilder.ToJson. Regenerate the fixture from the builder output.");
         Assert.Equal(fixture, ShopResultWriter.FileNameFor(expected));
+    }
+
+    [Theory]
+    [MemberData(nameof(Fixtures))]
+    public void Each_fixture_row_carries_the_catalogue_shop_text_of_its_code(string fixture, ShopResult expected)
+    {
+        // 1.12 U2: the fixtures are regenerated in step with the catalogue, so the PowerShell test reads today's shop text.
+        foreach (var file in expected.Files.Where(f => f.Code.Length > 0))
+        {
+            Assert.True(ImportDiagnosticCatalogue.MessageForShop(file.Code) == file.Message, $"{fixture}: {file.Code} message");
+            Assert.True(ImportDiagnosticCatalogue.WhatToDoForShop(file.Code) == file.WhatToDo, $"{fixture}: {file.Code} what to do");
+        }
     }
 
     [Fact]

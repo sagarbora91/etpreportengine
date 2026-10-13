@@ -7,7 +7,7 @@
   "sequence": 1,
   "overall": "Refused",
   "files": [
-    { "name": "ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx", "sha256": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", "verdict": "Refused", "code": "DAILY_INPUTS_DAY_FINALISED", "message": "This business day is finalised, so its manual entries cannot change.", "whatToDo": "Reopen the day, then put the file in the watch folder again." },
+    { "name": "ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx", "sha256": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", "verdict": "Refused", "code": "DAILY_INPUTS_DAY_FINALISED", "message": "This business day is finalised, so its manual entries cannot change.", "whatToDo": "Tell the office. This day is already closed in ETP; the office takes the sheet in from here, so do not send it again." },
     { "name": "stock.csv", "sha256": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "verdict": "Accepted", "code": "", "message": "", "whatToDo": "" }
   ]
 }

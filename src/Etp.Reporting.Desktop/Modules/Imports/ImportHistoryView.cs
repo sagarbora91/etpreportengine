@@ -19,14 +19,22 @@ public sealed class ImportHistoryView : UserControl
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock detail = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
     private readonly DataGrid rows = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
-    private readonly DataGrid diagnostics = new() { AutoGenerateColumns = false, IsReadOnly = true, MaxHeight = 150, Visibility = Visibility.Collapsed };
+    private readonly DataGrid diagnostics = new() { AutoGenerateColumns = false, IsReadOnly = true, Visibility = Visibility.Collapsed };
+    // 1.12 U2 (wave plan C-c): the Fix buttons of the selected row, one QuietButton per action.
+    private readonly WrapPanel fixes = new() { Visibility = Visibility.Collapsed };
+    private int selectionRevision;
+    /// <summary>The Fix buttons shown for the selected row (tests read them).</summary>
+    public IReadOnlyList<ImportFixButtonModel> SelectedFixes { get; private set; } = [];
+    /// <summary>The Fix buttons' services; <see cref="ImportFixServices.Current"/> unless a test sets its own.</summary>
+    internal ImportFixServices? FixServices { get; set; } = ImportFixServices.Current;
+    internal ImportFixHandlers FixHandlers { get; }
     public IReadOnlyList<HistoryEntry> Entries { get; private set; } = [];
     public string StatusText => status.Text;
     public string DetailText => detail.Text;
     public bool IsLoading { get; private set; }
 
-    // Service interim (0048). Service rows carry store AW330, an inactive Service Centre store;
-    // the Store column names it "Service Centre (AW330)". Retail codes are shown unchanged.
+    // Service interim (0048): a Service row carries the Service Centre's store code; the Store column names it
+    // "Service Centre (code)" through the label the shell gives (StoreScopeCatalog). Retail codes are shown unchanged.
     private Func<string?, string?> storeLabel = code => code;
     public void SetStoreLabels(Func<string?, string?> label) { storeLabel = label ?? (code => code); rows.Items.Refresh(); }
     /// <summary>The text the Store column shows for a stored store code.</summary>
@@ -35,19 +43,24 @@ public sealed class ImportHistoryView : UserControl
     public ImportHistoryView(Func<HistoryScope, Task<IReadOnlyList<HistoryEntry>>> load)
     {
         this.load = load;
-        var root = new Grid { Margin = new Thickness(4) };
+        FixHandlers = new ImportFixHandlers(this, text => detail.Text = text, ReloadAsync);
+        // Template A (List): the saved outcomes fill the page; the selected row's details share the lower third (no MaxHeight).
+        var root = new Grid();
         root.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new() { Height = new GridLength(2, GridUnitType.Star) });
         root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var heading = new StackPanel();
         // DS-14/DS-24: the shell header owns the title. The first line is the count (the verdict of the period); the
         // one caption says what the times are. The longer explanation is a tooltip on the caption.
         status.SetResourceReference(FrameworkElement.StyleProperty, "BodyText");
-        var caption = new TextBlock { Text = "Times are your local time.", ToolTip = "Imported files and repeat attempts are saved here. Received files is the separate document inbox. Undetected dates use the attempt's UTC date.", Margin = new Thickness(0, 2, 0, 6) };
+        var caption = new TextBlock { Text = "Times are your local time.", ToolTip = "Imported files and repeat attempts are saved here. Received files is the separate document inbox. Undetected dates use the attempt's UTC date.", Margin = DesignTokens.Gap(null, "Space4", null, "Space8") };
         caption.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
-        var refresh = new Button { Content = "Refresh", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) };
+        var refresh = new Button { Content = "Refresh", HorizontalAlignment = HorizontalAlignment.Left, Margin = DesignTokens.Gap(null, null, null, "Space8") };
         refresh.Click += async (_, _) => { if (scope is not null) await ActivateAsync(scope); };
         heading.Children.Add(status); heading.Children.Add(caption); heading.Children.Add(refresh); root.Children.Add(heading);
+        // 1.12 U2 (DS-12/13): the result as a tone chip comes first (Refused red, Conflict red, Already imported grey, Imported green).
+        rows.Columns.Add(new DataGridTextColumn { Header = "Result", Binding = new Binding("Result") { Converter = new ResultWordConverter() }, Width = 140,
+            ElementStyle = ResultChipStyle() });
         foreach (var (title, path, width) in new[] {
             // DS-14: reading order is Recorded, Verdict, File, Store, Report, Period, Rows; the codes (Outcome, Failure, Stage) come last.
             ("Recorded", "RecordedUtc", 155d), ("Verdict", "Result", 360d), ("File", "Result.FileName", 230d),
@@ -62,7 +75,12 @@ public sealed class ImportHistoryView : UserControl
         foreach (var (title, path) in new[] { ("Severity", "Severity"), ("Issue", "Code"), ("Block", "BlockNo"), ("Row", "SourceRow"),
             ("Column", "SourceColumn"), ("Document", "DocumentRef"), ("Count", "Occurrences"), ("Guidance", "Message") })
             diagnostics.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path), Width = path == "Message" ? new DataGridLength(1, DataGridLengthUnitType.Star) : DataGridLength.Auto });
-        var details = new StackPanel(); details.Children.Add(detail); details.Children.Add(diagnostics);
+        detail.SetResourceReference(StyleProperty, "BodyText");
+        detail.Margin = DesignTokens.Gap(null, "Space8", null, "Space4");
+        var details = new DockPanel();
+        DockPanel.SetDock(detail, Dock.Top); details.Children.Add(detail);
+        DockPanel.SetDock(fixes, Dock.Top); details.Children.Add(fixes);
+        details.Children.Add(diagnostics);
         Grid.SetRow(details, 2); root.Children.Add(details); Content = root;
         AutomationProperties.SetName(this, "Durable import history");
     }
@@ -145,6 +163,83 @@ public sealed class ImportHistoryView : UserControl
         detail.Text = entry is null ? "Select an import to see its saved diagnostics." : Describe(entry.Result);
         diagnostics.ItemsSource = entry?.Result.Diagnostics;
         diagnostics.Visibility = entry?.Result.Diagnostics?.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _ = ShowFixesAsync(entry);
+    }
+
+    /// <summary>The selected row's Fix buttons (one location lookup per selection; a newer selection wins).</summary>
+    internal async Task ShowFixesAsync(HistoryEntry? entry)
+    {
+        var current = ++selectionRevision;
+        SelectedFixes = []; fixes.Children.Clear(); fixes.Visibility = Visibility.Collapsed;
+        if (entry is null || FixServices is not { } services || !ImportProblems.IsProblem(entry.Result)) return;
+        try
+        {
+            var access = await services.LoadAccess(CancellationToken.None);
+            var found = await ImportFixRows.ForAsync(entry.Result, access, services, FixHandlers);
+            if (current != selectionRevision) return;
+            SelectedFixes = found;
+            foreach (var fix in found) fixes.Children.Add(FixButton(fix));
+            fixes.Visibility = found.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Imports.History", "IMPORT_FIX_LOOKUP_FAILED", DesktopDiagnosticSeverity.Warning);
+        }
+    }
+
+    private static Button FixButton(ImportFixButtonModel fix)
+    {
+        var button = new Button { Content = fix.Label, ToolTip = fix.Explanation, Margin = DesignTokens.Gap(null, null, "Space8", null) };
+        button.SetResourceReference(StyleProperty, "QuietButton");
+        AutomationProperties.SetName(button, fix.AutomationName);
+        AutomationProperties.SetHelpText(button, fix.Explanation);
+        button.Click += async (_, _) =>
+        {
+            button.IsEnabled = false;
+            try { await fix.Run(); }
+            finally { button.IsEnabled = true; }
+        };
+        return button;
+    }
+
+    private Task ReloadAsync() => scope is null ? Task.CompletedTask : ActivateAsync(scope);
+
+    /// <summary>The Result column's word (ST2: the same word as Problems and the shop window).</summary>
+    public static string ResultWord(EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.Failed || result.Failure is not null) return "Refused";
+        if (result.ConflictRows > 0) return "Conflict";
+        if (ImportHistoryMessages.IsDuplicate(result.Status)) return "Already imported";
+        return result.Status == "Unknown layout" ? "Unknown layout" : "Imported";
+    }
+
+    /// <summary>DS-13: the Result chip, keyed on the word the converter shows (grey for Already imported).</summary>
+    private static Style ResultChipStyle()
+    {
+        var style = new Style(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(8, 3, 8, 3)));
+        style.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left));
+        style.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center));
+        style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
+        style.Setters.Add(new Setter(TextBlock.BackgroundProperty, Etp.Reporting.Desktop.Themes.ThemeBrushes.Get("SurfaceSecondary")));
+        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, Etp.Reporting.Desktop.Themes.ThemeBrushes.Get("SecondaryText")));
+        foreach (var (word, tone) in new[] { ("Refused", StatusTone.Critical), ("Conflict", StatusTone.Critical), ("Unknown layout", StatusTone.Warning), ("Imported", StatusTone.Success) })
+        {
+            var (fill, _, text) = StatusTones.BrushesFor(tone);
+            var trigger = new DataTrigger { Binding = new Binding("Result") { Converter = new ResultWordConverter() }, Value = word };
+            trigger.Setters.Add(new Setter(TextBlock.BackgroundProperty, Etp.Reporting.Desktop.Themes.ThemeBrushes.Get(fill)));
+            trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty, Etp.Reporting.Desktop.Themes.ThemeBrushes.Get(text)));
+            style.Triggers.Add(trigger);
+        }
+        return style;
+    }
+
+    private sealed class ResultWordConverter : IValueConverter
+    {
+        public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            value is EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result ? ResultWord(result) : value;
+        public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => Binding.DoNothing;
     }
 
     // Failure code, stage and message as the attempt recorded them (IF-017), then commit and evidence state.

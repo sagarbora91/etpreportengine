@@ -22,6 +22,32 @@ public sealed class ShopResultWriter(string pendingFolder)
     public static string FileNameFor(ShopResult result) =>
         string.Create(CultureInfo.InvariantCulture, $"{result.Role}-{result.BusinessDate:yyyy-MM-dd}-{result.Sequence}.json");
 
+    /// <summary>
+    /// The sequence for a new result of <paramref name="role"/> on <paramref name="day"/> (1.12 U2: a re-apply after a fix): one
+    /// more than any result of that day in <c>pending</c> or in <c>published</c> beside it, so the shop's window shows the newest.
+    /// 1 when there is none. An unreadable folder counts as empty.
+    /// </summary>
+    public int NextSequence(string role, DateOnly day)
+    {
+        var prefix = string.Create(CultureInfo.InvariantCulture, $"{role}-{day:yyyy-MM-dd}-");
+        var highest = 0;
+        var published = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(pendingFolder)) ?? pendingFolder, "published");
+        foreach (var folder in new[] { pendingFolder, published })
+        {
+            try
+            {
+                if (!Directory.Exists(folder)) continue;
+                foreach (var file in Directory.EnumerateFiles(folder, prefix + "*.json"))
+                {
+                    var tail = Path.GetFileNameWithoutExtension(file)[prefix.Length..];
+                    if (int.TryParse(tail, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) && sequence > highest) highest = sequence;
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+        }
+        return highest + 1;
+    }
+
     public string Write(ShopResult result)
     {
         Directory.CreateDirectory(pendingFolder);
