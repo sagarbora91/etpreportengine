@@ -137,6 +137,28 @@ public sealed class DiskBackupProbe(IDiskBackupEnvironment environment, TimeProv
 
     private sealed record VerifiedReceipt(string Sha256, DateTimeOffset? VerifiedUtc);
 
+    /// <summary>
+    /// Integration (U1 x G1): hours since the last disk copy, for the Morning page footer; null when the copy is not set up,
+    /// the disk or its receipt is missing or unreadable (OPS-11 explains those). Never throws.
+    /// </summary>
+    public static double? CopyAgeHours(IDiskBackupEnvironment environment, DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        try
+        {
+            var config = environment.ReadConfig();
+            if (config is null) return null;
+            var receiptPath = Path.Combine(config.DiskCopyRoot, ReceiptFileName);
+            if (!File.Exists(receiptPath)) return null;
+            var copy = ReadReceipt(receiptPath);
+            return copy is null ? null : Math.Max(0, (nowUtc - copy.CopiedUtc).TotalHours);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
     private static CopyReceipt? ReadReceipt(string path)
     {
         try

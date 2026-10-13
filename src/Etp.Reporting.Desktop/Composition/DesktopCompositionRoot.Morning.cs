@@ -30,6 +30,9 @@ public sealed partial class DesktopCompositionRoot
         () => new SqlServerMorningSummaryQuery(
             CurrentConnections,
             () => new SqlServerNoSaleDayService(CurrentConnections()),
+            // Integration (U1 x G1): the footer's "Backup disk copy" age from OPS-11's receipt; absent until the copy is set up.
+            diskCopyAgeHours: now => Etp.Reporting.Infrastructure.SqlServer.HealthCheck.DiskBackupProbe.CopyAgeHours(
+                new Etp.Reporting.Infrastructure.SqlServer.HealthCheck.WindowsDiskBackupEnvironment(), now),
             report: (exception, eventId) => DesktopDiagnostics.Record(exception, "Morning.Query", eventId, DesktopDiagnosticSeverity.Warning),
             describe: DesktopFriendlyError.Describe),
         (businessDate, stores, progress, token) => FinaliseAllAsync(CurrentConnections(), businessDate, stores, progress, token),

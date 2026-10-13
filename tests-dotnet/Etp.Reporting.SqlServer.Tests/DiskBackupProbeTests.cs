@@ -93,6 +93,20 @@ public sealed class DiskBackupProbeTests : IDisposable
         return DateTimeOffset.Parse(document.RootElement.GetProperty("copiedAtUtc").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    // Integration (U1 x G1): the Morning footer's disk copy age reads the same receipt and never throws.
+    [Fact]
+    public async Task The_morning_copy_age_reads_the_script_receipt_and_is_absent_when_not_set_up()
+    {
+        Assert.Null(DiskBackupProbe.CopyAgeHours(new Env(null), DateTimeOffset.UtcNow));
+        Assert.Null(DiskBackupProbe.CopyAgeHours(new ThrowingEnv(), DateTimeOffset.UtcNow));
+        Assert.Null(DiskBackupProbe.CopyAgeHours(new Env(Config), DateTimeOffset.UtcNow));
+
+        NewVerifiedBackup("20261011-220000", DateTime.UtcNow);
+        await RunScriptAsync();
+        var copied = CopiedAt();
+        Assert.Equal(5.0, DiskBackupProbe.CopyAgeHours(new Env(Config), copied.AddHours(5))!.Value, 3);
+    }
+
     [Fact]
     public async Task Without_the_task_config_the_check_is_skipped()
     {
