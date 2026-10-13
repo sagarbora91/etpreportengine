@@ -750,6 +750,65 @@ function Set-EtpHealthExportFolder {
     return $full
 }
 
+# 1.12 A3: views, procedures and functions are files in database\objects, applied after the
+# migrations when their text changes. A release that changes only an object has no pending
+# migration, so the journal count alone would take no backup. The application's headless verb
+# --plan-database-changes prints {"pendingMigrations":[...],"pendingObjects":[...]} to stdout and
+# changes nothing; setup takes the verified pre-migration backup when either list is non-empty
+# (or when the plan cannot be made), and after the bootstrap requires both lists to be empty.
+
+function ConvertFrom-EtpDatabaseChangePlan {
+    # Pure. The plan from the application's stdout: the last line that parses as JSON with both
+    # lists. Returns PendingMigrations, PendingObjects and HasChanges, or throws.
+    param([AllowEmptyString()][AllowNull()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { throw 'The database change plan was empty.' }
+    $lines = @($Text -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { $_.StartsWith('{') })
+    [array]::Reverse($lines)
+    foreach ($line in $lines) {
+        try { $value = $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+        $names = @($value.PSObject.Properties.Name)
+        if ($names -notcontains 'pendingMigrations' -or $names -notcontains 'pendingObjects') { continue }
+        $migrations = @($value.pendingMigrations | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ })
+        $objects = @($value.pendingObjects | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ })
+        return [pscustomobject]@{ PendingMigrations = $migrations; PendingObjects = $objects; HasChanges = ($migrations.Count -gt 0 -or $objects.Count -gt 0) }
+    }
+    throw 'The database change plan could not be read.'
+}
+
+function Format-EtpDatabaseChangePlan {
+    # Pure. One setup log line; at most five names of each list.
+    param([Parameter(Mandatory)]$Plan)
+    $describe = { param([string[]]$Names) if ($Names.Count -eq 0) { 'none' } else { "$($Names.Count) ($((@($Names | Select-Object -First 5)) -join ', ')$(if ($Names.Count -gt 5) { ', ...' }))" } }
+    return "Database change plan: pending migrations $(& $describe @($Plan.PendingMigrations)); pending database objects $(& $describe @($Plan.PendingObjects))."
+}
+
+function Invoke-EtpDatabaseChangePlan {
+    # Runs the application's --plan-database-changes (hidden, stdout and stderr read to the end)
+    # and returns the parsed plan, or throws with what the application reported.
+    param([Parameter(Mandatory)][string]$FilePath)
+    $start = New-Object System.Diagnostics.ProcessStartInfo
+    $start.FileName = $FilePath
+    $start.Arguments = '--plan-database-changes'
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.StandardOutputEncoding = [Text.Encoding]::UTF8
+    $start.StandardErrorEncoding = [Text.Encoding]::UTF8
+    $process = [System.Diagnostics.Process]::Start($start)
+    try {
+        $outputText = $process.StandardOutput.ReadToEndAsync()
+        $errorText = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) {
+            $reason = @(ConvertTo-EtpApplicationReportLines -Text ([string]$errorText.Result) -MaxLines 1)
+            throw "The database change plan failed with exit code $($process.ExitCode).$(if ($reason.Count -gt 0) { ' ' + $reason[0] })"
+        }
+        return ConvertFrom-EtpDatabaseChangePlan -Text ([string]$outputText.Result)
+    }
+    finally { $process.Dispose() }
+}
+
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
@@ -757,6 +816,7 @@ $applicationRoot = [System.IO.Path]::GetFullPath($ApplicationDirectory)
 $application = Join-Path $applicationRoot 'Etp.Reporting.Desktop.exe'
 $scripts = Join-Path $applicationRoot 'scripts'
 $migrationDirectory = Join-Path $applicationRoot 'database\migrations'
+$objectDirectory = Join-Path $applicationRoot 'database\objects'
 $backupScript = Join-Path $scripts 'backup-etp-database.ps1'
 $backupDirectory = Join-Path $env:ProgramData 'EtpReporting\Backups'
 $logDirectory = Join-Path $env:ProgramData 'EtpReporting\SetupLogs'
@@ -867,6 +927,8 @@ if (-not (Test-Path -LiteralPath $backupScript -PathType Leaf)) { throw "The dat
 if (-not (Test-Path -LiteralPath $migrationDirectory -PathType Container)) { throw "The bundled migration directory is missing." }
 $migrationFiles = @(Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.sql' -File)
 if ($migrationFiles.Count -eq 0) { throw "No bundled database migrations were found." }
+# 1.12 A3: the views, procedures and functions ship as files; without them the objects step would do nothing.
+if (-not (Test-Path -LiteralPath $objectDirectory -PathType Container)) { throw "The bundled database object directory (database\objects) is missing." }
 
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 # With the media ticked, also when SQL Server is there but Sqlcmd is not: that used to stop
@@ -923,7 +985,17 @@ if ($databaseExistedBeforeMigration) {
     if ($compatibilityLevel -lt 150) { throw "The existing database compatibility level is $compatibilityLevel; level 150 or newer is required before migration." }
 
     $appliedMigrationCount = [long](Invoke-SqlScalar -TargetDatabase $Database -Query "SET NOCOUNT ON; IF OBJECT_ID(N'dbo.schema_migrations',N'U') IS NULL SELECT CONVERT(bigint,0) ELSE SELECT COUNT_BIG(1) FROM dbo.schema_migrations;")
-    if ($appliedMigrationCount -lt $migrationFiles.Count) {
+    # 1.12 A3: an object-only change also needs the backup. A plan that cannot be made counts as a change.
+    $changePlanned = $true
+    try {
+        $changePlan = Invoke-EtpDatabaseChangePlan -FilePath $application
+        Write-SetupLog (Format-EtpDatabaseChangePlan -Plan $changePlan)
+        $changePlanned = $changePlan.HasChanges
+    }
+    catch {
+        Write-SetupLog "WARNING: setup could not list the pending database changes ($($_.Exception.Message)). It takes the pre-migration backup anyway."
+    }
+    if ($appliedMigrationCount -lt $migrationFiles.Count -or $changePlanned) {
         # On an edition that encrypts, the pre-migration backup cannot be taken at all until
         # the recovery keys have been exported. Refuse here, naming the step, instead of
         # letting the backup script fail part-way into an upgrade. A clean install takes no
@@ -934,7 +1006,7 @@ if ($databaseExistedBeforeMigration) {
         $databaseSizeMb = [double](Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT CONVERT(decimal(18,2),SUM(size)*8.0/1024.0) FROM sys.master_files WHERE database_id=DB_ID(N'$Database');")
         $requiredFreeSpaceGb = [math]::Ceiling(([math]::Max($MinimumBackupFreeSpaceGb, ($databaseSizeMb / 1024.0) * 1.25)) * 100) / 100
         $receiptPath = Join-Path $logDirectory "pre-migration-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss-fff')-$([Guid]::NewGuid().ToString('N')).json"
-        Write-SetupLog 'Existing database has pending bundled migrations. Creating and verifying a pre-migration backup before any migration runs.'
+        Write-SetupLog 'Existing database has pending bundled migrations or database object changes. Creating and verifying a pre-migration backup before any migration runs.'
         # The backup goes through the master operations broker. A database that reached this
         # instance by a restore rather than through setup - by hand, or after the restore
         # helper's own broker step failed - can be here without one, and the backup then
@@ -952,7 +1024,7 @@ if ($databaseExistedBeforeMigration) {
         Write-SetupLog "Verified pre-migration backup is retained at $preMigrationBackupPath."
     }
     else {
-        Write-SetupLog 'The existing database has no pending bundled migrations by journal count; bootstrap will still validate migration IDs and checksums.'
+        Write-SetupLog 'The existing database has no pending bundled migrations and no database object changes; bootstrap will still validate migration IDs, checksums and object definitions.'
     }
 }
 else {
@@ -968,6 +1040,9 @@ $postState = Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT state_desc + '|' + 
 if ($postState -cne 'ONLINE|0') { throw "Post-migration health verification requires the database to be ONLINE and read-write." }
 $postMigrationCount = [long](Invoke-SqlScalar -TargetDatabase $Database -Query "SET NOCOUNT ON; IF OBJECT_ID(N'dbo.schema_migrations',N'U') IS NULL THROW 51000,'Migration journal is missing.',1; SELECT COUNT_BIG(1) FROM dbo.schema_migrations;")
 if ($postMigrationCount -ne $migrationFiles.Count) { throw "Post-migration health verification found $postMigrationCount applied migrations; $($migrationFiles.Count) bundled migrations are required." }
+# 1.12 A3: migrations = bundled and pendingObjects = 0.
+$postPlan = Invoke-EtpDatabaseChangePlan -FilePath $application
+if ($postPlan.HasChanges) { throw "Post-migration health verification found database changes still pending. $(Format-EtpDatabaseChangePlan -Plan $postPlan)" }
 Invoke-SqlHealthCommand -Query "SET NOCOUNT ON; DBCC CHECKDB ([$Database]) WITH NO_INFOMSGS;"
 $migrationPhaseCompleted = $true
 Write-SetupLog 'EtpReporting migration completed and post-migration state, journal count, and DBCC integrity checks passed.'
@@ -1022,6 +1097,18 @@ try {
 }
 catch {
     Write-SetupLog "WARNING: setup could not prepare the health check export folder ($($_.Exception.Message)). The nightly health check still runs and is recorded, but writes no export file until setup runs again."
+}
+# 1.12 B1 (watch-point 2, added by A3, which owns this file in wave 1): the protected folder the
+# update engine stages a downloaded release in. Administrators and SYSTEM full control, active
+# Owners read and write; not the automation account. Best effort: without it the engine refuses
+# to stage and says setup has not prepared it.
+try {
+    $updateOwnerSids = if ($null -ne $ownerSids) { $ownerSids } else { @() }
+    $updatesFolder = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData 'EtpReporting\Updates') -Rules (Get-EtpHealthExportFolderRules -AutomationSid $null -OwnerSids $updateOwnerSids)
+    Write-SetupLog "Software update folder ready at $updatesFolder (SYSTEM and Administrators full control; $($updateOwnerSids.Count) active Owner account(s) read and write; nobody else)."
+}
+catch {
+    Write-SetupLog "WARNING: setup could not prepare the software update folder ($($_.Exception.Message)). In-app updates stay unavailable until setup runs again."
 }
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')
