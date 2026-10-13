@@ -1,6 +1,6 @@
 # Updating ETP from OneDrive (1.12)
 
-Plain-English guide to the in-app "Update available" flow. Engine checked against the B1 code at the wave-1 integration (13 Oct 2026); the screens (banner, confirm sheet, Settings > Software update, result screen) are the wave-2 B2 lane. CHECK AT INTEGRATION: compare every screen name and button below with the merged B2 code and its NOTE.
+Plain-English guide to the in-app "Update available" flow. Engine checked against the B1 code at the wave-1 integration (13 Oct 2026); the screens (banner, confirm sheet, Settings > Software update, result screen) are the wave-2 B2 lane. Checked against the B2 code at the wave-2 integration.
 
 ## Who does what
 - **Only Sagar publishes an update.** Nobody else has the signing key, and shop staff never see an update banner.
@@ -27,14 +27,14 @@ Plain-English guide to the in-app "Update available" flow. Engine checked agains
 There is no "latest" file. ETP lists the version folders and takes the highest one whose signature checks out and that may be installed over the running version.
 
 ## What the Owner sees
-- A banner at the top of every page: "ETP 1.12.x is available", with the notes and **Install now**. Only the Owner sees it. Update checking is off (`product_settings.update_check_enabled = 0`, migration 0065) until Sagar turns it on in **Settings > Software update**, after the first real Workpc upgrade has worked. The feed folder is set on the same screen (`product_settings.update_feed_path`); empty means `<your OneDrive>\ETP-Updates`.
-- **Settings > Software update** has the feed folder, **Check now**, the result of the last check (including "some entries in the folder were not trusted" when a folder entry had a bad signature) and the on/off switch. Leave it off until Sagar says otherwise.
+- A banner at the top of every page: "ETP 1.12.x is available", with the notes, **Install now** and **Not now**. Only the Owner sees it. Update checking is off (`product_settings.update_check_enabled = 0`, migration 0065) until Sagar turns it on in **Settings > Software update**, after the first real Workpc upgrade has worked. The feed folder is set on the same screen (`product_settings.update_feed_path`); empty means `<your OneDrive>\ETP-Updates`.
+- **Settings > Software update** has the feed folder, **Check now**, the result of the last check (including "The update folder holds files ETP will not trust. ETP ignored them. Tell Sagar." when a folder entry had a bad signature) and the on/off switch. Leave it off until Sagar says otherwise.
 - **Install now** opens a confirm sheet. It lists what must be quiet first (no import, nightly check, backup or drill running; no open entry draft; no other ETP window) and says ETP will close. Shop hours are allowed.
 - ETP then copies the installer to `C:\ProgramData\EtpReporting\Updates\<version>\`, checks its hash and version again, takes a verified backup (`backup-etp-database.ps1 -Purpose PreUpdate`, kept by rotation), keeps the two previous installers in `Updates\PreviousReleases\`, writes the attempt to `Updates\attempts.jsonl`, runs setup (which asks for administrator approval itself), and setup restarts ETP (not as administrator) when it succeeded.
 - Setup creates the protected `Updates` folder (SYSTEM and Administrators full control, active Owners read and write). Without it ETP says "Updates are not set up on this PC": run setup again.
 
 ## If it fails
-- At the next start ETP shows a result screen. After a failure it says: "Update failed. Your data is safe. Backup taken at hh:mm (file). Call Sagar." with **Open setup log folder** (setup writes `Updates\setup-result.json` and its log beside the staged installer).
+- At the next start ETP shows a result screen (to the Owner only). After a failure, "The update did not finish": "Update failed. Your data is safe. Backup taken at hh:mm (file). Call Sagar. Nothing was restored and your data was not changed by ETP." with **Open setup log folder**; after a declined Windows prompt, "The update did not start". A successful update is a line in the status bar (setup writes `Updates\setup-result.json` and its log beside the staged installer).
 - **ETP never restores the database by itself.** The backup is there if Sagar decides it is needed.
 - Do not run setup again and again. Send Sagar the log folder and `Updates\attempts.jsonl` under `C:\ProgramData\EtpReporting`.
 - Sagar's checks: was the installer fully downloaded from OneDrive (not a "cloud only" placeholder)? Does the database say "upgraded by a newer release"? See the troubleshooting table in `docs\OPERATIONS.md`.

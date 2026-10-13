@@ -11,7 +11,7 @@ public static class HelpTaskRoutes
         "exception-centre" => "open-items", "investigation" => "investigation", "digital-registers" => "register-inward",
         "accounting" => "prepare-batch", "operations-support" or "troubleshooting" => "support-package", "administration" => "users",
         "report-archive" => "generations", "backup-recovery" => "backups", "health-check" => "health-check",
-        // 1.12 wave 2: an id that the shell does not register yet resolves to null (no Open button) until U1 adds its row. CHECK AT INTEGRATION.
+        // 1.12 wave 2: every id below has a TaskNavigation row (checked at integration); an unknown id still resolves to null (no Open button).
         "morning" => "morning", "no-sale-day" => "readiness", "import-fixes" => "conflicts", "month-start" => "masters",
         "tally-screens" => "prepare-batch", "collections" => "collections-statement", "software-update" => "update-settings", _ => ""
     });

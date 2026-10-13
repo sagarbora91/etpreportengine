@@ -1,69 +1,73 @@
 # Changelog
 
-## [1.12.0] - unreleased (wave 1 integrated and gated 13 Oct 2026; wave 2 in progress)
+## [1.12.0] - unreleased (wave 1 gated 13 Oct 2026; wave 2 integrated 13 Oct 2026, not gated)
 
-Wave 1 of 1.12: seams and engines. Most new features have no screen yet (wave 2 adds them). Migrations 0062-0066. Wave 2 (screens, no-sale day, startup wait, G: copy) is listed first; migrations 0067-0069 (0070 only if needed).
-
-<!-- CHECK AT INTEGRATION: every wave-2 bullet below was written from the plan (112-W2-PLAN.md), not from the lane NOTEs, which did not exist yet. Compare each bullet with its lane's NOTE (112-W2-<LANE>-NOTE.md) and the merged code, fix the wording, then delete this comment. -->
+Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on top of them, the no-sale day, the startup wait and the G: backup copy (migrations 0067-0069; 0070 was not needed). Wave 2 is listed first.
 
 ### Wave 2: screens and daily-work fixes
 
 **Startup (S1)**
 
-- The scheduled automation, nightly health check, plan and backup runs now wait up to two minutes for SQL Server after a restart before giving up, so a boot or restore no longer leaves a Critical STARTUP_FAILED that fails the next health check (ERR-02, ERR-04). Permission and configuration errors still fail at once. Each wait writes one line to the run log.
-- Opening ETP by hand does not wait. If SQL Server is still starting, the message now says "SQL Server may still be starting. Wait a minute and open ETP again."
-- Opening ETP now checks that the database objects match this release. If they do not, ETP stops with "Database objects are not up to date; run setup again" instead of running on old views. CHECK AT INTEGRATION (exact message from A3).
+- The unattended automation task now waits up to two minutes for SQL Server after a boot or restore instead of failing at once. It retries only "not ready yet" errors; a permission or login error still fails at once. If it gives up, the STARTUP_FAILED line says how long it waited.
+- If SQL Server is still starting when you open ETP, the start screen says "SQL Server may still be starting. Wait a minute and open ETP again."
+- ETP now refuses to open on a database that setup has not updated: "Database objects are not up to date; run setup again." It never blocks when it cannot judge (no permission to read object definitions, a time-out, an error).
 
 **Stores and Service Centre as data (A4, migration 0067)**
 
-- Which store is the Service Centre, and its job-number prefix, are now stored in the database (Settings > Stores & masters > Stores), not written into the program. A second Service Centre needs a store row, not new software. Nothing changes for the current Service Centre. CHECK AT INTEGRATION (migration text, THROW 51970-79).
-- Service screens no longer show store or export codes in their titles.
-- Health check DB-06 now judges the repeat read of each Service view (warm), not the first one after a start (compile time). The first-read time is still shown as a number. Job history's list of events is the sixth view it times. This stops a false "Check" every night on a freshly started PC.
+- Service Centres are data: a store of a Service business unit with its own job-number prefix. The Owner can add a second Service Centre in Settings > Stores (tick "Service Centre", give the prefix); it stays inactive, like the first.
+- A Service file that names no store goes to the only Service Centre; with two or more it is refused with a plain sentence instead of being guessed.
+- Service screens name the Service Centre from the store list, and Service titles no longer show report codes.
+- Health check DB-06 now reads each Service view twice and judges the repeat read: the first read after a restart (plan compile) is shown as a number and no longer raises "Check"; job history's view is the sixth one timed.
 
 **Mark as no-sale day (N1, migration 0068; decisions 52 and 55)**
 
-- Owner and Store Manager can mark a store-day with no sales as a no-sale day (closed holiday, closed other, or open with no sale), with a reason. ETP then stops asking that shop for its daily files and daily entries for that day; targets stay. The day finalises and locks like any other.
-- The mark is refused when ETP already holds sales for the day, when the day is locked, and for a future date. It can be withdrawn, with a reason, while the day is open. Both are written to the audit trail.
-- The Daily Sales Report, its PDF and the pack say "No sales (marked by <name> on <date>)" instead of "Cannot run". Health check DATA-01 adds "(N store-days marked no-sale)". CHECK AT INTEGRATION (reason names, wording).
+- The Owner or a Store Manager can mark a shop's day with no sales (closed for a holiday, closed for another reason, or open with nothing sold) with a reason. ETP then stops asking for that day's shop files and daily entries; the month's targets still count, and the day is finalised and locked as usual. The mark can be withdrawn with a reason until the day is finalised. ETP refuses to mark a day it already holds sales for, a day with a daily entry other than zero, a finalised day or a future date.
+- The Daily Sales Report, its PDF, Excel and the daily pack show "No sales (marked by ... on ...)" for a marked shop-day, with the day's sales as 0 instead of "not imported".
+- The nightly check DATA-01 counts marked shop-days in its OK line. The Service Centre checked by the daily reminder now comes from the store list, not a fixed store code.
 
 **Morning page, recents and pins (U1)**
 
-- New Owner landing page **Morning**: one verdict line, one **Finalise N ready stores** button, three chips (System check, Shop files, Service freshness), one card per store, the month-start reminder on days 1 to 7, and the age of the last off-PC backup (and of the disk copy once G: is set up). Store Manager and Viewer still land on Today > Sales.
-- **Finalise N ready stores** asks once, naming the stores, then finalises each store as its own step and lists any store that was blocked and why. **Publish shop results now** runs the publish task.
-- Star a screen to pin it; Ctrl+K shows pinned, then the last eight used, then the rest. Only the screen's name is remembered, never what you typed.
-- The rail's "Needs attention" is a red chip, and the rail status button has one name. CHECK AT INTEGRATION (exact labels).
+- The Owner's start screen is now Today > Morning: one verdict, System check / Shop files / Service chips, one card per shop with what is missing in words, Fix buttons, a month-start card on days 1-7, and the age of the last off-PC backup. Store Managers and Viewers still start on Today > Sales.
+- "Finalise N ready stores": one confirmation naming the shops, each shop locked in its own step, a result line per shop. "Publish shop results now" runs the 07:40 publish task on demand and says what happened in one sentence.
+- Pins and recent screens survive a restart: a star beside the page title pins a screen (on a report, its favourite); Ctrl+K lists pinned, recent, then the rest. Only screen names are saved.
+- Rail "Needs attention" is a red chip; the rail status button has one name. The Today checklist offers "Mark as no-sale day" for a shop with no sales file and shows a marked day with "Withdraw".
+- Menu rows for Collections setup, Bank and settlement files, Collections: expected vs evidence, Deposits in transit and Software update.
 
 **Import fixes, month start, Close day, shop wording (U2, migration 0069)**
 
-- Import Problems and History show a Fix button per row (for example reopen the day and import again). To fix a finalised day: reopen with a reason, then re-apply the file ETP kept. ETP now remembers where each file came from so the fix can find it. Every fix action is audited.
-- Shop-facing results now say what the shop should do, never an office instruction (for example "Open the sheet, correct the date in the box, save, send again"). A hand import of a shop zip now also writes the shop's result file, and a date mismatch is a warning there too.
-- Month start: targets open on the first of the header month; **Copy all stores from last month** (staff targets Owner-only) asks Replace, Keep or Cancel when a row exists; staff names show beside CRO numbers; Save is highlighted until pressed.
-- Close day: Finalise sits in the verdict band; Reopen stays under More; a day with no sales file offers Mark as no-sale day.
-- The audit screens list the seven 1.12 event types and the two no-sale types.
+- Imports > Problems and History: Fix buttons on each refused file - Reopen day and re-apply (Owner), Retry, Tell the shop, Open folder, Copy Ref. ETP now records where every imported or refused file went, and every fix is written to the audit trail.
+- Shop result files tell the shop what to do in shop words ("Tell the office", "Open the sheet, correct the date in the box, save, send again"), never an office instruction. A hand-imported shop zip writes the shop's result file too, and a differing file-name date shows as a Warning on the Import screen.
+- Month start: staff targets open on the header date's month; "Copy all stores from last month" for monthly and staff targets (staff Owner-only), staff names beside CRO numbers, a Replace / Keep / Cancel dialog, and Save stays highlighted until pressed.
+- Close day: Finalise sits in the verdict band; a day with no sales file offers "Mark as no-sale day" there (Owner, Store Manager).
 
 **Tally screens (U3; decisions 53 and 57)**
 
-- Owner-only Tally screens: Write masters, Prepare, Approve, Write Tally file, Send, Read back, Compare, Open evidence folder. Plain buttons with the next one highlighted, no step numbers. TEST / LIVE is a chip with the word.
-- Tally profile fields: endpoint (port 9000, fixed), delivery, build label (EDUCATIONAL hint), **test PC name** and company name. **Send** appears only on the PC named in the profile; elsewhere a sentence says why. CHECK AT INTEGRATION.
+- A "Send to Tally" card on Settings > Tally vouchers writes the masters file, writes the voucher file, reads back from the test Tally (or from a file), sends, compares and opens the evidence folder; the next step is highlighted and each result is shown in plain words. Owner only.
+- Send exists only on the PC named as the test PC in Settings > Tally companies; elsewhere the screen says where it is set up.
+- Tally companies: choose file or direct delivery, the test address is fixed (port 9000), the build label explains EDUCATIONAL, and the test PC name is saved with "This PC is ..." beside it.
+- Accounting: "1 Prepare preview / 2 Approve selected / 3 Write Tally file..." became Prepare / Save / Approve / Reject / Write file with the next step highlighted.
 
 **Collections screens (U4)**
 
-- Settings > Collections setup (Owner), Import > Bank and settlement files, Reports > Collections: expected vs evidence, Reports > Deposits in transit. Test a layout on a real file before saving; pick the account when several match; possible duplicate lines are held until you choose Import as new or Restate. "Totals only, not matched yet" appears as words. A Viewer sees totals without bank references. CHECK AT INTEGRATION (migration 0070 only if the lane needed a column).
+- Settings > Integrations > Collections setup (Owner): bank accounts with the last four digits only, payment providers, merchant ids, payment codes and file layouts; "Test on this file" shows what a layout reads before it is saved.
+- Import > Bank and settlement files: choose or drop statements, see which layout each matches, choose the account when several match, and settle possible duplicate lines ("Import as new lines" or "Replace the earlier file") with a reason.
+- Reports > Collections: expected vs evidence ("Totals only, not matched yet") and Reports > Deposits in transit, oldest first; the Owner accepts the bank line ETP proposes ("Bank credited"); Store Managers see the deposits without bank details; Viewers see totals without bank references.
 
 **Software update screens (B2)**
 
-- Owner-only banner "ETP 1.12.x is available" with **Install now**; a confirm sheet (what must be quiet first, the backup step, "ETP will close"); at the next start a result screen with **Open setup log folder**. A failed update never restores anything by itself.
-- Settings > Software update: feed folder, **Check now**, last check, and the on/off switch (off by default; it stays off until the first real Workpc upgrade has worked).
-- `Publish-Release.ps1` works out whether a release changes the database.
+- The Owner sees "ETP 1.12.1 is available" under the header when a newer, signed release is in the update folder. "Install now" asks first, lists anything that stops the update (an import, a backup, an unsaved entry, another ETP window), takes a verified backup, closes ETP, runs setup and opens ETP again.
+- After an update that failed or never started, ETP says so at the next start, names the backup and the setup log folder, and never restores anything by itself.
+- Settings > Software update: the update folder, "Check now", the last check (including files ETP will not trust) and the switch for checking at start. It stays off until you turn it on.
+- `Publish-Release.ps1` works out `hasSchemaChange` from the release candidate's own database change plan.
 
 **Nightly copy of the verified backup to G: (G1; decisions 54 and 56)**
 
-- New script `copy-etp-backup-to-disk.ps1` and task "ETP Copy Backup To Disk" (22:45): copies the night's verified backup to a second disk, checks the copy by fingerprint, keeps the newest 30 nightly copies plus the first of each of the last 12 months. It refuses the system drive and OneDrive folders, and says one plain line when the disk is missing. Plain copy (the disk is covered by BitLocker). Sagar registers it after go-live.
-- Health check OPS-11 "Disk backup copy age": Skipped until set up; OK under 36 hours and matching the night's backup; Check when older or the disk is missing; never Problem. The Health check now runs **56** checks.
+- A nightly plain copy of the verified backup to the second disk (G:, BitLocker), hash-checked, keeping the newest 30 nights and the first copy of each of the last 12 months. Set up once (elevated, after go-live) with `install-daily-backup-task.ps1 -DiskCopyRoot G:\ETP-Backups`; the task "ETP Copy Backup To Disk" runs at 22:45. It refuses the system drive, a network path and OneDrive folders, and says one plain line when the disk is missing.
+- Health check OPS-11 "Disk backup copy age" (56 checks): Skipped until set up; Pass when the disk copy is under 36 hours old and is the newest verified backup; Warning when older, missing or the disk is not connected; never Fail.
 
 **Docs**
 
-- User guide chapters: Morning, Fix buttons, Month start, No-sale day, Tally screens, Collections, Software update. Help Centre topics and F1 routes for the new screens; the Service help no longer quotes a report code. `docs/operations` updated for the screens, the G: copy and OPS-11; `docs/design/SELF-DIAGNOSTICS.md` for DB-06, DB-07 and OPS-11. A sign-off checklist for the VM day.
+- User guide chapters: Morning, Fix buttons, Month start, No-sale day, Tally screens, Collections, Software update. Seven new Help Centre topics with F1 routes for the new screens; the Service help no longer quotes a report code. `docs/operations` updated for the screens, the G: copy and OPS-11; `docs/design/SELF-DIAGNOSTICS.md` for DB-06, DB-07 and OPS-11.
 
 ### Wave 1
 

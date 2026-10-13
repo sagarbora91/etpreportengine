@@ -1,6 +1,6 @@
 # Test gates and continuous integration
 
-Two gates plus a nightly run. Status: checked against the A2 scripts at the 1.12.0 wave-1 integration (13 Oct 2026). Wave 2 adds new SQL integration test files (one per lane); the integrator runs `Apply-SqlFact.ps1` once after the merges so they carry `[SqlFact]`, and they run in the release gate and the nightly run, never on CI. CHECK AT INTEGRATION: test counts and the wave-2 gate result. The scripts live in `E:\ETP\Migration 2026-10-04\` on Workpc, not in the repository.
+Two gates plus a nightly run. Status: checked against the A2 scripts at the 1.12.0 wave-1 integration (13 Oct 2026). Wave 2 adds new SQL integration test files (one per lane); the integrator runs `Apply-SqlFact.ps1` once after the merges so they carry `[SqlFact]`, and they run in the release gate and the nightly run, never on CI. Wave-2 integration fast gate (13 Oct 2026, unit projects only): 5,566 tests, 0 failed apart from the permissions guard that waits for the elevated gate to regenerate `ExpectedRolePermissions.json`; the elevated gate (`Chain-Gate-Then-Installer-1.12.0-w2.ps1`) had not run yet. The scripts live in `E:\ETP\Migration 2026-10-04\` on Workpc, not in the repository.
 
 ## 1. Everyday check: GitHub CI
 Workflow `.github/workflows/ci.yml` (GitHub Actions, `windows-latest`). Runs on every push and pull request to `main` and `release/**`; a newer push cancels the older run.

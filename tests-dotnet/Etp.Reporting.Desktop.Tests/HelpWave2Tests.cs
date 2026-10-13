@@ -5,7 +5,7 @@ namespace Etp.Reporting.Desktop.Tests;
 
 /// <summary>
 /// 1.12 wave 2 (lane DOC): every new screen has a Help topic, F1 on it opens that topic, and Help sentences stay free of
-/// report and store codes. CHECK AT INTEGRATION: the task ids are the ones the plan (section 4) froze; confirm each exists.
+/// report and store codes. The task ids are the ones the plan (section 4) froze; each has a TaskNavigation row.
 /// </summary>
 public sealed class HelpWave2Tests
 {

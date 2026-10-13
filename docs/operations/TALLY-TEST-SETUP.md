@@ -1,6 +1,6 @@
 # Tally test setup (Sagar and the accountant)
 
-Decisions 48, 49 and 53: all Tally work in 1.12 uses a **TEST company** in a **test copy of Tally inside the VM**. ETP never talks to the real Tally. Status: engine checked against the D1 code at the 1.12.0 wave-1 integration (13 Oct 2026). The screens and buttons named below are the wave-2 U3 lane, written here from the plan. CHECK AT INTEGRATION: compare every button name, field name and sentence with the merged U3 code and its NOTE. All Tally screens are Owner-only (approve, write, send and profile edits).
+Decisions 48, 49 and 53: all Tally work in 1.12 uses a **TEST company** in a **test copy of Tally inside the VM**. ETP never talks to the real Tally. Status: engine checked against the D1 code at the 1.12.0 wave-1 integration (13 Oct 2026). The screens and buttons named below are the wave-2 U3 lane, checked against its code at the wave-2 integration. All Tally screens are Owner-only (approve, write, send and profile edits).
 
 ## Part 1: install Tally in the VM (Sagar)
 1. Start the ETP test VM. Do not do this on Workpc or any shop PC.
@@ -18,8 +18,9 @@ Decisions 48, 49 and 53: all Tally work in 1.12 uses a **TEST company** in a **t
 
 ## What the screen shows
 - The profile card has the company name, the address (port 9000 is fixed and shown, not editable), delivery (file or HTTP), the build label with an "EDUCATIONAL" hint, and the Test PC name. A chip says **TEST** or **LIVE** in words.
-- Three plain buttons in order, the next one highlighted: **Prepare**, **Approve**, **Write Tally file** (no step numbers). Beside them: **Write Tally masters** (asks for a folder, then shows the mappings the accountant must approve and the path of the review list), **Read back from Tally**, **Send to the test Tally**, **Compare**, and **Open evidence folder**.
-- **Send to the test Tally is shown only on the PC named in the profile** (decision 57). On any other PC, including Workpc, there is no button; a sentence says "Sending is set up for <test PC name> only". That is on purpose.
+- Accounting: plain buttons, the next one highlighted: **Prepare**, **Save**, **Approve**, **Reject**, **Write file** (no step numbers).
+- Settings > Tally vouchers has a **Send to Tally** card for the chosen company: **Write masters** (asks for a folder, then shows the mappings the accountant must approve and the path of the review file), **Write file**, **Read back**, **Read back from file** (a Day Book exported by hand), **Send**, **Compare** and **Open evidence folder**. The next step of the selected batch is the highlighted button; a button that cannot be used says why in its tooltip.
+- **Send to the test Tally is shown only on the PC named in the profile** (decision 57). On any other PC, including Workpc, there is no **Send** button; a sentence says "Sending is set up for <test PC name> only. On this PC, write the file and import it in Tally by hand, then read back." (with no test PC named: "Sending to Tally is not set up for any PC..."). That is on purpose.
 - A batch moves through PLANNED, APPROVED_READY, EXPORTED_AWAITING_IMPORT and RECONCILED; the buttons that make no sense for the state are not offered.
 
 ## Review list for the accountant

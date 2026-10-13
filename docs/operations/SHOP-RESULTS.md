@@ -1,6 +1,6 @@
 # Shop results: what staff see each morning (1.12)
 
-Status: engine checked against the C1 code at the 1.12.0 wave-1 integration (13 Oct 2026); the wave-2 changes (what-to-do wording, hand imports, Morning page) are written from the plan. CHECK AT INTEGRATION: compare with the U1 and U2 NOTEs and the merged code.
+Status: engine checked against the C1 code at the 1.12.0 wave-1 integration (13 Oct 2026); the wave-2 changes (what-to-do wording, hand imports, Morning page) were checked against the U1 and U2 code at the wave-2 integration.
 
 ## The idea
 Until now a shop sent its files and heard nothing. From 1.12, ETP writes a short result for each file a shop sends, Workpc signs it and puts it in that shop's OneDrive folder, and the shop PC shows it, so staff learn the same morning whether yesterday's files were accepted.
@@ -27,6 +27,6 @@ Only: shop role, business date, send number, ETP version, time produced, and per
 - Setup creates `C:\ProgramData\EtpReporting\Operations\ShopResults\{pending,published,rejected}`; the automation account may write `pending` only. If ETP cannot write a result, that run's line in the automation history says so.
 - Nothing shows after 08:30? Check OneDrive is syncing on the shop PC, then that the Workpc task "ETP Publish Shop Results" ran, then that the shop's key is in Workpc's `shop-keys` folder (a role without a key stays in `pending`).
 - After installing 1.12, run `Register-WorkpcTasks.ps1` again on Workpc and `Register-ShopDailyTask.ps1` again on each shop PC, so the two new tasks exist.
-- A red result staff cannot fix themselves shows on the Morning page, on that shop's card as "sent back" with the time it was published, and in Import > Problems, where each row has a **Fix** button (see the user guide, "Fix buttons on import problems").
+- A red result staff cannot fix themselves shows on the Morning page, on that shop's card under "Sent back" ("result of HH:mm", the result file's own time), and in Import > Problems, where each row has a **Fix** button (see the user guide, "Fix buttons on import problems").
 - A day with genuinely no sales (shop closed) needs no file: mark it as a no-sale day (user guide, "Mark as no-sale day") and the shop is no longer waited for that day.
 - A shop zip imported by hand at Workpc (Import > Import files) now writes the shop's result file too, so the shop still hears back. A date mismatch is a warning there, as in the automatic run.

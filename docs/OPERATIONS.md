@@ -138,16 +138,14 @@ Every drill that reaches the comparison writes `<database>-latest-drill.json`: `
 
 ### Copy of the verified backup to a second disk (G:), 1.12
 
-CHECK AT INTEGRATION: written from the G1 plan (decisions 54 and 56); compare script name, parameters, folder names and the health check wording with the merged G1 code and its NOTE.
-
 Workpc has a 1.8 TB disk (G:) that is nearly empty. After go-live a nightly task copies the newest verified backup there, so a copy exists that does not depend on OneDrive or a USB stick.
 
 - **What it does.** `scripts\copy-etp-backup-to-disk.ps1` reads `<database>-latest-verified.json`, checks the `.bak` against its fingerprint, copies it to `<disk root>\<yyyy-MM>\<file>` under a temporary name, renames it, checks the copy by fingerprint again, and writes a receipt beside it and `<disk root>\latest-disk-copy.json`.
 - **Keeps** the newest 30 nightly copies plus the first copy of each of the newest 12 months (about 15 to 25 GB).
 - **Plain copy, not encrypted.** The disk is inside Workpc and covered by BitLocker (decision 51), so a restore is one file with no key to find.
-- **Refuses** (and says one plain line, no stack trace) when the root is on the system drive or inside OneDrive, when the disk is missing (exit code 2), or when free space is under three times the file size.
-- **Register it (Sagar, elevated, after go-live):** `install-daily-backup-task.ps1 -DiskCopyRoot G:\ETP-Backups` creates "ETP Copy Backup To Disk" (22:45, run as the caller like the other tasks; `-Times` for more than one run a day). `remove-etp-scheduled-tasks.ps1` removes it.
-- **Health check OPS-11 "Disk backup copy age"** needs no database. Skipped until the task is set up; OK when `latest-disk-copy.json` is under 36 hours old and matches the newest verified backup; Check (Warning) when older or the disk is not there; never Problem. With it the Health check runs 56 checks.
+- **Refuses** (exit code 2 and one plain line, no stack trace) when the root is on the system drive, a network path or inside OneDrive, when the disk is missing, or when free space is under three times the file size. A fingerprint mismatch or a missing receipt is exit code 1. A second run for the same backup changes nothing but the receipts. Each run appends a line to `<disk root>\disk-copy.log.jsonl`.
+- **Register it (Sagar, elevated, after go-live):** `install-daily-backup-task.ps1 -DiskCopyRoot G:\ETP-Backups` creates "ETP Copy Backup To Disk" (22:45, run as the caller with highest privileges, because the backup folder is administrators-only; `-Times` for more than one run a day, `-DiskCopyOnly` to leave the backup task alone) and writes `%ProgramData%\EtpReporting\Operations\disk-copy.json`, which OPS-11 reads. `remove-etp-scheduled-tasks.ps1` removes the task.
+- **Health check OPS-11 "Disk backup copy age"** needs no database. Skipped until the task is set up; OK when `latest-disk-copy.json` is under 36 hours old and matches the newest verified backup; Check (Warning) when older, when the disk is not there, or when the copy is not of the newest verified backup more than 12 hours after that backup; never Problem. With it the Health check runs 56 checks.
 - **Restore** from this copy exactly as from the original: the receipt names the file, size and fingerprint.
 
 ## Second-machine recovery exercise
@@ -293,11 +291,9 @@ The Monday audit's Part 0 reads the week's export files (read-only), and appends
 
 ### After a restart: SQL Server not ready, or "run setup again" (1.12)
 
-CHECK AT INTEGRATION: compare with the S1 NOTE and the merged messages.
-
-- The scheduled tasks (automation run, nightly health check, backups) now wait up to 2 minutes for SQL Server. The run log shows "SQL Server is not ready yet ... trying again" and then a normal run. Only if SQL Server is still down after 2 minutes does the run record STARTUP_FAILED (with the SQL error number and "waited 120 s"). Wrong password, missing permission and configuration mistakes are not waited for.
+- The unattended automation task (the one that starts at boot) now waits up to 2 minutes for SQL Server. The run log shows "SQL Server is not ready yet (SQL error N); waited ... trying again in ..." and then a normal run. Only if SQL Server is still down after 2 minutes does the run record STARTUP_FAILED (with the SQL error number, ending "(waited 120 s)"). Wrong password, missing permission and configuration mistakes are not waited for.
 - Opening ETP by hand does not wait. If it says SQL Server may still be starting, wait a minute and open ETP again.
-- If ETP stops with "Database objects are not up to date; run setup again", a view or procedure on this database differs from this release (setup was not run after a copy or restore, or an object was changed by hand). Run the installer's setup again; do not edit objects by hand. The Health check DB-07 shows which object differs.
+- If ETP stops with "Database objects are not up to date; run setup again", a view or procedure on this database differs from this release (setup was not run after a copy or restore, or an object was changed by hand). Run the installer's setup again; do not edit objects by hand. (A login that cannot read object definitions, such as a Store Manager, is not checked and opens normally.) The Health check DB-07 shows which object differs.
 
 ### Phase 5 upgrade and operating checks
 

@@ -132,36 +132,34 @@ Monthly store targets (Settings → Stores & masters → Brands and targets → 
 
 ## Morning (Owner)
 
-<!-- CHECK AT INTEGRATION (chapters Morning to Software update): written from the wave-2 plan. Compare every screen name, button and sentence with the merged U1, U2, N1, U3, U4 and B2 code and their NOTEs. -->
-
 The Owner opens on **Morning**; a Store Manager or Viewer opens on Today > Sales and does not see Morning.
 
 - **Top line and button.** One sentence says how the day stands. **Finalise N ready stores** closes every store whose day is complete. It asks once, naming the stores, then finalises each store separately. A store that is blocked is listed afterwards with the reason; the others are not held back. Finalising locks the day (Reopen is under More on Close day).
-- **Three chips.** *System check* (the last nightly health check; click it for the Health check), *Shop files* (what each shop sent, and the time Workpc sent back its answer), *Service freshness* (how recent the Service Centre exports are).
-- **One card per store.** Files in, entries in, checks, and "sent back" with the time. A store marked as a no-sale day says so, with who marked it and a **Withdraw** button. A blocked store shows the **Fix** buttons for its problem.
+- **Three chips.** *System check* (the last health check and its top finding), *Shop files* (what each shop sent today, and the answers waiting or sent back), *Service* (how recent the Service Centre exports are).
+- **One card per store.** Files, Entries, Checks and Sent back, each with a word and a chip; what is missing is said in words, with **Fix**, **Enter** or **Open Close day** buttons. A store marked as a no-sale day says so, with who marked it and a **Withdraw** button. A blocked store shows the **Fix** buttons for its problem.
 - **Month start card** on days 1 to 7 when a target is missing: **Copy all stores from last month** (see Month start).
-- **Quiet footer.** How old the last off-PC backup is and, once the G: copy is set up, how old the disk copy is. **Publish shop results now** sends the shops their answers at once instead of waiting for 07:40.
+- **Quiet footer.** How old the last off-PC backup is. **Publish shop results now** (top of the page) sends the shops their answers at once instead of waiting for 07:40, and says in one sentence what happened.
 - **Pins and recents.** Press the star beside a page title to pin it. Ctrl+K with nothing typed lists pinned screens, then the last eight you used, then everything else. Only the screen is remembered, never anything you typed.
 
 ## Fix buttons on import problems
 
-Import > Problems and Import > History show a **Fix** button on rows that ETP knows how to help with. The Verdict column comes first and says in words what happened.
+Import > Problems and Import > History show **Fix** buttons on rows that ETP knows how to help with: **Reopen day and re-apply** (Owner), **Retry**, **Tell the shop**, **Open folder** and **Copy Ref**. The Verdict column (Problems) or Result column (History) comes first and says in words what happened.
 
 - **Date in the file name is wrong:** a daily-inputs sheet saved under the wrong date is imported under the date inside the sheet, with a warning. Nothing to fix.
-- **The day is already finalised and a sheet arrives:** ETP refuses it. Press **Reopen and re-apply**: it asks for a reason, reopens the day, imports the file ETP kept, and you finalise again. ETP remembers where each file came from, so you do not look for it.
+- **The day is already finalised and a sheet arrives:** ETP refuses it. The Owner presses **Reopen day and re-apply**: it asks for a reason, reopens the day, imports the file ETP kept, and you finalise again. ETP remembers where each file came from, so you do not look for it.
 - **A shop's file was refused:** the shop already has a sentence saying what to do. Fix buttons appear only when the office can do something.
 
-Every fix is written to the audit trail (Settings > Database > Audit trail). Owner and Store Manager can fix; Viewer cannot.
+Every fix is written to the audit trail (Settings > Database > Audit trail). Only the Owner can reopen a day; a Store Manager gets Retry, Tell the shop and Open folder; a Viewer can only copy the Ref.
 
 **What the shops read.** Shop windows never carry office instructions. They say things like "Open the sheet, correct the date in the box, save, send again", or "Tell the office" when only the office can help.
 
 ## Month start: copy last month's targets
 
-On Settings > Stores & masters, Monthly targets and Staff targets open on the first of the header month.
+Monthly targets are on Settings > Stores & masters; staff targets are on Today > Close day (Staff targets). Both follow the header date's month.
 
 1. Press **Copy all stores from last month**. A list opens with last month's figures; nothing is saved yet.
-2. If a store already has a target this month, ETP asks **Replace**, **Keep** or **Cancel**. Keep leaves that store as it is.
-3. Edit anything, then press **Save**. The Save button stays highlighted until you press it.
+2. If a store already has a target this month, ETP asks **Replace saved targets**, **Keep existing** or **Cancel**. Keep existing leaves that store as it is.
+3. Edit anything, then press **Save copied targets**. That button stays highlighted until you press it.
 
 Staff targets show the staff name beside the CRO number. Staff targets can be copied and saved by the Owner only (decision 27); a Store Manager can see them.
 
@@ -170,19 +168,20 @@ Staff targets show the staff name beside the CRO number. Staff targets can be co
 Use this when a shop genuinely had no sales (a holiday, or a day it did not open). Without it ETP keeps asking that shop for its files every day.
 
 1. Open Today > Sales (or Close day) for that store and date. Where ETP says it is waiting for the sales file, press **Mark as no-sale day**. Owner and Store Manager see the button; a Viewer does not.
-2. Choose why: *Closed, holiday*, *Closed, other* or *Open, no sale*. Type a reason (required) and press **Mark**.
+2. Choose why: *Shop closed for a holiday*, *Shop closed for another reason* or *Shop open, but nothing was sold*. Type a reason (required) and press **Mark**.
 3. ETP stops asking that shop for its daily files and daily entries for that day. **Targets are still asked for.** The day then finalises and locks like any other day.
-4. The Daily Sales Report, its PDF and the pack say "No sales (marked by <name> on <date>)". The health check counts the day as complete: "(N store-days marked no-sale)".
+4. The Daily Sales Report, its PDF and the pack say "No sales (marked by <name> on <date>)". The health check counts the day as complete: "(1 store-day marked no-sale)".
 
-ETP **refuses** to mark a day when it already holds sales for that store and day, when the day is locked, or for a date in the future. The refusal says which. To undo: press **Withdraw** in the same place, type a reason, and the day asks for its files again. If the day is already locked, reopen it first. Marking and withdrawing are in the audit trail.
+ETP **refuses** to mark a day when it already holds sales for that store and day, when a daily entry other than zero is saved, when the day is locked, or for a date in the future. The refusal says which. To undo: press **Withdraw no-sale day** in the same place, type a reason, and the day asks for its files again. If the day is already locked, reopen it first. Marking and withdrawing are in the audit trail.
 
 ## Tally screens (Owner)
 
 All Tally work uses a TEST company in a test copy of Tally inside the virtual machine. ETP never talks to the real Tally (decision 53). Setup steps: [TALLY-TEST-SETUP](operations/TALLY-TEST-SETUP.md).
 
 - **Profile.** Company name, address (port 9000, fixed), delivery, build label (EDUCATIONAL), and **Test PC name**. A chip says TEST or LIVE.
-- **Buttons.** **Write Tally masters** (the ledger setup for a new company, plus a list for the accountant), then **Prepare**, **Approve**, **Write Tally file**, **Send to the test Tally**, **Read back from Tally**, **Compare**, and **Open evidence folder**. The next button to press is highlighted.
-- **Send** is shown only on the PC named in the profile. Elsewhere you see "Sending is set up for <PC name> only". Every send reads back first and refuses when Tally already holds those vouchers.
+- **Accounting.** **Prepare**, **Save**, **Approve**, **Reject**, **Write file**; the next button to press is highlighted.
+- **Settings > Tally vouchers, Send to Tally card.** **Write masters** (the ledger setup for a new company, plus a review file for the accountant), **Write file**, **Read back**, **Read back from file**, **Send**, **Compare** and **Open evidence folder**. The next button to press is highlighted.
+- **Send** is shown only on the PC named in the profile. Elsewhere you see "Sending is set up for <PC name> only. On this PC, write the file and import it in Tally by hand, then read back." Every send reads back first and refuses when Tally already holds those vouchers.
 - **Compare** says RECONCILED when ETP and Tally agree; anything else lists each difference. Never import the same file twice.
 - Only the Owner can approve, write, send or edit the profile.
 
@@ -190,17 +189,17 @@ All Tally work uses a TEST company in a test copy of Tally inside the virtual ma
 
 Details and who sees what: [COLLECTIONS-STATEMENT](operations/COLLECTIONS-STATEMENT.md).
 
-1. **Settings > Collections setup (Owner):** bank accounts (last four digits only), payment providers and merchant ids, and file layouts. Press **Test on this file** with a real statement before saving a layout.
-2. **Import > Bank and settlement files:** choose the file. ETP shows the layout it matched; choose the account if several fit. Each file says what happened. Lines that look like ones already imported wait for **Import as new** or **Restate** (with a reason).
-3. **Reports > Deposits in transit:** cash sent and not yet credited, oldest first, age as a coloured chip. The Owner presses **Bank credited** to accept ETP's proposal.
+1. **Settings > Integrations > Collections setup (Owner):** bank accounts (last four digits only), payment providers and merchant ids, and file layouts. Press **Test on this file** with a real statement before saving a layout.
+2. **Import > Bank and settlement files:** choose the file. ETP shows the layout it matched; choose the account if several fit. Each file says what happened. Lines that look like ones already imported wait for **Import as new lines** or **Replace the earlier file** (with a reason).
+3. **Reports > Deposits in transit:** cash sent and not yet credited, oldest first, age as a coloured chip. The Owner presses **Bank credited** to accept ETP's proposal. A Store Manager sees the deposits without bank details; a Viewer cannot open it.
 4. **Reports > Collections: expected vs evidence:** pick store, dates and way of payment. UPI and card differences read "totals only, not matched yet". A way of payment with no provider shows "Provider not set up". A Viewer sees totals without bank references; bank narrations and payer names are for the Owner only.
 
 ## Software update (Owner)
 
 Updates come from a signed folder in OneDrive that only Sagar can publish to. Background and failures: [UPDATES](operations/UPDATES.md).
 
-1. When a newer release is waiting, a banner appears on every page for the Owner: "ETP 1.12.x is available", with the notes and **Install now**. Nobody else sees it.
-2. **Install now** opens a sheet listing what must be quiet first (no import, nightly check or backup running, no open entry draft, no other ETP window), the backup ETP takes before updating, and that ETP will close. Press **Install** to go on.
+1. When a newer release is waiting, a banner appears on every page for the Owner: "ETP 1.12.x is available", with the notes, **Install now** and **Not now**. Nobody else sees it.
+2. **Install now** opens a sheet listing what must be quiet first (no import, nightly check or backup running, no open entry draft, no other ETP window), the backup ETP takes before updating, and that ETP will close. Press **Install now** to go on (it stays off while anything listed blocks it).
 3. ETP updates and starts again by itself (not as administrator). At the next start a result screen says what happened. After a failure it says your data is safe, names the backup, and has **Open setup log folder**. ETP never restores the database by itself; call Sagar.
 4. **Settings > Software update:** the update folder, **Check now**, the result of the last check, and the on/off switch for checking. Leave checking off until Sagar says to turn it on.
 

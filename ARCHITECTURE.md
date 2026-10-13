@@ -72,11 +72,9 @@ Source or documentation completion alone is not a final test pass or release dec
 
 ## 1.12 additions (wave 2)
 
-<!-- CHECK AT INTEGRATION: written from the wave-2 plan before the lanes were merged; confirm each paragraph against the merged code. -->
+**Database objects as files.** Views, procedures and functions live one file each in `database/objects` and are applied by setup when their text changes (migration 0062 holds the journal). Migrations hold tables, columns, constraints and grants for tables only; a migration never creates a view or procedure. Interactive start now calls the same planner (`DatabaseChangePlanner`) after the migration check; if any migration or object is pending, start stops with the existing configuration-rejected path and A3's message ("Database objects are not up to date; run setup again."). The check (`StartupObjectsCheck`) reads the two journals and the live definitions; it never blocks when it cannot judge (a login without VIEW DEFINITION, an error, a 20-second time-out).
 
-**Database objects as files.** Views, procedures and functions live one file each in `database/objects` and are applied by setup when their text changes (migration 0062 holds the journal). Migrations hold tables, columns, constraints and grants for tables only; a migration never creates a view or procedure. Interactive start now calls the same planner (`DatabaseChangePlanner`) after the migration check; if any migration or object is pending, start stops with the existing configuration-rejected path and A3's message ("run setup again"). The cost is one journal read, not a text comparison.
-
-**Startup wait.** `SqlStartupWait` retries the first connection of the headless verbs (automation run, nightly health, plan verb, backups) for up to 120 seconds with backoff, for transient SQL errors only. Permission and login errors are never retried. Each wait writes one line to the run log; on giving up the existing `STARTUP_FAILED` line is written. The interactive start does not wait; its failure text gains one sentence when the cause is transient.
+**Startup wait.** `SqlStartupWait` retries the first connection of the unattended `--automation-once` run (the only verb that starts at boot; setup runs the others and has its own retry) for up to 120 seconds with backoff, for transient SQL errors only. Permission and login errors are never retried. Each wait writes one line to the run log; on giving up the existing `STARTUP_FAILED` line is written, ending "(waited 120 s)". The interactive start does not wait; its failure text gains one sentence when the cause is transient.
 
 **Stores and Service Centres as data (migration 0067).** `business_units.unit_kind` marks a Service business unit and `stores.service_job_prefix` holds its job-number prefix. Code asks `IServiceCentreCatalog` (an older database with neither column answers with the one legacy Service Centre) instead of naming a store. From 0067 on no migration inserts stores, brands or brand rows.
 
@@ -84,6 +82,6 @@ Source or documentation completion alone is not a final test pass or release dec
 
 **Import source locations (migration 0069).** `dbo.import_source_locations` remembers where each routed or hand-imported file came from, so a Fix button can re-apply a kept file after a reopen. Viewer has no access.
 
-**Shell.** A screen registry and shell banner slot (wave 1) now carry the Morning page, pins and recents (`UiPreferences`), the update banner and the new task rows. Screens receive services; connection strings stay in the SQL layer (`ConnectionStringAllowlist` only shrinks).
+**Shell.** A screen registry and shell banner slot (wave 1) now carry the Morning page, pins and recents (`UiPreferences`), the update banner and the new task rows. Screens receive services; connection strings stay in the composition root and the SQL layer (`ConnectionStringAllowlist` is empty after wave 2 and stays empty).
 
 **Disk copy.** `copy-etp-backup-to-disk.ps1` copies the verified backup to a second local disk; health check OPS-11 reads its receipt (`latest-disk-copy.json`) without SQL, like OPS-10.

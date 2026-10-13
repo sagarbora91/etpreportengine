@@ -37,9 +37,7 @@ dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- seed --databa
 
 ## New in 1.12 (in progress)
 
-The Morning page for the Owner, Fix buttons on import problems, month-start target copy, "Mark as no-sale day", Tally and Collections screens, in-app software update, and a nightly copy of the verified backup to a second disk (G:). The scheduled tasks now wait for SQL Server after a restart, and ETP refuses to start when the database objects do not match the release. See [CHANGELOG](CHANGELOG.md), the [user guide](docs/USER-GUIDE.md) and `docs/operations` ([updates](docs/operations/UPDATES.md), [shop results](docs/operations/SHOP-RESULTS.md), [Tally test setup](docs/operations/TALLY-TEST-SETUP.md), [collections statement](docs/operations/COLLECTIONS-STATEMENT.md), [test gates](docs/operations/CI.md), [backups](docs/OPERATIONS.md)).
-
-<!-- CHECK AT INTEGRATION: confirm this list against the merged lanes before the 1.12.0 release. -->
+The Morning page for the Owner, Fix buttons on import problems, month-start target copy, "Mark as no-sale day", Tally and Collections screens, in-app software update, and a nightly copy of the verified backup to a second disk (G:). The unattended automation task now waits for SQL Server after a restart, and ETP refuses to start when the database objects do not match the release. See [CHANGELOG](CHANGELOG.md), the [user guide](docs/USER-GUIDE.md) and `docs/operations` ([updates](docs/operations/UPDATES.md), [shop results](docs/operations/SHOP-RESULTS.md), [Tally test setup](docs/operations/TALLY-TEST-SETUP.md), [collections statement](docs/operations/COLLECTIONS-STATEMENT.md), [test gates](docs/operations/CI.md), [backups](docs/OPERATIONS.md)).
 
 ## Reference
 
