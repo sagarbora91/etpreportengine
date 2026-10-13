@@ -175,7 +175,9 @@ public sealed class TallySalesVoucherExportTests
         Assert.Equal((TallyVoucherStatus.Blocked, TallySalesVoucherComposer.CancelledSameDayCode, true), (left.Status, left.BlockCode!, left.LeftOutByScope));
         Assert.Contains("decision 41", left.BlockedReason, StringComparison.Ordinal);
         Assert.Equal(TallyVoucherStatus.Planned, plan.Vouchers.Single(voucher => voucher.DocumentNumber == invoices[0].DocumentNumber).Status);
-        Assert.Equal(plan.Vouchers.Single(voucher => voucher.DocumentNumber == invoices[0].DocumentNumber).ExpectedTotal, plan.DebitTotal);
+        // The batch's debit total is the kept voucher's debits only (tender, plus round-off when it is a debit); ExpectedTotal is
+        // the invoice's gross, which differs from the tender by a negative round-off (integration 1.12 fix).
+        Assert.Equal(plan.Vouchers.Single(voucher => voucher.DocumentNumber == invoices[0].DocumentNumber).Entries.Sum(entry => entry.Debit), plan.DebitTotal);
 
         Assert.Equal(TallySalesVoucherComposer.SourceHash(invoices[1]), TallySalesVoucherComposer.SourceHash(invoices[1] with { CancelledSameDay = false }));
         Assert.NotEqual(TallySalesVoucherComposer.SourceHash(invoices[1]), TallySalesVoucherComposer.SourceHash(cancelled));

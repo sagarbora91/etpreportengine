@@ -170,7 +170,7 @@ public static class CollectionsStatementBuilder
             "No deposit on the daily sheet for this day", tender);
     }
 
-    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    private static string Day(DateOnly date) => Etp.Reporting.Application.Formatting.DisplayText.Date(date);
 
     private static int ModeRank(string mode)
     {

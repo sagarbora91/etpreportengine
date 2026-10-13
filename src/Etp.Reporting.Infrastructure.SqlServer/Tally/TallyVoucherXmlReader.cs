@@ -77,10 +77,23 @@ public static class TallyVoucherXmlReader
                 YesNo(element.Elements().FirstOrDefault(e => e.Name.LocalName == "ISDEEMEDPOSITIVE")?.Value)))
             .Where(line => line.LedgerName.Length > 0 || line.Amount is not null)
             .ToArray();
-        var fragment = Encoding.UTF8.GetBytes(voucher.ToString(SaveOptions.DisableFormatting));
+        var fragment = Encoding.UTF8.GetBytes(FragmentText(voucher));
         return new(index, type, TallyDate(Child("DATE")), Child("VOUCHERNUMBER"), Child("REFERENCE"), Child("NARRATION"),
             YesNo(Child("ISCANCELLED")), YesNo(Child("ISOPTIONAL")), Child("GUID"), Long(Child("MASTERID")), Long(Child("ALTERID")),
             Convert.ToHexString(SHA256.HashData(fragment)).ToLowerInvariant(), lines);
+    }
+
+    /// <summary>
+    /// The voucher as <c>XElement.ToString(SaveOptions.DisableFormatting)</c> writes it, but with CheckCharacters off: real Tally
+    /// exports carry control characters such as <c>&amp;#4;</c>, which the reader accepts and the default writer refuses
+    /// (integration 1.12 fix; the same text as before for every voucher without them).
+    /// </summary>
+    private static string FragmentText(XElement voucher)
+    {
+        var settings = new System.Xml.XmlWriterSettings { OmitXmlDeclaration = true, CheckCharacters = false };
+        using var text = new StringWriter(CultureInfo.InvariantCulture);
+        using (var writer = System.Xml.XmlWriter.Create(text, settings)) voucher.WriteTo(writer);
+        return text.ToString();
     }
 
     private static DateOnly? TallyDate(string? value) =>

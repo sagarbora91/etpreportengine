@@ -287,6 +287,37 @@ public static class DesktopFriendlyError
         (51822, null, "The health check is for the Owner. Ask the Owner to open Settings > Database > Health check."),
         (51823, null, "A Known needs a reason in plain words and an end date from today up to 90 days ahead. Nothing was changed."),
         (51824, null, "That health check run is no longer in the database. Press Refresh on the Health check screen."),
+
+        // 1.12 D1 Tally engine (51940-51949).
+        (51940, null, "This batch is no longer approved and ready. Refresh the list and try again."),
+        (51941, null, "The Tally company changed while the file was written. Nothing was marked; refresh and write the file again."),
+        (51942, null, "The batch's vouchers changed while the file was written. Nothing was marked; refresh and write the file again."),
+        (51943, null, "This batch is being sent to Tally right now. Wait for that send to finish, then read back."),
+        (51944, "This send was closed by another send. Read back", "This send was closed by another send. Read back from Tally before anything else."),
+        (51944, null, "This send was closed by another send. Nothing was sent."),
+        // 1.12 D2 collections (51950-51959).
+        (51950, null, "The provider settles a different payment mode. Check the provider's mode in Collections setup, or choose a matching tender mode."),
+        (51951, "Give a reason", "Give a reason for importing lines that look like ones already imported."),
+        (51951, null, "Choose how to treat lines that look like ones already imported."),
+        (51952, "The statement file has no lines", "The statement file has no lines. Check that it is the right file."),
+        (51952, null, "The statement file could not be passed to the database. Import it again."),
+        (51953, null, "This file layout, its bank account or its provider is not set up or is switched off. Ask the owner to check Collections setup."),
+        (51954, null, "Another statement for this account or provider is being imported. Try again in a minute."),
+        (51955, null, "A bank credit confirmation cannot be deleted. Withdraw it with a reason instead."),
+        (51956, null, "A bank credit confirmation can only be withdrawn, once."),
+        (51957, null, HistoryKept),
+        (51958, "Choose an active bank account", "Choose an active bank account of this store."),
+        (51958, "Lines were already imported with this layout", "Lines were already imported with this layout, so its account or provider cannot change. Add a new layout instead."),
+        (51958, "The daily sheet has no cash deposit", "The daily sheet has no cash deposit for this store and day."),
+        (51958, "This account already has statement lines", "This account already has statement lines, so its key cannot change. Add a new account instead."),
+        (51958, "This deposit is already marked as credited", "This deposit is already marked as credited."),
+        (51958, "This payment code is not in the tender modes list", "This payment code is not in the tender modes list."),
+        (51958, "This bank credit is already withdrawn", "This bank credit is already withdrawn or no longer exists. Refresh the list."),
+        (51958, null, "This item no longer exists or has changed. Refresh the list and try again."),
+        (51959, null, "This bank line is already used or no longer fits the deposit. Refresh the proposals."),
+        // 1.12 A3 database objects (51960-51969).
+        (51960, null, "The database holds an audit entry type this version does not know. " + UpgradeStopped),
+        (51961, null, HistoryKept),
     ];
 
     /// <summary>
