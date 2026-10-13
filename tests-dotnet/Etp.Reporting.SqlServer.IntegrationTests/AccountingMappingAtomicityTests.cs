@@ -6,7 +6,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class AccountingMappingAtomicityTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Failed_mapping_save_rolls_back_request_decision_audit_and_previous_mapping_deactivation()
     {
         var database=new SqlDatabaseFixture();

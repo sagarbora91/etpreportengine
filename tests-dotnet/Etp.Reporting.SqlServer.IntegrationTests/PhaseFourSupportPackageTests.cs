@@ -14,7 +14,7 @@ public sealed class PhaseFourSupportPackageTests(SqlDatabaseFixture database) : 
     private const string SqlText = "SELECT private_customer_secret_zeta FROM private_source_zeta";
     private static readonly string[] PrivateSentinels = [Customer, CustomerName, Phone, Workbook, SourcePath, SqlText];
 
-    [Fact]
+    [SqlFact]
     public async Task Support_package_contains_only_aggregate_health_and_omits_private_database_content()
     {
         await SeedPrivateDataAsync();
@@ -61,7 +61,7 @@ public sealed class PhaseFourSupportPackageTests(SqlDatabaseFixture database) : 
         finally { DeleteOutputDirectory(output); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Native_sql_failure_omits_submitted_values_and_creates_no_package()
     {
         var original = (string)(await database.ExecuteAsync("SELECT OBJECT_DEFINITION(OBJECT_ID('dbo.load_database_operational_health'));"))!;

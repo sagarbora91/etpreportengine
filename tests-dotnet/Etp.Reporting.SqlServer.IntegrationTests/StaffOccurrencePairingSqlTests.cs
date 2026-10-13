@@ -46,7 +46,7 @@ public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) 
             {Seed}
             """);
 
-    [Fact]
+    [SqlFact]
     public async Task Same_item_on_two_lines_pairs_each_staff_row_with_its_own_line()
     {
         // As imported in 1.9.3: two lines of ITEMX make both R013 rows Ambiguous, so the report dropped both.
@@ -73,7 +73,7 @@ public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) 
         Assert.Equal(2, trend.UnmatchedEnrichmentRows);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Two_staff_rows_that_differ_in_content_on_one_line_are_both_kept_and_the_surplus_reads_missing()
     {
         // Same key, one line, but the second R013 row has another CRO and value: not a duplicate, so it is kept and unpaired.
@@ -83,7 +83,7 @@ public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) 
         Assert.Equal(1, trend.UnmatchedEnrichmentRows);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_exact_duplicate_staff_row_on_one_line_counts_once_and_is_not_reported_missing()
     {
         // As imported in 1.9.3: one line, two identical R013 rows, both stored Matched to that line (counted twice).

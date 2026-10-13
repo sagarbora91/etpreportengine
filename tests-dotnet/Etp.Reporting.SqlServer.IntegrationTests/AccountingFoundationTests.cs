@@ -7,7 +7,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class AccountingFoundationTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Missing_company_blocks_saved_batch_and_rejection_releases_invoice_for_replacement()
     {
         var db = new SqlDatabaseFixture();
@@ -48,7 +48,7 @@ public sealed class AccountingFoundationTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Concurrent_prepare_reserves_one_invoice_and_export_receipt_matches_bytes_and_settings()
     {
         var db = new SqlDatabaseFixture(); var folder = Path.Combine(Path.GetTempPath(),"EtpAccounting_"+Guid.NewGuid().ToString("N"));
@@ -95,7 +95,7 @@ public sealed class AccountingFoundationTests
         finally { await db.DisposeAsync(); if(Directory.Exists(folder)) Directory.Delete(folder,true); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Receipt_failure_rolls_back_export_and_removes_new_file_without_overwriting_existing_file()
     {
         var db = new SqlDatabaseFixture(); var folder = Path.Combine(Path.GetTempPath(),"EtpAccounting_"+Guid.NewGuid().ToString("N"));
@@ -115,7 +115,7 @@ public sealed class AccountingFoundationTests
         finally { await db.DisposeAsync(); if(Directory.Exists(folder)) Directory.Delete(folder,true); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Rejection_cannot_overtake_an_export_and_rejected_batch_cannot_be_exported()
     {
         var db = new SqlDatabaseFixture(); var folder=Path.Combine(Path.GetTempPath(),"EtpAccounting_"+Guid.NewGuid().ToString("N"));
@@ -141,7 +141,7 @@ public sealed class AccountingFoundationTests
         finally { await db.DisposeAsync(); if(Directory.Exists(folder)) Directory.Delete(folder,true); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Missing_mapping_is_persisted_as_blocked_and_explains_the_required_action()
     {
         var db = new SqlDatabaseFixture();
@@ -160,7 +160,7 @@ public sealed class AccountingFoundationTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Legacy_status_upgrade_retains_amounts_reasons_and_checksums_and_backfills_invoice_reservations()
     {
         var name="EtpPhase0Test_AccountingUpgrade_"+Guid.NewGuid().ToString("N");

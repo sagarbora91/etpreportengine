@@ -20,7 +20,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class ReportFilterClosureTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task All_roles_can_filter_real_sales_and_export_the_applied_scope_without_changing_facts()
     {
         await database.ExecuteAsync("""

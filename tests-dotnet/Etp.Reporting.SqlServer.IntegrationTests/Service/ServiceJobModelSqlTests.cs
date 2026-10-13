@@ -28,7 +28,7 @@ public sealed class ServiceJobModelSqlTests
 
     private static string Job(int n) => $"JOAW330SYN{n:0000}";
 
-    [Fact]
+    [SqlFact]
     public async Task One_fixture_job_per_stage_with_the_rule_of_design_4_2()
     {
         var database = new SqlDatabaseFixture();
@@ -126,7 +126,7 @@ public sealed class ServiceJobModelSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_job_keeps_one_row_and_moves_stage_across_readings()
     {
         var database = new SqlDatabaseFixture();
@@ -149,7 +149,7 @@ public sealed class ServiceJobModelSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_job_model_does_not_depend_on_the_import_order()
     {
         var forward = new SqlDatabaseFixture();
@@ -177,7 +177,7 @@ public sealed class ServiceJobModelSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Claims_union_new_header_over_old_header_by_document_and_SRN_and_parts_rules_hold()
     {
         var database = new SqlDatabaseFixture();
@@ -244,7 +244,7 @@ public sealed class ServiceJobModelSqlTests
 
     // Decision 37 (R-UI-21, 1.11.1): the customer NAME is allowed (v_service_job carries it for the Jobs list and the Job
     // history header, migration 0056); a phone, e-mail, address or other contact column is still forbidden in every view.
-    [Fact]
+    [SqlFact]
     public async Task No_0050_view_has_a_contact_column_only_the_customer_name_and_a_viewer_can_read_every_one_but_not_write()
     {
         var database = new SqlDatabaseFixture();
@@ -278,7 +278,7 @@ public sealed class ServiceJobModelSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_customer_name_is_shown_to_owner_and_store_manager_and_is_null_for_a_viewer()
     {
         // Decision 37 (R-UI-21): migration 0056 gives the name by role, in v_service_job, for every reader.
@@ -312,7 +312,7 @@ public sealed class ServiceJobModelSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_customer_name_is_the_one_of_the_most_recent_reading_and_a_blank_name_is_skipped()
     {
         // Job 3 is in S009 and S015 in both weeks (28 Sep and 05 Oct readings). Synthetic names only: the older readings say

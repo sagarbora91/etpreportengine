@@ -20,7 +20,7 @@ public sealed class ReasonWhitespaceSqlTests
         "NCHAR(8232)+NCHAR(8233)+NCHAR(133)+NCHAR(11)+NCHAR(12)",
     };
 
-    [Fact]
+    [SqlFact]
     public async Task Blank_text_is_white_space_exactly_as_dotnet_counts_it()
     {
         var db = new SqlDatabaseFixture();
@@ -45,7 +45,7 @@ public sealed class ReasonWhitespaceSqlTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [MemberData(nameof(BlankReasons))]
     public async Task Direct_approval_with_a_white_space_reason_is_refused_by_the_constraint_and_the_trigger(string reason)
     {
@@ -76,7 +76,7 @@ public sealed class ReasonWhitespaceSqlTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [MemberData(nameof(BlankReasons))]
     public async Task Rejection_with_a_white_space_reason_is_refused_and_the_batch_is_unchanged(string reason)
     {
@@ -99,7 +99,7 @@ public sealed class ReasonWhitespaceSqlTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [MemberData(nameof(BlankReasons))]
     public async Task Adjustment_and_decision_with_a_white_space_reason_are_refused(string reason)
     {
@@ -127,7 +127,7 @@ public sealed class ReasonWhitespaceSqlTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [MemberData(nameof(BlankReasons))]
     public async Task Register_entry_and_restatement_with_a_white_space_reason_are_refused(string reason)
     {
@@ -162,7 +162,7 @@ public sealed class ReasonWhitespaceSqlTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrade_refuses_an_existing_white_space_approval_reason_with_51562_and_changes_nothing()
     {
         await using var db = new UpgradeDatabase();
@@ -195,7 +195,7 @@ public sealed class ReasonWhitespaceSqlTests
         Assert.Contains("is_blank_text", (string)(await db.ExecuteAsync(constraint))!);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_precheck_compiles_and_passes_on_a_database_from_before_the_approval_reason_column()
     {
         await using var db = new UpgradeDatabase();

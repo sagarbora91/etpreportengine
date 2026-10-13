@@ -11,7 +11,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class ConcurrentImportAttemptTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData("R025")]
     [InlineData("R022")]
     [InlineData("R020")]

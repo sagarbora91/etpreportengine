@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Locked_day_rejects_raw_reopen_delete_and_key_move_even_with_legacy_writer_permissions()
     {
         await ExecuteAsync("CREATE USER phase4_writer WITHOUT LOGIN; ALTER ROLE db_datawriter ADD MEMBER phase4_writer; ALTER ROLE db_datareader ADD MEMBER phase4_writer;");
@@ -21,7 +21,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(0, Convert.ToInt32(await ExecuteAsync("SELECT COUNT(*) FROM dbo.daily_reporting_events WHERE store_code='LOCKGUARD'")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Owner_without_windows_elevation_reopens_once_with_sql_actor_and_required_reason()
     {
         await ExecuteAsync("CREATE USER phase4_owner WITHOUT LOGIN; ALTER ROLE etp_owner ADD MEMBER phase4_owner;");
@@ -40,7 +40,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
     }
 
 
-    [Fact]
+    [SqlFact]
     public async Task Staff_permissions_reject_fact_edits_spoofed_audit_and_owner_operations_but_preserve_imports()
     {
         await ExecuteAsync("CREATE USER phase4_manager WITHOUT LOGIN; ALTER ROLE etp_store_manager ADD MEMBER phase4_manager; CREATE USER phase4_viewer WITHOUT LOGIN; ALTER ROLE etp_viewer ADD MEMBER phase4_viewer;");
@@ -74,7 +74,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(1, Convert.ToInt32(await ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id WHERE i.store_code='ROLEIMPORT'")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Audit_is_append_only_for_owner_and_archiving_keeps_original_history()
     {
         await ExecuteAsync("INSERT dbo.operational_audit(event_type,outcome,application_version,actor_name) VALUES('Backup','Succeeded','direct-owner','forged-owner')");
@@ -90,7 +90,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(await ExecuteAsync("SELECT SUSER_SNAME()"), await ExecuteAsync("SELECT TOP(1) actor_name FROM dbo.operational_audit ORDER BY operational_audit_id DESC"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Staff_submissions_cannot_forge_approval_and_locked_day_adjustments_enter_accounting_only_after_owner_decision()
     {
         await ExecuteAsync("""
@@ -158,7 +158,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(51211, alreadyDecided.Number);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Repository_submission_and_owner_rejection_preserve_ids_and_pending_workflow()
     {
         var repository = new ProductisationRepository(database.ConnectionString);

@@ -19,7 +19,7 @@ public sealed class DrillRecordingScopeTests(SqlDatabaseFixture database) : ICla
 {
     private const string Principal = @"NT AUTHORITY\LOCAL SERVICE";
 
-    [Fact]
+    [SqlFact]
     public async Task The_drill_records_its_result_with_the_automation_accounts_database_rights_only()
     {
         var created = await ScalarAsync<int>($"SELECT CASE WHEN SUSER_ID(N'{Principal}') IS NULL THEN 1 ELSE 0 END") == 1;
@@ -64,7 +64,7 @@ public sealed class DrillRecordingScopeTests(SqlDatabaseFixture database) : ICla
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Recording_is_refused_rather_than_run_unconfined()
     {
         var created = await ScalarAsync<int>($"SELECT CASE WHEN SUSER_ID(N'{Principal}') IS NULL THEN 1 ELSE 0 END") == 1;

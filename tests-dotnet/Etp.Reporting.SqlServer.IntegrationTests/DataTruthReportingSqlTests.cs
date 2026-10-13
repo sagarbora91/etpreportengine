@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Manual_periods_sum_available_days_count_explicit_zero_and_report_missing_days()
     {
         await database.ExecuteAsync("""
@@ -44,7 +44,7 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(158m, Assert.Single(service, x => x.Period == "YTD").Total);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Targets_are_saved_once_per_month_and_staff_lookup_overlaps_day_and_year_scopes()
     {
         var masters = new DataTruthMasterRepository(database.ConnectionString);
@@ -77,7 +77,7 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Reports_use_gst_inclusive_sales_negative_cancellation_cro_names_and_editable_tender_mapping()
     {
         await database.ExecuteAsync("""

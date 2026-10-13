@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // Control and tender identity (IF-006, migration 0041 section C2).
 public sealed class SalesIdentitySqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Control_and_tender_indexes_reject_duplicates()
     {
         await database.ExecuteAsync("""

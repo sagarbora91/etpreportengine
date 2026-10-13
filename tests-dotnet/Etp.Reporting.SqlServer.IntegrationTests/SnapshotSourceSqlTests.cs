@@ -12,7 +12,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // dbo.v_stock_snapshots_effective, so an R010 and an R011 reading of one store-day are never summed.
 public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task R010_and_R011_same_day_report_reads_R011_only()
     {
         var store = new SqlServerTransactionalImportStore(database.ConnectionString);
@@ -37,7 +37,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
 
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Stock_reports_read_the_latest_snapshot_on_or_before_the_date()
     {
         // RA-STOCK-01 (1.9.9): Closing / Brand / Slow / Physical Stock fall back to the store's latest earlier snapshot; the
@@ -60,7 +60,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         Assert.Empty(await reports.LoadBrandPhysicalStockAsync("HEMW", gap));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Repeated_identical_snapshot_rows_both_stored()
     {
         var store = new SqlServerTransactionalImportStore(database.ConnectionString);
@@ -86,7 +86,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
             """));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Reordered_snapshot_file_matches_each_repeated_line_through_the_importer()
     {
         var store = new SqlServerTransactionalImportStore(database.ConnectionString);
@@ -106,7 +106,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(7m, await database.ExecuteAsync("SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='HEMW' AND snapshot_date='20260818'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Source_that_contradicts_the_lineage_is_refused()
     {
         var refused = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync("""
@@ -122,7 +122,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.stock_snapshots WHERE store_code='WRONGSRC'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Caller_without_source_gets_it_from_lineage()
     {
         // An older caller passes neither @source nor @line_seq.
@@ -150,7 +150,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(StockSnapshotSources.ClosingStock, StockSnapshotSources.FromLineageRecordType("CLOSING_STOCK"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Locked_snapshot_day_backfill_succeeds_with_trigger_list()
     {
         var name = "EtpPhase0Test_SnapshotSource_" + Guid.NewGuid().ToString("N");
@@ -194,7 +194,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         finally { await Drop(connectionString, name); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Legacy_day_with_R010_imported_first_keeps_its_R011_rows_after_backfill()
     {
         var name = "EtpPhase0Test_SnapshotLegacy_" + Guid.NewGuid().ToString("N");
@@ -252,7 +252,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         finally { await Drop(connectionString, name); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Legacy_backfill_rebuilds_only_values_the_R011_row_had_and_restores_repeats_of_its_own_file()
     {
         var name = "EtpPhase0Test_SnapshotRebuild_" + Guid.NewGuid().ToString("N");

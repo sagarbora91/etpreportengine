@@ -10,7 +10,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// </summary>
 public sealed class HealthMachineNameSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Theory]
+    [SqlTheory]
     [InlineData("SAGAR'S PC", "SAGAR_S_PC")]
     [InlineData("A&B Jewellers", "A_B_Jewellers")]
     [InlineData("रमेश-PC", "____-PC")]

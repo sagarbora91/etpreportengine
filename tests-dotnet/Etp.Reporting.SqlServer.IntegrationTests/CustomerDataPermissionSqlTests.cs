@@ -27,7 +27,7 @@ public sealed class CustomerDataPermissionSqlTests
 
     private sealed record Column(string Table, string Name, bool IsLanding, bool IsContact);
 
-    [Fact]
+    [SqlFact]
     public async Task A_viewer_reads_no_customer_data_and_a_store_manager_no_contact_column()
     {
         var database = new SqlDatabaseFixture();
@@ -107,7 +107,7 @@ public sealed class CustomerDataPermissionSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_viewer_finds_its_own_role_but_no_other_application_user_and_the_health_check_still_maps_every_member()
     {
         var database = new SqlDatabaseFixture();

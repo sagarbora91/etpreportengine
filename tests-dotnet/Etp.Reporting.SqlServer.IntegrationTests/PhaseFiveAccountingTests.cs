@@ -15,7 +15,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveAccountingTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(125.75)]
     [InlineData(-125.75)]
     public async Task Owner_can_map_an_approved_adjustment_and_prepare_its_balanced_batch(decimal amount)

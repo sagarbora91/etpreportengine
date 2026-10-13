@@ -40,7 +40,7 @@ public sealed class PrivatePhaseOneCorpusAttribute : FactAttribute
 
 public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
 {
-    [Fact]
+    [SqlFact]
     public async Task Financial_year_identity_content_dedupe_superset_and_conflicts_are_atomic()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();
@@ -77,7 +77,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Contains("R025",day.ImportedReports);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Customer_only_corrections_require_restatement_and_preserve_full_source_values()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var sample=await Sample();
@@ -103,7 +103,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.etp_r025"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Reimporting_the_same_Phase_zero_file_upgrades_values_and_content_identity()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();
@@ -123,7 +123,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.True(await service.ExistsByHashAsync(workbook.Sha256));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_changed_legacy_file_cannot_auto_supersede_facts_without_a_content_manifest()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var sample=await Sample();
@@ -139,7 +139,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.import_restatements"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_superset_replaces_two_separate_period_files_in_one_transaction()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var sample=await Sample();
@@ -152,7 +152,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.import_restatements"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_restatement_that_also_changes_an_unpicked_import_names_it_instead_of_saying_Use_Restate()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var sample=await Sample();
@@ -182,7 +182,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(236m,Convert.ToDecimal(await db.Fixture.ExecuteAsync("SELECT SUM(source_gross_amount) FROM dbo.sales_lines")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_locked_day_inside_the_range_prevents_the_whole_file()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var source=await Sample();
@@ -194,7 +194,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.import_files"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task April_first_return_joins_R025_header()
     {
         // ETP labels a return dated 1 April 2026 with INVOICEYEAR 2026, the year before (IF-019). Keyed by that label,
@@ -256,7 +256,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_invoice_controls"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Enrichment_reimport_reports_already_present()
     {
         // A later R013 export repeats an earlier row. The procedure skips its stored content key and now reports

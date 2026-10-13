@@ -13,7 +13,7 @@ public sealed class HeadlessStartupFailureTests
 {
     // "Integrated Security=True" contains spaces; a caller that loses the quoting supplies
     // a truncated, invalid string. Rejecting it is correct; hanging on it is not.
-    [Theory]
+    [SqlTheory]
     [InlineData("--initialize-database")]
     [InlineData("--initialize-configured-database")]
     [InlineData("--automation-once")]
@@ -59,7 +59,7 @@ public sealed class HeadlessStartupFailureTests
             File.ReadAllText(Assert.Single(Directory.GetFiles(diagnostics, "diagnostics-*.jsonl"))), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Interactive_startup_says_why_and_exits_when_the_connection_string_is_rejected()
     {
         // The same rejection in an ordinary, windowed launch used to escape OnStartup to the

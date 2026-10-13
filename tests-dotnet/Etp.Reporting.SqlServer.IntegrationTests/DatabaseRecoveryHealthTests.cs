@@ -17,7 +17,7 @@ public sealed class DatabaseRecoveryHealthTests
     private static string StatusOf(DatabaseOperationalHealth health, string item) =>
         DatabaseRecoveryPresentation.Lines(health, Thresholds, DateTime.UtcNow).Single(x => x.Item == item).Status;
 
-    [Fact]
+    [SqlFact]
     public async Task The_failed_import_count_is_what_the_Problems_list_will_actually_show()
     {
         // The block says "Open Import, then Problems, to see them". That promise was broken:
@@ -66,7 +66,7 @@ public sealed class DatabaseRecoveryHealthTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_failed_import_with_no_receipts_reads_as_failed_and_missing_never_healthy()
     {
         var database = new SqlDatabaseFixture();
@@ -110,7 +110,7 @@ public sealed class DatabaseRecoveryHealthTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Recorded_receipts_survive_and_are_read_back_by_a_fresh_repository()
     {
         var database = new SqlDatabaseFixture();
@@ -143,7 +143,7 @@ public sealed class DatabaseRecoveryHealthTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_store_manager_cannot_record_evidence_that_would_make_the_block_look_healthy()
     {
         var database = new SqlDatabaseFixture();

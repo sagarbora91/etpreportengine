@@ -13,7 +13,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // numbers, so the shared database never lets one test's file overlap another's period.
 public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Per_unit_rows_get_chain_line_seq_in_any_row_order()
     {
         // The package's per-unit groups: openings are distinct and the file order is not monotone.
@@ -35,7 +35,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Reimport_of_per_unit_ledger_is_already_present()
     {
         var first = await Import([.. new[] { 0m, 1m, 3m, 4m, 2m }.Select(opening => Unit("STM Receipt", "WLMHW", "RE-ITEM", "RE-DOC", Day(12), opening, 1m))]);
@@ -57,7 +57,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
             """));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Full_group_import_over_a_stored_row_that_is_not_the_chain_start_adds_the_missing_units()
     {
         // Before 0041 the identity kept the first row in file order (opening 1), and 0041 left it on line 1.
@@ -83,7 +83,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(6, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='AL-DOC'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Full_group_import_over_a_stored_row_with_other_values_still_conflicts()
     {
         // A current import holds the differing row: the planner sees that the new file over the same day drops one of
@@ -102,7 +102,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
         // refuses canonical facts written outside an import manifest. StockLineAlignmentTests covers it at unit level.
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Procedure_matches_on_line_seq_and_logs_conflicts_under_the_ledger_report_code()
     {
         var outcome = await Import([.. new[] { 0m, 1m }.Select(opening => Unit("STM Receipt", "HEMW", "CF-ITEM", "CF-DOC", Day(16), opening, 1m))]);
@@ -124,7 +124,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(2, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='CF-DOC'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Movement_identity_index_rejects_duplicates()
     {
         var outcome = await Import([Unit("STM Issue", "WLMHW", "IX-ITEM", "IX-DOC", Day(13), 4m, -1m)]);
@@ -142,7 +142,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(2, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='IX-DOC'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Exact_ledger_repeats_are_kept_and_warned()
     {
         var book = Ledger([
@@ -168,7 +168,7 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
             """));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task First_movement_uses_chain_start_in_any_insert_order()
     {
         // Rows insert in file order, so the lowest stock_movement_id is not the start of the chain.

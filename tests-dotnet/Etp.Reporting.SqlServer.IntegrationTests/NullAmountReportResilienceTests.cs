@@ -12,7 +12,7 @@ public sealed class NullAmountReportResilienceTests(SqlDatabaseFixture db) : ICl
 {
     private static readonly DateOnly Day = new(2033, 3, 3);
 
-    [Fact]
+    [SqlFact]
     public async Task Daily_sales_report_renders_when_every_amount_in_a_brand_group_is_null()
     {
         await db.ExecuteAsync("""

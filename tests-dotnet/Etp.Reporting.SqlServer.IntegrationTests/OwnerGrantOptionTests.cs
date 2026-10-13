@@ -23,7 +23,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
     private const string OwnerA = @"NT AUTHORITY\LOCAL SERVICE";
     private const string OwnerB = @"NT AUTHORITY\NETWORK SERVICE";
 
-    [Fact]
+    [SqlFact]
     public async Task An_unelevated_owner_adds_a_store_manager_and_another_owner_and_the_probe_says_allowed()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -49,7 +49,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
         Assert.DoesNotContain("yourself", session.Messages, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Owner_a_made_owner_b_and_when_a_is_demoted_b_keeps_the_right()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -71,7 +71,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal("-", await session.StateAsync(OwnerA));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Deactivating_an_owner_revokes_with_cascade_instead_of_failing_with_4611()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -87,7 +87,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
             $"SELECT p.state_desc FROM sys.database_permissions p JOIN sys.database_principals u ON u.principal_id=p.grantee_principal_id WHERE u.sid=SUSER_SID(N'{OwnerA}') AND p.permission_name='CONNECT'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_owner_cannot_take_away_their_own_owner_access()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -102,7 +102,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
             $"SELECT COUNT(*) FROM sys.database_role_members m JOIN sys.database_principals r ON r.principal_id=m.role_principal_id JOIN sys.database_principals u ON u.principal_id=m.member_principal_id WHERE r.name=N'etp_owner' AND u.sid=SUSER_SID(N'{OwnerA}')")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_owner_whose_right_came_from_the_owner_being_demoted_is_refused_and_nothing_changes()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -121,7 +121,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal("W", await session.StateAsync(OwnerB));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_migration_upgrade_gives_an_existing_owner_the_grant_option_and_leaves_others_alone()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -149,7 +149,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
         Assert.DoesNotContain("yourself", session.Messages, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_account_running_the_procedure_is_not_sent_a_grant_on_itself()
     {
         await using var session = await Session.OpenAsync(database.ConnectionString);
@@ -159,7 +159,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
         Assert.DoesNotContain("yourself", session.Messages, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Deactivating_by_name_leaves_alone_a_database_user_that_belongs_to_a_live_account()
     {
         // Security review 1.9.3, F2: WORKPC\Shop renamed to WORKPC\Sagar keeps its SID, and the

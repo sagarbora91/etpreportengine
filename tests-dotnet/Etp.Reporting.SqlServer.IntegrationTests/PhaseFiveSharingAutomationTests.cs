@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveSharingAutomationTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Share_history_is_per_generation_shows_final_outcome_and_preserves_append_only_transitions()
     {
         var generation = Convert.ToInt64(await database.ExecuteAsync("""
@@ -32,7 +32,7 @@ public sealed class PhaseFiveSharingAutomationTests(SqlDatabaseFixture database)
         Assert.Equal(2, (await repository.LoadShareHistoryAsync(generation)).Count);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Automatic_import_lease_releases_physical_session_before_connection_is_returned_to_pool()
     {
         await using var first = await AutomationSessionLease.TryAcquireAsync(database.ConnectionString, CancellationToken.None);
@@ -48,7 +48,7 @@ public sealed class PhaseFiveSharingAutomationTests(SqlDatabaseFixture database)
         Assert.NotNull(third); await third.DisposeAsync(); await third.DisposeAsync();
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Watch_settings_have_no_fake_poll_cadence_and_can_still_be_saved()
     {
         Assert.Equal(DBNull.Value, await database.ExecuteAsync("SELECT COL_LENGTH('dbo.watch_folder_settings','poll_minutes');"));

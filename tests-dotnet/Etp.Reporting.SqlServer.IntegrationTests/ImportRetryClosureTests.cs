@@ -16,7 +16,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class ImportRetryClosureTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(AccessRole.Owner)]
     [InlineData(AccessRole.StoreManager)]
     [InlineData(AccessRole.Viewer)]

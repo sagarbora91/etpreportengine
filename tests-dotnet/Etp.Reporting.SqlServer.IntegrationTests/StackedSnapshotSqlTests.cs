@@ -11,7 +11,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // single-date R010 only against the block of its own date, in either import order. Each test uses its own store.
 public sealed class StackedSnapshotSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Single_date_R010_inside_a_stacked_range_is_stored_not_called_a_duplicate()
     {
         const string store = "STACKA";
@@ -39,7 +39,7 @@ public sealed class StackedSnapshotSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(3m, await database.ExecuteAsync($"SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='{store}' AND snapshot_date='20260807'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Stacked_R010_promotes_current_single_date_files_onto_rows_of_their_own_dates()
     {
         const string store = "STACKB";
@@ -69,7 +69,7 @@ public sealed class StackedSnapshotSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(3m, await database.ExecuteAsync($"SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='{store}' AND snapshot_date='20260807'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Stacked_R010_after_a_changed_single_date_file_must_be_restated()
     {
         const string store = "STACKC";

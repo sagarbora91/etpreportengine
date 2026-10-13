@@ -21,7 +21,7 @@ public sealed class HealthCheckReadOnlyTests
         ORDER BY t.name;
         """;
 
-    [Fact]
+    [SqlFact]
     public async Task A_full_health_check_changes_no_dbo_table()
     {
         var database = new SqlDatabaseFixture();

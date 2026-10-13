@@ -8,7 +8,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHelper output) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Cash_carries_calculated_closing_requires_reason_and_preserves_counted_variance()
     {
         await db.ExecuteAsync("""
@@ -35,7 +35,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Null(Assert.Single(await r.LoadCashBookAsync("CARRY",new(2030,9,4),new(2030,9,4))).Closing);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Day_with_sales_and_r020_but_no_r022_shows_r022_missing_in_cash_book_trend_and_tender_control()
     {
         // WLMHW FIX-02 and FIX-07: R020 never feeds tenders, so only R022 counts as tender coverage.
@@ -84,7 +84,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Empty(await new SqlServerReportingQueryRepository(db.ConnectionString).LoadTenderCoverageGapsAsync(new(new(2030,10,2),new(2030,10,2),["NOR022"])));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task R020_blank_agency_cheque_fills_the_tc_tender_r022_lacks_and_is_never_counted_twice()
     {
         // Decision 13 Q3 (WLMHW FIX-03): T1 NetValue 1,129 has R022 CASH 1,000 and an R020 blank-agency CHEQUEAMOUNT 129 -> TC 129.
@@ -147,7 +147,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal(1929m,Assert.Single(accounting.Events,x=>x.EventCode=="NET_SALES").Amount);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task R020_two_cheque_rule_sums_blank_agency_rows_or_takes_one_exact_row_and_never_over_fills()
     {
         // Decision 21: each invoice's R022 shortfall is filled by the total of its blank-agency R020 cheque rows when that total
@@ -208,7 +208,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal(129m,trend.TenderVariance);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Brand_master_edit_is_atomic_and_monthly_targets_are_not_halved()
     {
         var masters=new EveningMasterRepository(db.ConnectionString);
@@ -232,7 +232,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
     // Owner answers 3 Oct 2026 (HEMW Q1, Q5; D-L9-1, D-L9-2): Citizen ladies (CTZNL) count under
     // CITIZEN, and G SHOCK, GUESS, AMAZEFIT and FIT BIT are DSR rows. They are entered through
     // Settings > Evening masters (SaveBrandAsync), not a migration, and apply when the report runs.
-    [Fact]
+    [SqlFact]
     public async Task Brand_rows_saved_in_settings_move_citizen_ladies_g_shock_and_guess_out_of_other()
     {
         await db.ExecuteAsync("""
@@ -370,7 +370,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
 
     // Owner decision 13 / A2, A-Q2 confirmed 4 Oct 2026: gift cards leave DSR VALUE, VOL and INVOICE, have their own
     // GIFT CARD line, and are not in a brand row or Other / unmapped. Synthetic store and amounts.
-    [Fact]
+    [SqlFact]
     public async Task Gift_cards_leave_dsr_value_units_and_invoices_and_show_on_their_own_line()
     {
         await db.ExecuteAsync("""
@@ -417,7 +417,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
 
     // Owner decision 13 Q6: every screen counts INV documents only as Invoices, like the DSR INVOICE row, and shows
     // SR/BC documents as Returns. A cancelled bill (INV + BC on one document) is 1 invoice and 1 return. Synthetic data.
-    [Fact]
+    [SqlFact]
     public async Task Trend_sales_summary_and_customer_wise_count_invoices_like_the_dsr_and_returns_separately()
     {
         await db.ExecuteAsync("""
@@ -451,7 +451,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal("SR",customer.Single(x=>x.DocumentNumber=="R1").TransactionTypes);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Brand_entry_prefills_only_yesterday_and_partial_components_do_not_become_zero()
     {
         var counts=new OperationalCompletionRepository(db.ConnectionString);var reports=new OperationalReportRepository(db.ConnectionString);
@@ -465,7 +465,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Empty(await reports.LoadBrandStockEntryAsync("PREFILL",new(2030,6,4)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Known_zero_sales_differs_from_missing_source_and_partial_walkins_do_not_inflate_conversion()
     {
         await db.ExecuteAsync("""
@@ -485,7 +485,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
     }
 
     // HEMW FIX-03 / WLMHW FIX-06 (report audit 3 Oct 2026): missing walk-ins are null through SQL, never 0.
-    [Fact]
+    [SqlFact]
     public async Task Dsr_walk_ins_stay_null_for_a_store_without_entries_and_combined_needs_every_store()
     {
         await db.ExecuteAsync("""

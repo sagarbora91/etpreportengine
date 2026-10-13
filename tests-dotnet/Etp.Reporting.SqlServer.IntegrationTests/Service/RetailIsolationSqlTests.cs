@@ -16,7 +16,7 @@ public sealed class RetailIsolationSqlTests
     private static readonly string[] RetailStores = ["WLMHW", "HEMW"];
     private static readonly DateOnly Day = new(2026, 9, 28);
 
-    [Fact]
+    [SqlFact]
     public async Task Service_store_is_seeded_inactive_under_the_service_unit_and_is_never_an_active_code()
     {
         await using var db = new IsolationDatabase(); await db.InitializeAsync();
@@ -34,7 +34,7 @@ public sealed class RetailIsolationSqlTests
         Assert.False(master.IsActive);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Latest_combined_date_ignores_the_service_store_and_its_imports()
     {
         await using var db = new IsolationDatabase(); await db.InitializeAsync();
@@ -56,7 +56,7 @@ public sealed class RetailIsolationSqlTests
         Assert.Equal(Day.AddDays(1), await repository.LoadLatestCombinedBusinessDateAsync(CancellationToken.None));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Combined_pack_dsr_evening_and_service_sales_lists_hold_the_retail_stores_only()
     {
         await using var db = new IsolationDatabase(); await db.InitializeAsync();
@@ -85,7 +85,7 @@ public sealed class RetailIsolationSqlTests
         Assert.Equal(RetailStores, controls.Data.Rows.Select(row => (string)row[0]!).Distinct());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Activating_the_service_store_is_refused_with_51900_and_its_unit_is_kept()
     {
         await using var db = new IsolationDatabase(); await db.InitializeAsync();
@@ -121,7 +121,7 @@ public sealed class RetailIsolationSqlTests
         Assert.Equal(RetailStores, await new StoreCatalogRepository(db.Fixture.ConnectionString).ActiveCodesAsync());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Import_history_all_stores_lists_service_rows_and_a_retail_store_scope_does_not()
     {
         await using var db = new IsolationDatabase(); await db.InitializeAsync();

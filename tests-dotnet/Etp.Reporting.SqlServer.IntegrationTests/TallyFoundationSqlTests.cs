@@ -7,7 +7,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // so the shared fixture never carries one test's rows into another's assertions.
 public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Theory]
+    [SqlTheory]
     [InlineData("N'http://192.168.1.20:9000/'")]
     [InlineData("N'http://tally.example.com:9000/'")]
     [InlineData("N'https://127.0.0.1:9000/'")]
@@ -25,7 +25,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         await database.ExecuteAsync("DELETE dbo.tally_profiles WHERE profile_code IN('LOOPA','LOOPB')");
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("party_policy='NAMED_LEDGERS'", "CK_tally_profiles_party_tender")]
     [InlineData("single_party_ledger=NULL", "CK_tally_profiles_single_party")]
     [InlineData("single_party_ledger=N'  '", "CK_tally_profiles_single_party")]
@@ -44,7 +44,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         finally { await database.ExecuteAsync($"DELETE dbo.tally_profiles WHERE tally_profile_id={id}"); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_store_binds_to_one_test_and_one_production_company()
     {
         await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TBIND',N'Synthetic bind store')");
@@ -62,7 +62,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.tally_profile_stores WHERE store_code='TBIND'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Existing_day_journal_batches_keep_working_and_record_history()
     {
         var batch = await database.ExecuteAsync(Day("TJOURNAL") + Batch("TJOURNAL"));
@@ -75,7 +75,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Contains("CK_accounting_batches_kind_profile", sales.Message);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Status_history_cannot_be_changed_or_deleted()
     {
         var batch = await database.ExecuteAsync(Day("THIST") + Batch("THIST"));
@@ -91,7 +91,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal("|DRAFT|", await database.ExecuteAsync(History("BATCH", batch!)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_invoice_is_reserved_once_per_Tally_company_until_its_batch_is_rejected_unsent()
     {
         var profile = await database.ExecuteAsync(Profile("RESERVE"));
@@ -112,7 +112,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.accounting_voucher_reservations WHERE store_code='TRES' AND released_utc IS NULL"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_rejected_batch_with_an_attempt_keeps_its_reservation()
     {
         var profile = await database.ExecuteAsync(Profile("ATTEMPT"));
@@ -125,7 +125,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(DBNull.Value, await database.ExecuteAsync($"SELECT released_utc FROM dbo.accounting_voucher_reservations WHERE accounting_voucher_id={voucher}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Blocking_a_voucher_before_any_attempt_releases_its_invoice_with_the_reason()
     {
         var profile = await database.ExecuteAsync(Profile("BLOCK"));
@@ -145,7 +145,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(51573, deleted.Number);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_reservation_must_match_its_voucher_and_company()
     {
         var profile = await database.ExecuteAsync(Profile("MATCH"));
@@ -163,7 +163,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("TKA", "INV-9", "INV-1", "PLANNED", "CK_accounting_vouchers_key")]
     [InlineData("TKB", "A:1", "A:1", "PLANNED", "CK_accounting_vouchers_key_safe")]
     [InlineData("TKC", "A 1", "A 1", "PLANNED", "CK_accounting_vouchers_key_safe")]
@@ -179,7 +179,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Contains(constraint, error.Message);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_unsafe_number_may_be_stored_as_a_blocked_voucher()
     {
         var profile = await database.ExecuteAsync(Profile("UNSAFE"));
@@ -189,7 +189,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.NotNull(await database.ExecuteAsync(sql));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Vouchers_of_a_decided_batch_keep_their_plan_but_can_record_reconciliation()
     {
         var profile = await database.ExecuteAsync(Profile("DECIDED"));
@@ -209,7 +209,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(51212, back.Number);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_blocked_voucher_of_a_decided_batch_stays_blocked()
     {
         var profile = await database.ExecuteAsync(Profile("DECBLK"));
@@ -226,7 +226,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal("BLOCKED", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_entry_cannot_point_at_a_voucher_of_another_batch()
     {
         var profile = await database.ExecuteAsync(Profile("CROSS"));
@@ -241,7 +241,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Contains("FK_accounting_entries_voucher", error.Message);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Evidence_records_are_append_only_and_attempts_only_advance()
     {
         var profile = await database.ExecuteAsync(Profile("EVIDENCE"));
@@ -269,7 +269,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(51579, wrongCompany.Number);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task New_tables_are_denied_to_store_managers_and_viewers()
     {
         string[] tables = ["tally_profiles", "tally_profile_stores", "accounting_vouchers", "accounting_voucher_reservations", "accounting_status_history", "tally_artifacts", "tally_attempts"];
@@ -283,7 +283,7 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
             """));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrade_gives_every_existing_batch_one_starting_history_row()
     {
         await using var upgrade = new UpgradeDatabase();

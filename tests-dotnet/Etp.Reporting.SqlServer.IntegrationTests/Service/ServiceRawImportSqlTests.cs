@@ -43,7 +43,7 @@ public sealed class ServiceRawImportSqlTests
         return value is null or DBNull ? 0m : Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Raw_pack_imports_beside_the_weekly_readings_and_the_views_combine_them()
     {
         var database = new SqlDatabaseFixture();

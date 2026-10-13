@@ -40,7 +40,7 @@ internal static class TestCleanup
 
 public sealed class TestCleanupTests
 {
-    [Fact]
+    [SqlFact]
     public async Task A_failing_cleanup_step_keeps_the_test_failure_first_and_still_runs_later_steps()
     {
         var later = false;
@@ -54,7 +54,7 @@ public sealed class TestCleanupTests
         Assert.True(later);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_test_failure_alone_is_rethrown_unchanged()
     {
         var error = await Assert.ThrowsAsync<TimeoutException>(() => TestCleanup.RunAsync(
@@ -62,7 +62,7 @@ public sealed class TestCleanupTests
         Assert.Equal("child did not exit", error.Message);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_cleanup_failure_after_a_passing_body_still_fails()
     {
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => TestCleanup.RunAsync(

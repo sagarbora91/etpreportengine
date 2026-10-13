@@ -33,7 +33,7 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
         SELECT @names,s.source_lineage_id,'names-1','INV',@store,'N1',@date,@customer FROM dbo.source_lineage s WHERE s.import_file_id=@names;
         """;
 
-    [Fact]
+    [SqlFact]
     public async Task Invoice_names_follow_the_role_and_the_shared_pack_blanks_them_until_the_owner_switches_the_setting_on()
     {
         const string store = "NAMEPK";
@@ -81,7 +81,7 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
         Assert.Null(CustomerCell(await packs.GenerateAsync(store, date, "test")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Staff_sales_equal_the_store_total_when_R013_states_a_different_value_for_a_return()
     {
         // As in AUDIT-1 D6: R013 states the return +620 while R025 says -500. Staff sales come from the paired R025 line.
@@ -117,7 +117,7 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal((680m, 0m, 1), (row.NetSales, row.NetQuantity, row.Transactions));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_bill_cancelled_the_same_day_is_not_a_DSR_invoice_but_one_cancelled_later_still_is()
     {
         // Decision 41. I1 is cancelled by B1 on its own day (R025 INVREFNO = I1); I3 is cancelled by B2 two days later.
@@ -155,7 +155,7 @@ public sealed class ReportLogicAndSpeedSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(0, dsr.Single(x => x.Period == "FTD" && x.Store == store).TyInvoices);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Source_tender_shortfall_lists_only_short_documents_with_every_tender_row_counted()
     {
         const string store = "TSHORT";

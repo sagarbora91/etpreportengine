@@ -6,7 +6,7 @@ public sealed class TallyEvidenceStoreSqlTests(SqlDatabaseFixture database) : IC
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "EtpTallyEvidenceSql", Guid.NewGuid().ToString("N"));
 
-    [Fact]
+    [SqlFact]
     public async Task A_written_file_is_registered_and_verified_until_it_changes()
     {
         var batch = await database.ExecuteAsync("""
@@ -30,7 +30,7 @@ public sealed class TallyEvidenceStoreSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(TallyEvidenceState.Changed, Assert.Single(await store.VerifyAsync((long)batch)).State);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_file_that_cannot_be_registered_is_removed_and_paths_stay_in_their_batch()
     {
         var store = new TallyEvidenceStore(database.ConnectionString, root);
@@ -42,7 +42,7 @@ public sealed class TallyEvidenceStoreSqlTests(SqlDatabaseFixture database) : IC
         await Assert.ThrowsAsync<ArgumentException>(() => store.WriteAsync(1, "INVENTED", @"GOLDEN\TEVNONE\2026-08\batch-1\payload.xml", "x"u8.ToArray()));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_file_left_on_disk_without_registration_is_set_aside_and_does_not_block_its_name()
     {
         var batch = await database.ExecuteAsync("""

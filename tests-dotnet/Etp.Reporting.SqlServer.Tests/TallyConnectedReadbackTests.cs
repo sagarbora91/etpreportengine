@@ -17,7 +17,9 @@ public sealed class TallyConnectedReadbackTests
     {
         Assert.Equal(TallyConnectedMode.NotConfigured, TallyConnectedMode.Refusal(Connected(endpoint: null)));
         Assert.Null(TallyConnectedMode.Refusal(Connected()));
-        Assert.Null(TallyConnectedMode.Refusal(Connected(endpoint: "http://localhost:9999/")));
+        Assert.Null(TallyConnectedMode.Refusal(Connected(endpoint: "http://localhost:9000/")));
+        // Decision 53 (review M-3): port 9000 only.
+        Assert.Equal(TallyConnectedMode.OnlyThisPc, TallyConnectedMode.Refusal(Connected(endpoint: "http://localhost:9999/")));
         Assert.Equal(TallyConnectedMode.OnlyTestCompany, TallyConnectedMode.Refusal(Connected("TEST - ETP Golden")));
         Assert.Equal(TallyConnectedMode.OnlyTestCompany, TallyConnectedMode.Refusal(Connected("saagar traders titan")));
         Assert.Equal(TallyConnectedMode.OnlyTestCompany, TallyConnectedMode.Refusal(Connected() with { Environment = "PRODUCTION" }));

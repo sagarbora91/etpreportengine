@@ -10,7 +10,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// </summary>
 public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Restatement_candidates_are_the_current_files_whose_period_overlaps()
     {
         var batch = Guid.NewGuid();
@@ -35,7 +35,7 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.Single(await repository.FindRestatementCandidatesAsync("R022", "CANDSTORE", new(2026, 8, 26), new(2026, 8, 26)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrade_check_script_runs_select_only_and_reports_its_findings()
     {
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "scripts", "check-import-upgrade.sql"));
@@ -127,7 +127,7 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.Equal(2, Convert.ToInt32(conflict[Array.IndexOf(conflicts.Columns, "stored_movements")]));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrade_check_script_lists_R011_rows_the_snapshot_backfill_rebuilds_or_cannot()
     {
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "scripts", "check-import-upgrade.sql"));
@@ -175,7 +175,7 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
             ((string)row[1], (DateTime)row[2], Convert.ToInt32(row[3]), Convert.ToInt32(row[4]), Convert.ToInt32(row[5])));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrade_check_script_reads_the_line_and_source_columns_once_0041_adds_them()
     {
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "scripts", "check-import-upgrade.sql"));
@@ -199,7 +199,7 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         finally { await fresh.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrade_check_script_refuses_a_database_from_before_0017_instead_of_failing_to_compile()
     {
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "scripts", "check-import-upgrade.sql"));

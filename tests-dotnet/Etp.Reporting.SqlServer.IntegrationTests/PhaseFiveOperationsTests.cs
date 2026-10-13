@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveOperationsTests(SqlDatabaseFixture db) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Registers_preserve_eight_types_and_enforce_draft_verification_and_locked_day_roles()
     {
         await ExecuteAsync("CREATE USER p5_register_manager WITHOUT LOGIN; ALTER ROLE etp_store_manager ADD MEMBER p5_register_manager; CREATE USER p5_register_owner WITHOUT LOGIN; ALTER ROLE etp_owner ADD MEMBER p5_register_owner; CREATE USER p5_register_viewer WITHOUT LOGIN; ALTER ROLE etp_viewer ADD MEMBER p5_register_viewer;");
@@ -35,7 +35,7 @@ public sealed class PhaseFiveOperationsTests(SqlDatabaseFixture db) : IClassFixt
         Assert.True(hit.TargetId > 0);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Restatement_approval_is_bound_to_source_scope_reason_and_consumed_with_atomic_import()
     {
         await ExecuteAsync("CREATE USER p5_requester WITHOUT LOGIN; ALTER ROLE etp_store_manager ADD MEMBER p5_requester; CREATE USER p5_decider WITHOUT LOGIN; ALTER ROLE etp_owner ADD MEMBER p5_decider;");
@@ -68,7 +68,7 @@ public sealed class PhaseFiveOperationsTests(SqlDatabaseFixture db) : IClassFixt
         Assert.Equal("APPROVED", row.Status);
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("REOPEN_DAY")]
     [InlineData("MASTER_MAPPING")]
     [InlineData("CONTROL_WAIVER")]

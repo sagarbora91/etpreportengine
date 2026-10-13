@@ -10,7 +10,7 @@ public sealed class Migration0041UpgradePathTests
 {
     private const string Released = "0037_accounting_invariants";
 
-    [Fact]
+    [SqlFact]
     public async Task A_0037_database_with_data_upgrades_through_Tally_then_the_import_engine_in_one_run()
     {
         await using var db = new UpgradeDatabase();
@@ -44,7 +44,7 @@ public sealed class Migration0041UpgradePathTests
         Assert.Contains($"'{pending[^1]}'", older.Message, StringComparison.Ordinal);
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('UPGRADE',N'100000777',2026,'20260401')",
         ImportCodes.SqlErrors.FinancialYearPrecheck)]
     [InlineData("INSERT dbo.sales_invoice_controls(sales_invoice_id,source_transaction_type,source_invoice_quantity,source_net_value,currency_code,source_lineage_id) SELECT i.sales_invoice_id,'INV',1,100,'INR',l.source_lineage_id FROM dbo.sales_invoices i CROSS JOIN dbo.source_lineage l WHERE i.store_code='UPGRADE' AND l.source_row_number=2",

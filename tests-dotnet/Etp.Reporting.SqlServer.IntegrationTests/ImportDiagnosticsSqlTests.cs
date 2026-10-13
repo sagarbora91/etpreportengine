@@ -14,7 +14,7 @@ public sealed class ImportDiagnosticsSqlTests
     internal const string CustomerPhone = "9876500999";
     internal const string LoyaltyNumber = "ULP-SYNTH-777";
 
-    [Fact]
+    [SqlFact]
     public async Task Failed_conflict_attempt_persists_code_stage_and_sample()
     {
         await WithDatabase(async database =>
@@ -72,7 +72,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Locked_day_refusal_persists_SQL_51021()
     {
         await WithDatabase(async database =>
@@ -102,7 +102,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Pending_restatement_persists_request_code()
     {
         await WithDatabase(async database =>
@@ -131,7 +131,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Attempt_is_recorded_per_file_before_the_run_ends()
     {
         await WithDatabase(async database =>
@@ -156,7 +156,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Persisted_details_contain_no_customer_values()
     {
         await WithDatabase(async database =>
@@ -193,7 +193,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Issue_rows_are_capped_at_200_and_the_rest_are_counted_by_code()
     {
         await WithDatabase(async database =>
@@ -221,7 +221,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Conflict_samples_keep_their_rows_and_documents_behind_many_warnings()
     {
         await WithDatabase(async database =>
@@ -245,7 +245,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Codes_past_the_two_hundredth_are_counted_together_not_dropped()
     {
         await WithDatabase(async database =>
@@ -265,7 +265,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Every_outcome_is_accepted()
     {
         await WithDatabase(async database =>
@@ -281,7 +281,7 @@ public sealed class ImportDiagnosticsSqlTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Database_errors_are_classified_by_number()
     {
         await WithDatabase(async database =>

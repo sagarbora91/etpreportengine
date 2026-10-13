@@ -8,7 +8,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // database that holds every earlier migration.
 public sealed class Migration0041StockAndTenderTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(false, ImportCodes.SqlErrors.DuplicateControlsPrecheck, "An invoice has more than one revenue control.")]
     [InlineData(true, ImportCodes.SqlErrors.DuplicateTendersPrecheck, "An invoice has the same tender type twice.")]
     public async Task Duplicate_controls_or_tenders_refuse_the_upgrade_and_leave_the_schema_unchanged(bool tenders, int number, string message)
@@ -33,7 +33,7 @@ public sealed class Migration0041StockAndTenderTests
         Assert.Equal(2, await db.ExecuteAsync(tenders ? "SELECT COUNT(*) FROM dbo.sales_tenders" : "SELECT COUNT(*) FROM dbo.sales_invoice_controls"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Existing_repeated_movements_on_a_finalised_day_get_chain_line_seq_and_the_guard_returns()
     {
         await using var db = new UpgradeDatabase();
@@ -72,7 +72,7 @@ public sealed class Migration0041StockAndTenderTests
         Assert.Equal(0, await db.ExecuteAsync("SELECT COUNT(*) FROM sys.triggers WHERE name='trg_stock_movements_protect_locked' AND is_disabled=1"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Exact_repeat_movements_and_case_only_document_differences_get_distinct_line_seq()
     {
         await using var db = new UpgradeDatabase();
@@ -98,7 +98,7 @@ public sealed class Migration0041StockAndTenderTests
         Assert.Equal("1,2,3,4", await db.ExecuteAsync("SELECT STRING_AGG(line_seq,',') WITHIN GROUP(ORDER BY line_seq) FROM dbo.stock_movements"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Case_sensitive_tender_type_is_indexed_through_an_upper_case_key()
     {
         await using var db = new UpgradeDatabase();

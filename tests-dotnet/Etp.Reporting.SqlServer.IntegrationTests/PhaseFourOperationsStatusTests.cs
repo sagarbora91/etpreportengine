@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFourOperationsStatusTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Only_dedicated_automation_and_owner_can_publish_verified_health_while_staff_can_read_safe_status()
     {
         await ExecuteAsync("""

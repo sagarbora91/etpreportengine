@@ -11,7 +11,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// </summary>
 public sealed class ConnectionsFactorySqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Factory_connection_runs_a_real_repository_call()
     {
         var factory = new EtpConnectionFactory(database.ConnectionString);
@@ -31,7 +31,7 @@ public sealed class ConnectionsFactorySqlTests(SqlDatabaseFixture database) : IC
         Assert.All(codes, code => Assert.False(string.IsNullOrWhiteSpace(code)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Commit_budget_check_and_maintenance_connections_open_where_they_should()
     {
         var factory = new EtpConnectionFactory(database.ConnectionString);
@@ -53,7 +53,7 @@ public sealed class ConnectionsFactorySqlTests(SqlDatabaseFixture database) : IC
         }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("Server=tcp:127.0.0.1,1;Database=EtpReporting;Integrated Security=True")]
     [InlineData("Server=192.0.2.1;Database=EtpReporting;Integrated Security=True")]
     [InlineData(@"Server=.\SQLEXPRESS;Database=EtpReporting;User ID=sa;Password=not-a-real-one")]

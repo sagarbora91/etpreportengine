@@ -21,7 +21,7 @@ public sealed class ApplicationRoleConnectTests(SqlDatabaseFixture database) : I
     // OWNER is deliberately absent. Owners were never locked out - db_owner implies CONNECT -
     // and provisioning one grants ALTER ANY LOGIN at server level, which must never be left on
     // a well-known account if this test is interrupted.
-    [Theory]
+    [SqlTheory]
     [InlineData("STORE_MANAGER")]
     [InlineData("VIEWER")]
     public async Task A_user_added_in_Settings_can_actually_enter_the_database(string role)
@@ -35,7 +35,7 @@ public sealed class ApplicationRoleConnectTests(SqlDatabaseFixture database) : I
         finally { await RemoveLoginIfCreatedAsync(created); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_deactivated_user_is_kept_out_and_reactivating_lets_them_back_in()
     {
         var created = await EnsureLoginAbsentBeforehandAsync();
@@ -55,7 +55,7 @@ public sealed class ApplicationRoleConnectTests(SqlDatabaseFixture database) : I
         finally { await RemoveLoginIfCreatedAsync(created); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_automation_account_can_enter_a_database_migrated_past_0022()
     {
         // The exact lockout on the shop PC: 0012 gives SYSTEM CONNECT, 0022's re-provisioning
@@ -68,7 +68,7 @@ public sealed class ApplicationRoleConnectTests(SqlDatabaseFixture database) : I
         Assert.True(await CanEnterAsync(@"NT AUTHORITY\SYSTEM"), "The automation account cannot enter the database.");
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_0032_repair_steps_over_the_account_running_it()
     {
         // An Owner who is not a SQL administrator migrates as a db_owner member, and the old

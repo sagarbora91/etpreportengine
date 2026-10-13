@@ -13,7 +13,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
     private OperationalReportRepository Reports => new(fixture.Database.ConnectionString);
     private decimal Expected(string name) => fixture.Expected.GetProperty(name).GetDecimal();
 
-    [Fact]
+    [SqlFact]
     public async Task Dsr_golden_preserves_signed_sales_invoice_denominator_history_and_combined_totals()
     {
         var document = await Reports.LoadDailySalesReportDocumentAsync(Day);
@@ -39,7 +39,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
         Assert.Equal(Expected("combinedFtdInvoices"), combined.Rows.Single(x => x.Metric == "INVOICE").Ftd);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Closing_stock_golden_uses_source_quantities_and_all_four_count_components()
     {
         foreach (var (store, expected) in new[] { ("WLMHW", "titanStockSystem"), ("HEMW", "heliosStockSystem") })
@@ -53,7 +53,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Cash_book_golden_carries_previous_closing_and_reconciles_signed_tender_modes()
     {
         var row = Assert.Single(await Reports.LoadCashBookAsync("WLMHW", Day, Day));
@@ -70,7 +70,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
         Assert.Equal(494m, total[5]);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Service_report_golden_keeps_available_mode_values_and_missing_day_counts()
     {
         var rows = await Reports.LoadServiceSalesAsync(Day, ["WLMHW"]);
@@ -86,7 +86,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
         Assert.Null(month.LastYearTotal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Customer_invoice_golden_groups_product_lines_and_preserves_return_values()
     {
         var rows = await Reports.LoadInvoiceSummaryAsync(new(Day, Day, ["WLMHW"]));
@@ -102,7 +102,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
         Assert.Equal(-118m, rows.Single(x => x.DocumentNumber == "CANCEL").NetValue);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Cro_report_golden_uses_owner_confirmed_unique_invoice_atv_and_aupt()
     {
         var report = await Reports.LoadStaffPerformanceAsync(new(Day, Day, ["WLMHW"]));
@@ -119,7 +119,7 @@ public sealed class SanitisedEveningReportGoldenTests(SanitisedEveningFixture fi
         Assert.Equal(11.8m, cro.TargetAchievementPercent);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Cro_unique_invoice_identity_includes_financial_year()
     {
         var report = await Reports.LoadStaffPerformanceAsync(new(new(2025, 3, 31), new(2025, 4, 1), ["WLMHW"]));

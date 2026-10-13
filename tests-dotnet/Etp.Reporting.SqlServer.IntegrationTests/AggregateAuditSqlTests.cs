@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class AggregateAuditSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Aggregate_counts_pass_client_and_SQL_but_paths_and_identifiers_remain_blocked()
     {
         var repository = new OperationalAuditRepository(database.ConnectionString);

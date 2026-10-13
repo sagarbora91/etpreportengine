@@ -16,7 +16,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
     private const string User = "TEST\\daily-inputs";
     private const string Retail = "ETP-Daily-Inputs-HEMW-RETAIL-{0:yyyy-MM-dd}.xlsx";
 
-    [Fact]
+    [SqlFact]
     public async Task First_apply_writes_values_history_and_events_and_a_repeat_changes_nothing()
     {
         var day = new DateOnly(2026, 9, 1);
@@ -43,7 +43,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(2, await Count($"dbo.daily_reporting_events WHERE store_code='HEMW' AND business_date='{day:yyyyMMdd}'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_corrected_file_changes_only_the_differing_value_and_a_blank_keeps_the_stored_one()
     {
         var day = new DateOnly(2026, 9, 2);
@@ -65,7 +65,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(1, await Count($"dbo.manual_operational_input_history WHERE store_code='HEMW' AND business_date='{day:yyyyMMdd}' AND field_code='OPENING_CASH'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_exact_file_already_imported_is_a_duplicate_and_overwrites_no_later_screen_correction()
     {
         var day = new DateOnly(2026, 9, 3);
@@ -90,7 +90,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal("Imported", retried.Outcome);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_finalised_day_refuses_changes_with_nothing_written_but_accepts_an_unchanged_file()
     {
         var day = new DateOnly(2026, 9, 4);
@@ -113,7 +113,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(("Already present", 1), (unchanged.Outcome, unchanged.Unchanged));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_retired_field_or_a_field_of_the_other_sheet_refuses_the_whole_file()
     {
         var day = new DateOnly(2026, 9, 5);
@@ -131,7 +131,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(0, await Count($"dbo.daily_reporting_days WHERE business_date='{day:yyyyMMdd}'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_unknown_or_inactive_store_and_an_account_without_import_permission_are_refused()
     {
         var day = new DateOnly(2026, 9, 6);
@@ -151,7 +151,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(0, await Count($"dbo.manual_operational_inputs WHERE business_date='{day:yyyyMMdd}'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_Titan_retail_sheet_and_the_Service_sheet_for_the_same_day_do_not_touch_each_other()
     {
         var day = new DateOnly(2026, 9, 7);
@@ -174,7 +174,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(20000m, await Numeric("WLMHW", day, "CASH_DEPOSIT"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_screen_write_still_validates_writes_history_and_refuses_a_finalised_day()
     {
         var day = new DateOnly(2026, 9, 8);
@@ -195,7 +195,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(9m, await Numeric("HEMW", day, "WALK_INS"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_folder_import_applies_a_daily_inputs_workbook_records_it_as_D001_and_skips_the_same_file_next_time()
     {
         // The parser dates the sheet against today, so this test alone uses today's date (no other test does).
@@ -215,7 +215,7 @@ public sealed class DailyInputsApplierSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(0, await Count($"dbo.import_files WHERE report_code='D001'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_store_manager_holds_every_right_the_applier_uses_without_a_new_migration()
     {
         // The automation account is an active Store Manager (IE-RT-08); 0022 and 0028 grant what the applier needs.

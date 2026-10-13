@@ -11,7 +11,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// </summary>
 public sealed class HealthCheckStoreSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Error_occurrence_and_health_run_round_trip_through_the_stores()
     {
         var errors = new SqlServerErrorRegisterStore(database.ConnectionString);

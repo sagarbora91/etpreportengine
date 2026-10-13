@@ -11,7 +11,7 @@ public sealed class HybridStockRowsSqlTests(SqlDatabaseFixture database) : IClas
 {
     private static readonly DateOnly Day1 = new(2030, 7, 10);
 
-    [Fact]
+    [SqlFact]
     public async Task Cluster_mapped_brand_rows_split_the_house_brand_into_the_owner_rows()
     {
         const string store = "HYB-A";
@@ -34,7 +34,7 @@ public sealed class HybridStockRowsSqlTests(SqlDatabaseFixture database) : IClas
             Assert.Equal([("AMAZEFIT", 3m), ("CITIZEN", 1m), ("G SHOCK", 2m), ("KENNETH COLE", 4m)], rows.OrderBy(x => x.Item1, StringComparer.Ordinal));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Store_with_brand_name_rows_only_keeps_brand_grouping()
     {
         const string store = "HYB-W";
@@ -46,7 +46,7 @@ public sealed class HybridStockRowsSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal([("FASTRACK", 5m), ("SONATA", 1m), ("TITAN", 2m)], physical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)).OrderBy(x => x.InventoryGroupCode, StringComparer.Ordinal));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_date_counted_under_the_old_brand_keeps_the_old_layout_and_the_next_day_starts_the_new_one()
     {
         const string store = "HYB-L";

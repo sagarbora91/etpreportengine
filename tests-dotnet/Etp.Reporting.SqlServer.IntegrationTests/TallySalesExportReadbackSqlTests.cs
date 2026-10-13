@@ -17,7 +17,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
     private static readonly DateOnly Day = new(2026, 8, 25);
     private readonly string root = Path.Combine(Path.GetTempPath(), "EtpTallyExportReadbackSql", Guid.NewGuid().ToString("N"));
 
-    [Fact]
+    [SqlFact]
     public async Task Prepare_approve_write_and_a_manual_read_back_reconcile_and_a_tampered_file_is_caught()
     {
         var store = "TXA";
@@ -70,7 +70,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
             """));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Only_an_approved_voucher_batch_is_written()
     {
         var profile = await SeedAsync("TXB", "TEST - ETP TXB");
@@ -85,7 +85,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
 
     // Decision 41: INV-2 is cancelled by a BC row of a current R025 file on its own day, so it never reaches Tally, and the
     // rest of the day is still prepared.
-    [Fact]
+    [SqlFact]
     public async Task A_bill_cancelled_the_same_day_is_left_out_of_the_vouchers()
     {
         var profile = await SeedAsync("TXC", "TEST - ETP TXC", cancelSecondSameDay: true);
@@ -99,7 +99,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.v_sales_cancelled_same_day WHERE store_code='TXC'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Educational_Tally_refuses_a_day_it_cannot_take_before_anything_is_written()
     {
         var profile = await SeedAsync("TXD", "TEST - ETP TXD", build: "TallyPrime 6.1 Educational");
@@ -112,7 +112,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.tally_artifacts WHERE accounting_batch_id={batch}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Read_back_over_HTTP_records_the_day_book_with_its_request_and_reconciles()
     {
         var profile = await SeedAsync("TXE", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/");
@@ -134,7 +134,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
             (await new SqlServerTallyReconciliationService(database.ConnectionString, root).CompareAsync(batch, readback.Id, sourceUnchanged: true)).Result.RunOutcome);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Connecting_is_refused_unless_set_up_for_the_test_company_and_Tally_has_it_open()
     {
         var off = await PrepareAndApproveAsync(await SeedAsync("TXF", TallyTestCompany.Name), "TXF");
@@ -160,7 +160,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         Assert.Contains("delivery is 'file'", (await Assert.ThrowsAsync<InvalidOperationException>(() => connected.SendAsync(closed))).Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_send_is_recorded_with_Tally_s_answer_and_a_second_send_is_refused_as_a_duplicate()
     {
         var profile = await SeedAsync("TXI", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: Environment.MachineName);
@@ -197,7 +197,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         Assert.Equal(TallyBatchStatus.Reconciled, comparison.Result.RunOutcome);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_rejected_send_keeps_Tally_s_words_and_may_be_sent_again_once_Tally_holds_nothing()
     {
         var profile = await SeedAsync("TXJ", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: Environment.MachineName);
@@ -228,7 +228,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
 
     // Decision 53 (review M-3): a send needs this PC to be the test PC the profile names, and Tally to say it is in Educational
     // mode. Either refusal happens before anything is recorded or sent.
-    [Fact]
+    [SqlFact]
     public async Task A_send_is_refused_on_any_other_PC_and_when_Tally_is_not_in_Educational_mode()
     {
         var profile = await SeedAsync("TXL", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: "ETP-TEST-VM");
@@ -254,7 +254,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
             $"UPDATE dbo.tally_profiles SET test_machine_name=N'ETP VM' WHERE tally_profile_id={profile}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Masters_are_planned_from_the_company_s_stores_and_approved_ledgers_and_written_once()
     {
         var profile = await SeedAsync("TXK", TallyTestCompany.Name);

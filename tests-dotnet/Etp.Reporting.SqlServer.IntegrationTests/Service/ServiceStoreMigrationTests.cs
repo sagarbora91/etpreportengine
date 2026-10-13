@@ -22,14 +22,14 @@ public sealed class ServiceStoreMigrationTests(SqlDatabaseFixture database) : IC
 
     private const string Expected = "1|1|0:SERVICE|2|1";
 
-    [Fact]
+    [SqlFact]
     public async Task The_migration_adds_an_inactive_AW330_in_the_SERVICE_unit_and_leaves_the_Retail_stores_alone()
     {
         Assert.Equal(Expected, await database.ExecuteAsync(State));
         Assert.Equal(1, await database.ExecuteAsync("SELECT CAST(is_active AS int) FROM dbo.business_units WHERE business_unit_code='SERVICE'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_second_application_of_0048_is_a_no_op()
     {
         var script = await File.ReadAllTextAsync(Path.Combine(database.MigrationDirectory, "0048_service_centre_interim.sql"));
@@ -38,7 +38,7 @@ public sealed class ServiceStoreMigrationTests(SqlDatabaseFixture database) : IC
         Assert.Equal(Expected, await database.ExecuteAsync(State));
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("UPDATE dbo.stores SET is_active=1 WHERE store_code='AW330'")]
     [InlineData("INSERT dbo.stores(store_code,store_name,business_unit_id,is_active) SELECT 'SVCTEST',N'Synthetic service store',business_unit_id,1 FROM dbo.business_units WHERE business_unit_code='SERVICE'")]
     [InlineData("UPDATE dbo.stores SET business_unit_id=(SELECT business_unit_id FROM dbo.business_units WHERE business_unit_code='SERVICE') WHERE store_code='WLMHW'")]
@@ -51,7 +51,7 @@ public sealed class ServiceStoreMigrationTests(SqlDatabaseFixture database) : IC
         Assert.Equal(Expected, await database.ExecuteAsync(State));
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("UPDATE dbo.stores SET business_unit_id=NULL WHERE store_code='AW330'")]
     [InlineData("""
         IF NOT EXISTS(SELECT 1 FROM dbo.business_units WHERE business_unit_code='SVCOTHER')
@@ -67,7 +67,7 @@ public sealed class ServiceStoreMigrationTests(SqlDatabaseFixture database) : IC
         Assert.Equal(Expected, await database.ExecuteAsync(State));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Retail_stores_and_an_inactive_SERVICE_store_are_not_refused()
     {
         var retail = await database.ExecuteAsync("SELECT CAST(is_active AS int) FROM dbo.stores WHERE store_code='WLMHW'");

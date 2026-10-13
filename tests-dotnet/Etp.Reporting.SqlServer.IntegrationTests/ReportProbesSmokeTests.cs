@@ -12,7 +12,7 @@ public sealed class ReportProbesSmokeTests(SqlDatabaseFixture db) : IClassFixtur
 {
     private static readonly DateOnly Day = new(2033, 4, 4);
 
-    [Fact]
+    [SqlFact]
     public async Task All_22_report_probes_complete_on_a_seeded_database_without_writing_anything()
     {
         await db.ExecuteAsync("""

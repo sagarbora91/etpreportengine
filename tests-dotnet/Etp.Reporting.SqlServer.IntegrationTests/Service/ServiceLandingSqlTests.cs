@@ -22,7 +22,7 @@ public sealed class ServiceLandingSqlTests
             .OrderBy(family => family.ReportCode, StringComparer.Ordinal).ToArray();
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Bootstrap_creates_every_landing_table_procedure_and_trigger_and_an_inactive_AW330()
     {
         var database = new SqlDatabaseFixture();
@@ -56,7 +56,7 @@ public sealed class ServiceLandingSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Append_accepts_its_own_report_and_refuses_another_report_with_51422()
     {
         var database = new SqlDatabaseFixture();
@@ -96,7 +96,7 @@ public sealed class ServiceLandingSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Viewer_and_store_manager_cannot_write_landing_tables_and_a_viewer_cannot_append()
     {
         var database = new SqlDatabaseFixture();
@@ -138,7 +138,7 @@ public sealed class ServiceLandingSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_second_bootstrap_and_a_rerun_of_0048_change_nothing()
     {
         var database = new SqlDatabaseFixture();

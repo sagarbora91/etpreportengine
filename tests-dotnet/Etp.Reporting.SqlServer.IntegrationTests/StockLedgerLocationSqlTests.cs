@@ -10,7 +10,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // document numbers, so the shared database never lets one test's file overlap another's period.
 public sealed class StockLedgerLocationSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Bin_is_stored_and_the_opening_comes_from_each_bins_own_chain()
     {
         // 1 Sep: a defective unit is received into DEFECTIVEBIN (0 -> 1). 2 Sep: one RETAILBIN unit is sold (5 -> 4).
@@ -35,7 +35,7 @@ public sealed class StockLedgerLocationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(0m, stock.Movements.Sum(movement => movement.SourceSignedQuantity));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_movement_with_no_bin_is_not_a_chain_of_its_own_so_its_opening_is_not_counted_twice()
     {
         // 1 Sep: a RETAILBIN sale (5 -> 4) whose bin stayed unknown (no typed row, an ambiguous backfill or a locked day).
@@ -55,7 +55,7 @@ public sealed class StockLedgerLocationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(-2m, stock.Movements.Sum(movement => movement.SourceSignedQuantity));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Migration_backfills_the_bin_of_existing_rows_from_the_typed_ledger_and_is_idempotent()
     {
         await Import([
@@ -78,7 +78,7 @@ public sealed class StockLedgerLocationSqlTests(SqlDatabaseFixture database) : I
             """)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Later_export_fills_a_missing_bin_on_the_already_present_row_without_a_conflict()
     {
         await Import([Unit("Purchase Receipt", "WLMHW", "RF-ITEM", "RF-DOC", Day(6), 0m, 1m, "RETAILBIN")]);

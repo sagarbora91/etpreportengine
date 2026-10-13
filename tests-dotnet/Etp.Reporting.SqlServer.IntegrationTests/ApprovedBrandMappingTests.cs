@@ -16,7 +16,7 @@ public sealed class ApprovedBrandMappingTests(ITestOutputHelper output)
     private static readonly DateOnly Day = new(2026, 8, 25);
     private static DirectoryMigrationSource Migrations => new(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
 
-    [Theory]
+    [SqlTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Approved_brand_golden_survives_fresh_install_upgrade_and_reconnection(bool upgrade)
@@ -62,7 +62,7 @@ public sealed class ApprovedBrandMappingTests(ITestOutputHelper output)
         Assert.Empty(await new MigrationRunner(Migrations, store).RunAsync());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Approved_brand_excel_contains_the_same_rows_amounts_and_date_scope_as_the_Dsr()
     {
         await using var db = new BrandDatabase();

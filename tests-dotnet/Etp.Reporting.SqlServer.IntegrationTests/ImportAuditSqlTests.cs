@@ -66,7 +66,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         (await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString))
             .RunAsync(input, new("ImportAudit prediction test"))).Files;
 
-    [Fact]
+    [SqlFact]
     public async Task Prediction_matches_real_import()
     {
         AuditFixtureWorkbooks.Write("r030-per-unit-ledger.json", input);
@@ -97,7 +97,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Audit_commands_change_nothing()
     {
         AuditFixtureWorkbooks.Write("r025-raw-minute.json", input);
@@ -111,7 +111,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(before, await FingerprintAsync());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Every_audit_query_runs_as_db_datareader_only()
     {
         await database.ExecuteAsync("""
@@ -146,7 +146,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Baseline_matches_script_output()
     {
         AuditFixtureWorkbooks.Write("r025-raw-minute.json", input);
@@ -167,7 +167,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(direct, counts.GetProperty("rows").EnumerateArray().Select(row => $"{row[0].GetString()}={row[1].GetString()}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Check_import_reports_the_database_and_its_migration()
     {
         AuditFixtureWorkbooks.Write("r025-raw-minute.json", input);
@@ -185,7 +185,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
 /// <summary><c>seed</c> writes only scratch databases (design 3.7, 12.3).</summary>
 public sealed class SeedCommandSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Refuses_non_scratch_and_bootstraps_scratch()
     {
         Assert.Equal(AuditExitCodes.Usage, await new AuditRunner(TextWriter.Null, TextWriter.Null).RunAsync(["seed", "--database", "EtpReporting"]));

@@ -13,7 +13,7 @@ public sealed class ImportDiagnosticsPrivacyTests
 {
     private static readonly string[] Values = [CustomerName, CustomerPhone, LoyaltyNumber];
 
-    [Fact]
+    [SqlFact]
     public async Task Recorder_keeps_codes_locations_and_catalogue_messages_only()
     {
         await WithDatabase(async database =>
@@ -45,7 +45,7 @@ public sealed class ImportDiagnosticsPrivacyTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task History_cleans_issue_rows_written_outside_the_recorder()
     {
         await WithDatabase(async database =>
@@ -67,7 +67,7 @@ public sealed class ImportDiagnosticsPrivacyTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Older_attempts_without_issue_rows_still_show_their_cleaned_diagnostics()
     {
         await WithDatabase(async database =>
@@ -88,7 +88,7 @@ public sealed class ImportDiagnosticsPrivacyTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Failure_messages_keep_only_code_written_text_when_recorded_and_when_shown()
     {
         await WithDatabase(async database =>

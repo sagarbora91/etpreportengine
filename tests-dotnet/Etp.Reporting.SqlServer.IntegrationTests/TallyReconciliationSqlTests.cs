@@ -11,7 +11,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "EtpTallyReconciliationSql", Guid.NewGuid().ToString("N"));
 
-    [Fact]
+    [SqlFact]
     public async Task G01_file_round_trip_reconciles_and_a_second_compare_leaves_the_first_run_untouched()
     {
         var (batch, voucher) = await SeedAsync("TRA");
@@ -51,7 +51,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(manifest.Sha256, await database.ExecuteAsync($"SELECT manifest_sha256 FROM dbo.accounting_batches WHERE accounting_batch_id={batch}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_package_with_a_changed_file_gets_no_manifest()
     {
         var (batch, _) = await SeedAsync("TRE");
@@ -62,7 +62,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(DBNull.Value, await database.ExecuteAsync($"SELECT manifest_sha256 FROM dbo.accounting_batches WHERE accounting_batch_id={batch}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_file_from_another_company_is_stored_incomplete_and_the_comparison_fails()
     {
         var (batch, voucher) = await SeedAsync("TRB");
@@ -90,7 +90,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Contains("READ_BACK_AGAIN", planText, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_file_whose_own_period_does_not_contain_the_entered_dates_is_incomplete()
     {
         var (batch, voucher) = await SeedAsync("TRP");
@@ -108,7 +108,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.True(matching.IsComplete);
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("not xml", "NOT_XML")]
     [InlineData("<ENVELOPE><BODY><DATA><LINEERROR>Could not find Company 'TEST - ETP TRC'</LINEERROR></DATA></BODY></ENVELOPE>", "COMPANY_NOT_OPEN")]
     [InlineData("<ENVELOPE><BODY><EXPORTDATA><REQUESTDATA/></EXPORTDATA></BODY></ENVELOPE>", "COMPANY_NOT_REPORTED")]
@@ -120,7 +120,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(1, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.tally_artifacts WHERE accounting_batch_id={batch} AND artifact_kind='READBACK_XML'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Findings_are_recorded_and_only_a_warning_can_be_accepted_once()
     {
         var (batch, _) = await SeedAsync("TRD");
@@ -148,7 +148,7 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(2, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.accounting_validation_findings WHERE accounting_batch_id={batch}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task New_tables_are_denied_to_store_managers_and_viewers()
     {
         string[] tables = ["accounting_validation_findings", "tally_readbacks", "tally_actual_vouchers", "tally_actual_ledger_entries", "tally_reconciliation_runs", "tally_reconciliation_differences"];

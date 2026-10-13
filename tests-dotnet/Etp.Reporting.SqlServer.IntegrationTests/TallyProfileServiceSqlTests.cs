@@ -7,7 +7,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // 0011 seed; each test uses its own short codes so the shared fixture stays independent.
 public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task A_test_company_is_saved_with_its_stores_audited_and_loaded_back()
     {
         await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPSAVE',N'Synthetic Tally store')");
@@ -28,7 +28,7 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(audits + 1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='ConfigurationChange' AND safe_detail=N'Tally company settings changed'")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Changing_a_company_to_live_books_never_enables_them()
     {
         await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPLIVE',N'Synthetic live store')");
@@ -43,7 +43,7 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal("PRODUCTION", await database.ExecuteAsync($"SELECT environment FROM dbo.tally_profile_stores WHERE tally_profile_id={id}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_store_already_linked_to_another_test_company_is_refused_and_nothing_changes()
     {
         await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPDUP',N'Synthetic shared store')");
@@ -57,7 +57,7 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(before, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.tally_profiles"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Unknown_stores_and_reused_short_codes_are_refused_in_plain_words()
     {
         var service = new SqlServerTallyProfileService(database.ConnectionString);
@@ -69,7 +69,7 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
         Assert.Contains("already uses the short code TPCODE", reused.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_company_with_batches_keeps_its_code_name_and_books_but_other_settings_change()
     {
         await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPUSED',N'Synthetic used store')");
@@ -93,7 +93,7 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(("TPUSED", "TEST - Used", "TEST", (string?)"TallyPrime 6.1"), (saved.ProfileCode, saved.CompanyName, saved.Environment, saved.TallyBuildLabel));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task One_company_for_two_stores_keeps_each_stores_cost_centre()
     {
         await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPCC1',N'Synthetic store one'),('TPCC2',N'Synthetic store two')");
@@ -111,7 +111,7 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(new[] { "TPCC1", "TPCC2" }, changed.StoreCodes);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_remote_Tally_address_is_refused_before_the_database_is_touched()
     {
         var service = new SqlServerTallyProfileService(database.ConnectionString);

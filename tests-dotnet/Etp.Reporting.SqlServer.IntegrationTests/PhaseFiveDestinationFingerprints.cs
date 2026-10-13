@@ -109,7 +109,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         return reachedNull;
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("property")]
     [InlineData("indexed")]
     [InlineData("dictionary")]
@@ -147,7 +147,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public void Fingerprints_read_cash_columns_with_spaces_and_explicit_database_nulls()
     {
         FingerprintSta(() =>
@@ -187,7 +187,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public void Grid_fingerprinting_refuses_an_unresolved_binding_instead_of_hashing_null()
     {
         FingerprintSta(() =>
@@ -203,7 +203,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
 
     // Imports > History binds Result.Failure.Code; a successful import has no Failure, and the grid
     // shows an empty cell. The role walk stopped there on 3 Oct 2026.
-    [Fact]
+    [SqlFact]
     public void Grid_fingerprinting_reads_a_path_through_a_null_object_as_an_empty_cell_but_still_refuses_a_misspelt_one()
     {
         FingerprintSta(() =>
@@ -222,7 +222,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public void Empty_grids_keep_a_column_fingerprint_instead_of_dropping_out_of_the_comparison()
     {
         FingerprintSta(() =>
@@ -240,7 +240,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         });
     }
 
-    [Fact]
+    [SqlFact]
     public void Same_empty_grid_in_two_different_workspaces_is_reported_for_any_role()
     {
         const string data = "same-columns-no-rows";

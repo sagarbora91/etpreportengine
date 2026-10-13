@@ -13,7 +13,7 @@ public sealed class ReportLabelCorrectionSqlTests
 {
     private const string Catalogue = "SELECT STRING_AGG(CONCAT(kpi_code,'|',version,'|',formula,'|',data_source,'|',approval_status,'|',effective_date,'|',is_active),'#') WITHIN GROUP(ORDER BY kpi_code) FROM dbo.kpi_catalogue";
 
-    [Fact]
+    [SqlFact]
     public async Task Upgrading_from_0045_corrects_the_catalogue_text_once_and_keeps_everything_else()
     {
         await using var db = new UpgradeDatabase();

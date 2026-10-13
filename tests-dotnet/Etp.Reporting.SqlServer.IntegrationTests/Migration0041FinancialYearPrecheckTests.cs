@@ -9,7 +9,7 @@ public sealed class Migration0041FinancialYearPrecheckTests
     private const string OutcomeParameter =
         "SELECT COUNT(*) FROM sys.parameters WHERE object_id=OBJECT_ID(N'dbo.persist_phase_one_enrichment') AND name=N'@outcome' AND is_output=1";
 
-    [Fact]
+    [SqlFact]
     public async Task Invoice_keyed_by_a_year_other_than_its_financial_year_refuses_0041_with_51700_and_changes_nothing()
     {
         await using var db = new UpgradeDatabase();
@@ -73,7 +73,7 @@ public sealed class Migration0041FinancialYearPrecheckTests
         Assert.Equal(2027, await db.ExecuteAsync("SELECT invoice_year FROM dbo.sales_invoices WHERE store_code='FYCHECK' AND document_number=N'100000777'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Repair_script_leaves_an_invoice_on_a_finalised_day_and_says_why()
     {
         await using var db = new UpgradeDatabase();

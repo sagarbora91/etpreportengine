@@ -13,7 +13,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
 {
     private static readonly DateOnly Aug25 = new(2026, 8, 25);
 
-    [Fact]
+    [SqlFact]
     public async Task Sold_out_items_are_checked_against_a_zero_closing_and_moved_items_all_show()
     {
         const string store = "SV-SOLD";
@@ -41,7 +41,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(2m, movements.Sum(x => x.SourceSignedQuantity));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Store_without_a_snapshot_on_the_to_date_is_blocked_and_its_items_are_marked_not_hidden()
     {
         // Owner answer Q9 (decision 13): movements and items of a day with no snapshot are listed, marked "no snapshot".
@@ -61,7 +61,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(("ITEM", 1m, false), (movement.ItemCode, movement.SourceSignedQuantity, movement.HasSnapshot));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Store_with_a_snapshot_marks_its_movements_as_having_one()
     {
         const string store = "SV-HASSNAP";
@@ -73,7 +73,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.True(movement.HasSnapshot);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Opening_comes_from_the_chain_of_the_day_whatever_order_the_rows_were_stored_in()
     {
         const string store = "SV-ORDER";
@@ -105,7 +105,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.All(fromMonth.Items, item => Assert.Equal(0m, item.Variance));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Ledger_ending_before_the_to_date_blocks_with_its_last_date()
     {
         const string store = "SV-SHORT";
@@ -121,7 +121,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(ReconciliationStatus.Passed, Assert.Single(result.Items).Status);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Ledger_whose_last_days_had_no_movement_and_no_sale_is_not_blocked()
     {
         // The import stores a ledger's last row date as its period end. A ledger exported to 25 Aug from a store that
@@ -138,7 +138,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.EndsWith("Last ledger movement 24 Aug 2026 for SV-QUIET; no sales after it to 25 Aug 2026, so those days are taken as days without stock movement.", result.Message);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task BinWise_reading_of_a_Closing_Stock_day_is_never_added_to_any_stock_report()
     {
         // HEMW FIX-01: on 29 Sep 2026 the R010 BinWise file (really 7 Sep) was stored beside the R011 Closing Stock.
@@ -178,7 +178,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(["BOTH-A", "BOTH-B"], movements.Select(x => x.ItemCode));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Gift_cards_are_left_out_of_every_stock_report()
     {
         // Owner answer Q2 (decision 13), Helios report audit R-10: the GIFT CARD item sits at -4 in the ledger and the snapshot;
@@ -207,7 +207,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(["WATCH-1"], movements.Select(x => x.ItemCode));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_snapshot_row_with_brand_code_GC_is_a_gift_card_and_a_blank_brand_code_is_kept()
     {
         const string store = "SV-GC";
@@ -226,7 +226,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(["WATCH-2"], closing.Select(x => x.ProductCode));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Slow_stock_ages_by_receipt_date_and_shows_recent_receipts_as_new()
     {
         // Owner answer Q8 (decision 14): an item received 5 days ago and not sold is NEW; one received 120 days ago is NEVER

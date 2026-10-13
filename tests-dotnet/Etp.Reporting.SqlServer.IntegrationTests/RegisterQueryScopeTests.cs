@@ -4,7 +4,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class RegisterQueryScopeTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Courier_query_filters_in_SQL_before_limit_even_with_more_than_500_newer_inward_entries()
     {
         await database.ExecuteAsync("""

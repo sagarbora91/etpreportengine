@@ -9,7 +9,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFourRecoveryTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Recovery_uses_backup_metadata_despite_later_live_changes_and_rejects_path_escape()
     {
         var root = Path.Combine(Path.GetTempPath(), "EtpRecoveryTest_" + Guid.NewGuid().ToString("N"));

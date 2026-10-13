@@ -17,7 +17,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
     private const string Viewer = "diag_hc_viewer";
     private const string Automation = "diag_hc_automation";
 
-    [Fact]
+    [SqlFact]
     public async Task Owner_and_automation_record_and_read_runs_and_every_role_reads_the_nightly_summary()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -85,7 +85,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(51824, missing.Number);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_run_that_is_not_valid_is_refused_whole()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -126,7 +126,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(before, await CountRunsAsync());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_long_detail_keeps_the_whole_sub_results_that_fit()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -139,7 +139,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal("STORE00", parsed[0].GetProperty("key").GetString());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Runs_older_than_400_days_and_expired_known_rows_are_pruned_by_the_next_record()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -157,7 +157,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(0, await ScalarAsync("SELECT COUNT(*) FROM diag.health_check_known WHERE check_id='DATA-04' AND finding_code='INPUTS_MISSING'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Only_the_owner_marks_a_warning_known_for_at_most_90_days()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -205,7 +205,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.DoesNotContain((await DiagSql.QueryAsync(database, Owner, "EXEC diag.load_health_check_known"))[0], row => (string)row["finding_code"]! == "MONTHLY_TARGETS_MISSING");
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Role_permissions_have_a_fixed_shape_and_never_leak_names_to_a_non_owner()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);

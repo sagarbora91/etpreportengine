@@ -17,7 +17,7 @@ public sealed class SchemaObjectRunnerSqlTests
 {
     private const string Grants = "-- >>> GRANTS\n";
 
-    [Fact]
+    [SqlFact]
     public async Task A_database_built_by_the_migrations_adopts_the_exported_baseline_and_executes_nothing()
     {
         // Migrations only, as the integrator's baseline database is made; then the PowerShell export, then the C# runner.
@@ -68,7 +68,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_changed_view_file_is_one_alter_with_permissions_intact_a_history_row_and_its_readers_refreshed()
     {
         var database = new SqlDatabaseFixture();
@@ -120,7 +120,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_broken_file_rolls_every_object_back_and_the_bootstrap_refuses()
     {
         var database = new SqlDatabaseFixture();
@@ -162,7 +162,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_hand_edit_shows_in_DB07_and_the_next_run_puts_the_release_version_back()
     {
         var database = new SqlDatabaseFixture();
@@ -192,7 +192,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_retired_stub_drops_its_object_but_never_one_another_view_still_reads()
     {
         var database = new SqlDatabaseFixture();
@@ -231,7 +231,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Objects_used_by_a_constraint_or_the_security_policy_are_excluded_and_a_file_for_one_is_refused()
     {
         var database = new SqlDatabaseFixture();
@@ -260,7 +260,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_plan_verb_lists_pending_changes_and_setup_reads_its_json()
     {
         var database = new SqlDatabaseFixture();
@@ -305,7 +305,7 @@ public sealed class SchemaObjectRunnerSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Migration_0062_allows_every_1_12_audit_type()
     {
         var database = new SqlDatabaseFixture();
@@ -328,7 +328,7 @@ public sealed class SchemaObjectRunnerSqlTests
     /// Export-EtpSchemaObjects.ps1 into that folder (existing files are kept) and drops the database. Without the variable
     /// it does nothing. Commit the result as one commit "objects baseline".
     /// </summary>
-    [Fact]
+    [SqlFact]
     public async Task Objects_baseline_export_runs_only_when_the_integrator_asks_for_it()
     {
         var target = Environment.GetEnvironmentVariable("ETP_EXPORT_OBJECTS_BASELINE");

@@ -16,7 +16,7 @@ public sealed class UpdateSettingsSqlTests(SqlDatabaseFixture database) : IClass
 {
     private const string Read = "SELECT update_feed_path,update_check_enabled FROM dbo.product_settings WHERE product_setting_id=1;";
 
-    [Fact]
+    [SqlFact]
     public async Task The_settings_start_off_with_no_path_and_the_engine_reads_them_that_way()
     {
         var (path, enabled) = await ReadAsync();
@@ -29,7 +29,7 @@ public sealed class UpdateSettingsSqlTests(SqlDatabaseFixture database) : IClass
         Assert.Equal(new[] { UpdateGateBlock.TurnedOff }, gate.Blocks);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_blank_path_is_refused_and_a_full_path_is_used_as_stored()
     {
         try
@@ -51,7 +51,7 @@ public sealed class UpdateSettingsSqlTests(SqlDatabaseFixture database) : IClass
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Only_the_owner_can_turn_update_checks_on()
     {
         await database.ExecuteAsync("""

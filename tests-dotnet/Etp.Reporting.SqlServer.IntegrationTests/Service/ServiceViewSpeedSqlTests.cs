@@ -23,7 +23,7 @@ public sealed partial class ServiceViewSpeedSqlTests
 
     private const string Prefix = "old1114_";
 
-    [Fact]
+    [SqlFact]
     public async Task The_restated_views_return_the_rows_of_their_previous_text_also_after_a_restate_and_for_a_viewer()
     {
         var database = new SqlDatabaseFixture();
@@ -56,7 +56,7 @@ public sealed partial class ServiceViewSpeedSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Every_Service_view_reads_in_full_under_one_second_and_the_screens_filtered_reads_compile()
     {
         var database = new SqlDatabaseFixture();

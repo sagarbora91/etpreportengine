@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveAccountingReceiptPrivacyTests(SqlDatabaseFixture db) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Export_receipt_persists_only_filename_and_matches_fresh_history()
     {
         var id = Convert.ToInt64(await db.ExecuteAsync("""

@@ -8,7 +8,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Unreachable_server_gives_actionable_error()
     {
         await using var connection = new SqlConnection(@"Server=tcp:127.0.0.1,65001;Database=EtpPhase0NeverUsed;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=1");
@@ -16,7 +16,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         Assert.True(Etp.Reporting.Desktop.DesktopFriendlyError.Describe(error).Contains("unreachable"), $"Unclassified SQL error {error.Number}");
     }
 
-    [Fact]
+    [SqlFact]
     public async Task All_migrations_apply_once_and_indexes_have_the_requested_columns()
     {
         var result = await new MigrationRunner(new DirectoryMigrationSource(database.MigrationDirectory),
@@ -29,7 +29,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         Assert.True((bool)(await database.ExecuteAsync("SELECT ic.is_descending_key FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id=i.object_id AND ic.index_id=i.index_id WHERE i.name='IX_stock_snapshots_product' AND ic.key_ordinal=3"))!);
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("UPDATE dbo.application_users SET role_code='VIEWER' WHERE role_code='OWNER'")]
     [InlineData("UPDATE dbo.application_users SET is_active=0 WHERE role_code='OWNER'")]
     [InlineData("DELETE dbo.application_users WHERE role_code='OWNER'")]
@@ -41,7 +41,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         Assert.Equal(1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.application_users WHERE role_code='OWNER' AND is_active=1")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Guard_handles_multiple_rows_and_allows_changes_when_another_owner_remains()
     {
         await database.ExecuteAsync("INSERT dbo.application_users(windows_identity,display_name,role_code,modified_by,change_reason) VALUES(N'Phase0SyntheticOwner',N'Test Owner','OWNER',SUSER_SNAME(),N'Integration test')");
@@ -55,7 +55,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         finally { await database.ExecuteAsync("DELETE dbo.application_users WHERE windows_identity=N'Phase0SyntheticOwner'"); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("UPDATE dbo.application_users SET role_code='VIEWER' WHERE windows_identity=N'Phase0AuditOwner'")]
     [InlineData("UPDATE dbo.application_users SET is_active=0 WHERE windows_identity=N'Phase0AuditOwner'")]
     [InlineData("DELETE dbo.application_users WHERE windows_identity=N'Phase0AuditOwner'")]
@@ -74,7 +74,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         finally { await database.ExecuteAsync("DELETE dbo.application_users WHERE windows_identity=N'Phase0AuditOwner'"); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Failed_import_opens_owner_dashboard_and_severity_sync_inserts_updates_and_resolves()
     {
         await database.ExecuteAsync("INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(NEWID(),'Failed',SYSUTCDATETIME())");
@@ -94,7 +94,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         Assert.Equal("Test failure (0 current)", await database.ExecuteAsync("SELECT safe_summary FROM dbo.data_quality_issues WHERE category='RESTATEMENT'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Manual_database_initialization_uses_saved_database_instead_of_the_constructor_fallback()
     {
         var folder = Path.Combine(Path.GetTempPath(), "EtpPhase0Settings_" + Guid.NewGuid().ToString("N"));

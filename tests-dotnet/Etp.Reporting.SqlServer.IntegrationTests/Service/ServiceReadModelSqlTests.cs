@@ -41,7 +41,7 @@ public sealed class ServiceReadModelSqlTests
         "v_service_gprc_claims", "v_service_manual_money",
     ];
 
-    [Fact]
+    [SqlFact]
     public async Task Week2_wins_jobs_leaving_lists_are_events_and_the_restated_S004_day_is_listed()
     {
         var database = new SqlDatabaseFixture();
@@ -171,7 +171,7 @@ public sealed class ServiceReadModelSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_views_do_not_depend_on_the_import_order()
     {
         var forward = new SqlDatabaseFixture();
@@ -196,7 +196,7 @@ public sealed class ServiceReadModelSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_raw_window_after_week2_replaces_only_the_dates_and_jobs_it_holds()
     {
         var raw = FixtureFolder("raw");

@@ -14,7 +14,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// </summary>
 public sealed class DurableImportProblemsTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Problems_survive_a_complete_application_restart_and_match_the_persisted_outcomes()
     {
         var database = new SqlDatabaseFixture();
@@ -97,7 +97,7 @@ public sealed class DurableImportProblemsTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Viewer_may_read_the_outcomes_problems_are_built_from_and_may_not_change_them()
     {
         var database = new SqlDatabaseFixture();

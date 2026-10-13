@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveDigitalRegisterBoundaryTests(SqlDatabaseFixture db) : IClassFixture<SqlDatabaseFixture>
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Inactive_account_is_refused_before_register_or_day_reads(bool dayOnly)
@@ -17,7 +17,7 @@ public sealed class PhaseFiveDigitalRegisterBoundaryTests(SqlDatabaseFixture db)
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SqlServerDigitalRegisterService(db.ConnectionString).LoadAsync());
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("VIEWER", true, "DRAFT")]
     [InlineData("STORE_MANAGER", true, "VERIFIED")]
     [InlineData("STORE_MANAGER", true, " verified ")]
@@ -33,7 +33,7 @@ public sealed class PhaseFiveDigitalRegisterBoundaryTests(SqlDatabaseFixture db)
         Assert.Equal("Private supplier", await db.ExecuteAsync($"SELECT counterparty FROM dbo.register_entries WHERE document_number='{number}'"));
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("")]
     [InlineData("PENDING")]
     [InlineData("VERIFIED            suffix")]
@@ -46,7 +46,7 @@ public sealed class PhaseFiveDigitalRegisterBoundaryTests(SqlDatabaseFixture db)
         Assert.Equal(0, await db.ExecuteAsync($"SELECT COUNT(*) FROM dbo.register_entries WHERE document_number='{number}'"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Viewer_reads_manager_saves_draft_and_Owner_verifies_with_fresh_access_each_time()
     {
         var number = Guid.NewGuid().ToString("N");

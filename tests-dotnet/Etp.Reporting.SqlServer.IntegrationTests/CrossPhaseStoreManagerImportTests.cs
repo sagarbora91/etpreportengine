@@ -15,7 +15,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class CrossPhaseStoreManagerImportTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Manager_restatement_requires_every_approved_binding_and_preserves_request_and_retry_workflow()
     {
         var database = new SqlDatabaseFixture();
@@ -87,7 +87,7 @@ public sealed class CrossPhaseStoreManagerImportTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Manager_restatement_without_approval_is_denied_before_canonical_facts_change()
     {
         var database = new SqlDatabaseFixture();
@@ -120,7 +120,7 @@ public sealed class CrossPhaseStoreManagerImportTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("R018")]
     [InlineData("R019")]
     public async Task Numeric_state_code_formatting_preserves_valid_superset_promotion(string report)
@@ -155,7 +155,7 @@ public sealed class CrossPhaseStoreManagerImportTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Real_folder_and_retained_links_work_as_manager_on_every_repository_connection()
     {
         var database = new SqlDatabaseFixture();
@@ -216,7 +216,7 @@ public sealed class CrossPhaseStoreManagerImportTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Manager_duplicates_supersets_and_brands_preserve_fact_denials_and_locked_dates()
     {
         var database = new SqlDatabaseFixture();
@@ -300,7 +300,7 @@ public sealed class CrossPhaseStoreManagerImportTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Viewer_cannot_edit_brands_even_with_accidental_execute_grant()
     {
         var database = new SqlDatabaseFixture();

@@ -10,7 +10,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class ScopedImportDuplicateSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Shared_bytes_keep_source_row_outcomes_separate_and_direct_reimports_return_zero_new_rows()
     {
         var database = new SqlDatabaseFixture();
@@ -76,7 +76,7 @@ public sealed class ScopedImportDuplicateSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Identical_empty_workbook_bytes_preserve_each_report_store_and_date_and_reimport_as_duplicates()
     {
         var database = new SqlDatabaseFixture();

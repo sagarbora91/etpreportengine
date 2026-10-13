@@ -19,7 +19,7 @@ public sealed class ServiceUiFixesSqlTests
 
     private const string LatestS009 = "(SELECT r.import_file_id FROM dbo.v_service_readings r WHERE r.report_code='S009' AND r.is_latest=1)";
 
-    [Fact]
+    [SqlFact]
     public async Task S009_SRN_For_Repair_is_on_the_bench_and_an_SRN_out_is_dated_by_its_open_SRN()
     {
         var database = new SqlDatabaseFixture();
@@ -70,7 +70,7 @@ public sealed class ServiceUiFixesSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Readings_dates_claims_and_revenue_follow_the_1_10_1_rules()
     {
         var database = new SqlDatabaseFixture();
@@ -183,7 +183,7 @@ public sealed class ServiceUiFixesSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_Service_money_shop_is_the_store_flagged_in_data_and_only_one_store_holds_the_flag()
     {
         // RA-OPS-21: 0052 seeds the flag on the shop the 0048 view named; moving it in data moves the view; a second

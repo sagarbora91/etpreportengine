@@ -23,7 +23,7 @@ public sealed class OperationsModuleSigningTests(SqlDatabaseFixture database) : 
     // A well-known Windows identity that exists on every machine and is never sysadmin.
     private const string Principal = @"NT AUTHORITY\LOCAL SERVICE";
 
-    [Fact]
+    [SqlFact]
     public async Task A_non_sysadmin_store_manager_backs_up_through_the_signed_broker_and_only_an_administrator_can_drill()
     {
         var suffix = Guid.NewGuid().ToString("N")[..16];
@@ -134,7 +134,7 @@ public sealed class OperationsModuleSigningTests(SqlDatabaseFixture database) : 
         await CleanupAsync(procedure, signer, root, state);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_failed_install_keeps_the_broker_for_an_administrator_and_leaves_no_signer()
     {
         // A reinstall whose grants fail. The broker is kept: unsigned, the automation account
@@ -170,7 +170,7 @@ public sealed class OperationsModuleSigningTests(SqlDatabaseFixture database) : 
         await CleanupAsync(procedure, signer, root, new CleanupState());
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_automation_account_that_cannot_connect_is_refused_before_anything_is_signed()
     {
         // P4-14. Before migration 0032, Settings > Users left every Store Manager without

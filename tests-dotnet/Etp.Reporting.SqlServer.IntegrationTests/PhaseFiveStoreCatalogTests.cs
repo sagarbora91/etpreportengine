@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveStoreCatalogTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Newly_configured_store_appears_in_dsr_and_combined_manual_totals_and_retired_masters_are_absent()
     {
         await using var db=new StoreDatabase();await db.InitializeAsync();
@@ -36,7 +36,7 @@ public sealed class PhaseFiveStoreCatalogTests
         await Assert.ThrowsAsync<ArgumentException>(()=>repository.UpsertMasterValueAsync("TENDER","UNUSED","Unused","APPROVED",true,"Not used"));
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData(1)]
     [InlineData(3)]
     public async Task Latest_combined_day_requires_every_active_store_and_ignores_newer_partial_or_inactive_sources(int activeCount)

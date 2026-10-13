@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseOneUpgradeSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Existing_calendar_year_invoices_upgrade_without_rewriting_old_migrations_and_backfill_signed_tax()
     {
         await using var database = new UpgradeDatabase();

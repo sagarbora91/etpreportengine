@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PhaseFiveFriendlyErrorAuditTests(SqlDatabaseFixture db) : IClassFixture<SqlDatabaseFixture>
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(51451, "Accounting is busy. Try again.")]
     [InlineData(51457, "A balanced, unblocked batch and an approval reason are required.")]
     [InlineData(51431, "Enter a rejection reason of at most 1000 characters.")]
@@ -17,7 +17,7 @@ public sealed class PhaseFiveFriendlyErrorAuditTests(SqlDatabaseFixture db) : IC
         Assert.Equal(expected, DesktopFriendlyError.Describe(error));
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("Invoice PRIVATE-DOC is already in batch 42. Reject that unexported batch before preparing another.", false)]
     [InlineData("Invoice PRIVATE-DOC is already in exported batch 42. An exported batch is final; it cannot be replaced.", true)]
     [InlineData("Invoice PRIVATE batch 999. An exported batch is final; it cannot be replaced. is already in batch 42. Reject that unexported batch before preparing another.", false)]
@@ -31,7 +31,7 @@ public sealed class PhaseFiveFriendlyErrorAuditTests(SqlDatabaseFixture db) : IC
             : "This day is already in batch 42. Reject that unexported batch before preparing another.", DesktopFriendlyError.Describe(error));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Unrecognised_duplicate_batch_message_cannot_supply_raw_detail_or_invent_an_id()
     {
         var error = await ThrowAsync(51452, "PRIVATE invoice batch 999; exported elsewhere");
@@ -42,7 +42,7 @@ public sealed class PhaseFiveFriendlyErrorAuditTests(SqlDatabaseFixture db) : IC
         Assert.Contains("batch", message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Trigger_error_uses_the_reviewed_business_error_without_concatenated_SQL_details()
     {
         await db.ExecuteAsync("""

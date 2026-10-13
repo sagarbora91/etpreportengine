@@ -10,7 +10,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // enrichment rows against 274 live. A committed import now syncs the saved issues itself.
 public sealed class DataQualityIssueSyncSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task A_committed_import_brings_the_saved_issues_up_to_the_live_checks_without_a_refresh()
     {
         var database = new SqlDatabaseFixture();
@@ -63,7 +63,7 @@ public sealed class DataQualityIssueSyncSqlTests
 
     // Review of FIX-10: on a clean database every check passes, so a sync wrote no row and the as-of line
     // said "never" after it. The sync now stamps a marker row, which the grid does not show.
-    [Fact]
+    [SqlFact]
     public async Task A_sync_that_finds_nothing_still_records_when_it_ran()
     {
         var database = new SqlDatabaseFixture();

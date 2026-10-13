@@ -8,7 +8,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class StaffImportNameSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task R013_import_replaces_legacy_code_names_and_preserves_manually_edited_names()
     {
         var database = new SqlDatabaseFixture();

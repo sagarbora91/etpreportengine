@@ -15,7 +15,7 @@ public sealed class RecoveryDrillRowCountIntegrationTests
 {
     private static readonly string[] Tables = ["sales_invoices", "sales_lines", "import_files", "daily_reporting_days"];
 
-    [Fact]
+    [SqlFact]
     public async Task The_broker_counts_around_a_backup_and_counts_the_restored_copy_before_dropping_it()
     {
         var database = new SqlDatabaseFixture();
@@ -89,7 +89,7 @@ public sealed class RecoveryDrillRowCountIntegrationTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Drill_results_are_recorded_append_only_and_shown_by_System_status()
     {
         var database = new SqlDatabaseFixture();

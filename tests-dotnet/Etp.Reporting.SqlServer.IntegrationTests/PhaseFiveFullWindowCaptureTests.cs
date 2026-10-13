@@ -85,7 +85,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         return [.. ExpectedDestinations(role).Concat(help).Order(StringComparer.Ordinal)];
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Every_role_reachable_destination_loads_with_disposable_data_and_optional_captures()
     {
         if (Environment.GetEnvironmentVariable(RoleWalkChildVariable) != "1")

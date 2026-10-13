@@ -10,7 +10,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class DurableImportHistoryTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Imported_and_duplicate_outcomes_survive_complete_application_process_restarts()
     {
         var database = new SqlDatabaseFixture();
@@ -78,7 +78,7 @@ public sealed class DurableImportHistoryTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task History_filters_durable_safe_diagnostics_and_sql_write_permissions_are_enforced()
     {
         var database = new SqlDatabaseFixture();
@@ -128,7 +128,7 @@ public sealed class DurableImportHistoryTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Linked_cancelled_failed_and_subsequent_attempts_remain_visible_without_repeating_original_receipt()
     {
         var database = new SqlDatabaseFixture();
@@ -163,7 +163,7 @@ public sealed class DurableImportHistoryTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData(true, false, false)]
     [InlineData(true, true, false)]
     [InlineData(true, true, true)]

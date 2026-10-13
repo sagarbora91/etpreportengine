@@ -12,7 +12,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
 {
     private static readonly DateOnly Day = new(2026, 8, 25);
 
-    [Fact]
+    [SqlFact]
     public async Task A_day_is_prepared_as_one_voucher_per_invoice_and_saved_with_its_reservations()
     {
         var (profile, _) = await SeedAsync("TSVA", "TSVB");
@@ -59,7 +59,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
     // OD-1 (IF-019, migration 0041): an invoice is keyed by the financial year of its date, and R018's INVOICEYEAR is only
     // a label. A GST row whose label differs from that year (on 10 Oct 2026 only 3 return rows on live) still belongs
     // to its invoice; joining on the label would leave the invoice blocked as TAX_ROW_MISSING.
-    [Fact]
+    [SqlFact]
     public async Task Gst_rows_are_found_by_the_financial_year_of_their_date_not_by_the_year_label()
     {
         var (profile, _) = await SeedAsync("TSVM", "TSVN", r018YearLabel: 2026);
@@ -74,7 +74,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
             sale.Entries.Select(entry => $"{entry.BusinessEvent}|{entry.Debit + entry.Credit:0.##}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_preview_that_no_longer_matches_the_mappings_is_never_saved()
     {
         var (profile, _) = await SeedAsync("TSVC", "TSVD");
@@ -92,7 +92,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
         Assert.True(await service.SaveAsync(fresh) > 0);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_missing_ledger_mapping_saves_the_day_as_blocked_with_the_reason()
     {
         var (profile, _) = await SeedAsync("TSVE", "TSVF", mapTax: false);
@@ -107,7 +107,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.accounting_voucher_reservations r JOIN dbo.accounting_vouchers v ON v.accounting_voucher_id=r.accounting_voucher_id WHERE v.accounting_batch_id={batch}"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Stores_outside_the_company_and_days_without_a_final_report_are_refused()
     {
         var (profile, _) = await SeedAsync("TSVG", "TSVH");
@@ -119,7 +119,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(51220, notFinal.Number);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Warnings_are_saved_with_the_batch_and_must_be_accepted_before_approval()
     {
         var (profile, _) = await SeedAsync("TSVI", "TSVJ");
@@ -149,7 +149,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
         Assert.False(File.Exists(path));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Ledger_mappings_list_versions_and_name_what_a_store_still_needs()
     {
         await SeedAsync("TSVK", "TSVL", mapTax: false);

@@ -23,7 +23,7 @@ public sealed class StaffTargetsOwnerOnlyTests
     private static string As(string user, string sql) =>
         $"EXECUTE AS USER='{user}'; BEGIN TRY {sql}; REVERT; END TRY BEGIN CATCH REVERT; THROW; END CATCH;";
 
-    [Fact]
+    [SqlFact]
     public async Task Only_the_owner_can_write_staff_targets_and_the_history_is_still_written()
     {
         var database = new SqlDatabaseFixture();

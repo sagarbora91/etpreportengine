@@ -6,7 +6,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// <summary>1.9.9 import reminder: the readiness facts read against a migrated database.</summary>
 public sealed class DailyReadinessSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Reads_received_exports_entered_inputs_and_targets_for_the_business_date()
     {
         await database.ExecuteAsync("""

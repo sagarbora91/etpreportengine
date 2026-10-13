@@ -17,7 +17,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// </summary>
 public sealed class HealthCheckReviewFixSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Blocker_2_a_logged_operation_with_spaces_is_ingested_and_stored_as_a_token()
     {
         var log = Path.Combine(Path.GetTempPath(), "etp-review-ingest-" + Guid.NewGuid().ToString("N"));
@@ -48,7 +48,7 @@ public sealed class HealthCheckReviewFixSqlTests(SqlDatabaseFixture database) : 
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Blocker_1_a_run_with_real_probe_details_is_recorded_whole_and_keeps_its_detail()
     {
         var day = new DateOnly(2026, 10, 9);

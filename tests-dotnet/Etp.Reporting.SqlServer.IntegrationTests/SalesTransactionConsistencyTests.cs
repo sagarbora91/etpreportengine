@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class SalesTransactionConsistencyTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
-    [Fact]
+    [SqlFact]
     public async Task Sales_summary_and_dsr_exclude_unknown_types_without_blocking_known_signed_sales()
     {
         // Simulates legacy facts: today's import already warns and skips unknown types.

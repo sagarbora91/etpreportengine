@@ -27,7 +27,7 @@ public sealed class ExpectedRolePermissionsTests
         WHERE r.name IN (N'etp_owner', N'etp_store_manager', N'etp_viewer', N'etp_automation');
         """;
 
-    [Fact]
+    [SqlFact]
     public async Task A_fresh_database_has_exactly_the_expected_role_permissions()
     {
         var database = new SqlDatabaseFixture();

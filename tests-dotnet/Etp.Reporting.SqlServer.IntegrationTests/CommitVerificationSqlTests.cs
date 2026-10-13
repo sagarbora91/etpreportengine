@@ -11,7 +11,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // the database on a fresh connection whether the work landed, and report what it holds.
 public sealed class CommitVerificationSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Commit_timeout_after_server_commit_reports_imported()
     {
         var database = new SqlDatabaseFixture();
@@ -49,7 +49,7 @@ public sealed class CommitVerificationSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task Migration_commit_timeout_is_verified_against_journal(bool serverCommitted)
@@ -99,7 +99,7 @@ public sealed class CommitVerificationSqlTests
         finally { await DropAsync(name, connectionString); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Commit_check_failure_is_COMMIT_OUTCOME_UNKNOWN_and_is_not_retried()
     {
         var database = new SqlDatabaseFixture();
@@ -187,7 +187,7 @@ public sealed class CommitVerificationSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task Exact_duplicate_commit_failure_is_judged_by_the_earlier_file_and_names_no_batch(bool checkAnswers)
@@ -226,7 +226,7 @@ public sealed class CommitVerificationSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task Commit_check_waits_for_a_commit_still_in_flight(bool commits)
@@ -259,7 +259,7 @@ public sealed class CommitVerificationSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Migration_commit_check_failure_is_rethrown_as_unknown()
     {
         var name = "EtpPhase0Test_CommitVerification_" + Guid.NewGuid().ToString("N");

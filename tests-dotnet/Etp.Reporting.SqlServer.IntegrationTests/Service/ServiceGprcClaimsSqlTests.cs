@@ -19,7 +19,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests.Service;
 /// </summary>
 public sealed class ServiceGprcClaimsSqlTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task The_GPRC_union_counts_each_claim_document_once_whatever_the_import_order(bool claimsFirst)
@@ -64,7 +64,7 @@ public sealed class ServiceGprcClaimsSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_manual_money_view_marks_only_the_Titan_World_shop_and_the_check_lists_the_others_apart()
     {
         var database = new SqlDatabaseFixture();

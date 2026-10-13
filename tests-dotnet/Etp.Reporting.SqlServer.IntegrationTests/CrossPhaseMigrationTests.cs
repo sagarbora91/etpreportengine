@@ -5,7 +5,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class CrossPhaseMigrationTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData("fresh")]
     [InlineData("phase3")]
     [InlineData("phase4")]
@@ -27,7 +27,7 @@ public sealed class CrossPhaseMigrationTests
         Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM sys.database_permissions WHERE major_id=OBJECT_ID(N'dbo.document_extractions')"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Failed_0022_rolls_back_compatibility_object_and_journal_then_can_retry()
     {
         await using var database = new MigrationDatabase();

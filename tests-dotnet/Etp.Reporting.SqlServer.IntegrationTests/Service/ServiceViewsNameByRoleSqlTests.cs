@@ -12,7 +12,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests.Service;
 /// </summary>
 public sealed class ServiceViewsNameByRoleSqlTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData("v_service_status_view_rows")]
     [InlineData("v_service_job_status_current")]
     [InlineData("v_service_status_view_facts")]

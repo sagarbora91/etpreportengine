@@ -27,7 +27,7 @@ public sealed class RetiredAccountDeactivationTests(SqlDatabaseFixture database)
     // Its login exists only inside CreateRetiredUserAsync's transaction, holding no permission.
     private const string Donor = @"NT AUTHORITY\LOCAL SERVICE";
 
-    [Fact]
+    [SqlFact]
     public async Task An_account_of_a_retired_pc_can_be_deactivated_with_its_audit_trail()
     {
         var identity = OrphanedWindowsUserName();
@@ -48,7 +48,7 @@ public sealed class RetiredAccountDeactivationTests(SqlDatabaseFixture database)
         finally { await RemoveAsync(identity); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task An_account_with_no_database_user_and_no_login_is_deactivated_without_creating_either()
     {
         var identity = RetiredIdentity();
@@ -66,7 +66,7 @@ public sealed class RetiredAccountDeactivationTests(SqlDatabaseFixture database)
         finally { await RemoveAsync(identity); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Giving_access_to_an_account_windows_cannot_find_is_refused_with_what_to_do()
     {
         var identity = RetiredIdentity();
@@ -76,7 +76,7 @@ public sealed class RetiredAccountDeactivationTests(SqlDatabaseFixture database)
         Assert.Equal(0, Convert.ToInt32(await database.ExecuteAsync($"SELECT COUNT(*) FROM sys.server_principals WHERE name=N'{identity}'")));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_procedure_refuses_to_strip_the_last_active_owner_before_changing_anything()
     {
         // The fixture's only Owner that can sign in is the account running the tests (0011). The
@@ -101,7 +101,7 @@ public sealed class RetiredAccountDeactivationTests(SqlDatabaseFixture database)
         Assert.Equal(rolesBefore, Convert.ToInt32(await database.ExecuteAsync(roles)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_retired_owner_can_be_deactivated_while_another_owner_remains()
     {
         var identity = OrphanedWindowsUserName();

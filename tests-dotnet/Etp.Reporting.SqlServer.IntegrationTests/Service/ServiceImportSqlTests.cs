@@ -18,7 +18,7 @@ public sealed class ServiceImportSqlTests
 {
     private static readonly string[] NotNeededCodes = ["S001", "S005", "S027", "S028", "S038"];
 
-    [Fact]
+    [SqlFact]
     public async Task Week1_imports_35_families_then_duplicates_then_week2_lands_beside_it()
     {
         var database = new SqlDatabaseFixture();
@@ -62,7 +62,7 @@ public sealed class ServiceImportSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_changed_file_for_an_imported_date_is_refused_for_S009_only()
     {
         var database = new SqlDatabaseFixture();
@@ -83,7 +83,7 @@ public sealed class ServiceImportSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_store_manager_imports_service_files_and_a_viewer_is_refused()
     {
         var database = new SqlDatabaseFixture();
@@ -117,7 +117,7 @@ public sealed class ServiceImportSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task The_watch_folder_imports_a_service_zip_and_queues_no_report_pack()
     {
         var database = new SqlDatabaseFixture();

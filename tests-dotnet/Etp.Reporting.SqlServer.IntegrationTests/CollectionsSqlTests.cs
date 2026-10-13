@@ -30,7 +30,7 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
 
     private static readonly DateOnly Day1 = new(2026, 8, 1);
 
-    [Fact]
+    [SqlFact]
     public async Task A_bank_csv_imports_idempotently_and_an_accepted_deposit_proposal_shows_as_credited_on_a_locked_day()
     {
         var evidence = await PrepareAsync("COLA");
@@ -118,7 +118,7 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
         finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Provider_settlement_totals_reach_the_statement_as_totals_only_next_to_the_tenders()
     {
         var evidence = await PrepareAsync("COLB");
@@ -170,7 +170,7 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
         finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Collections_pii_is_denied_to_store_manager_and_viewer_who_still_import_through_the_procedure()
     {
         await EnsureObjectsAsync();
@@ -225,7 +225,7 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(0, await ProbeAsync("col_manager", "SELECT TOP(1) * FROM dbo.v_cash_deposits_in_transit"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Collections_contracts_refuse_bad_keys_and_mismatched_providers_and_ship_no_settlement_rule()
     {
         var lower = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync(

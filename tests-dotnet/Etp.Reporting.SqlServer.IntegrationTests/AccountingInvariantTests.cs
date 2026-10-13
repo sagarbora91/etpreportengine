@@ -6,7 +6,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class AccountingInvariantTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Database_refuses_second_active_batch_for_an_adjustment_only_day()
     {
         var db = new SqlDatabaseFixture();
@@ -34,7 +34,7 @@ public sealed class AccountingInvariantTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Database_refuses_a_second_export_receipt_for_one_batch()
     {
         var db = new SqlDatabaseFixture();
@@ -52,7 +52,7 @@ public sealed class AccountingInvariantTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("APPROVED_READY")]
     [InlineData("EXPORTED_AWAITING_IMPORT")]
     public async Task Invoice_reservation_refusal_names_the_earlier_batch_and_a_feasible_action(string status)
@@ -81,7 +81,7 @@ public sealed class AccountingInvariantTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Status_constraint_permits_exactly_the_five_honest_accounting_states()
     {
         var db = new SqlDatabaseFixture();
@@ -102,7 +102,7 @@ public sealed class AccountingInvariantTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData("   ",547,"CK_accounting_batches_approval_reason")]
     [InlineData(null,51457,"approval reason")]
     public async Task Direct_approval_with_blank_reason_is_refused_without_changing_the_draft(string? reason,int number,string message)
@@ -123,7 +123,7 @@ public sealed class AccountingInvariantTests
         finally { await db.DisposeAsync(); }
     }
 
-    [Theory]
+    [SqlTheory]
     [InlineData(false,51560,"Existing accounting batches cover the same store and business date.")]
     [InlineData(true,51561,"Existing accounting batches have more than one export receipt.")]
     public async Task Upgrade_refuses_existing_duplicate_days_or_receipts_without_rewriting_history(bool receipts,int number,string message)

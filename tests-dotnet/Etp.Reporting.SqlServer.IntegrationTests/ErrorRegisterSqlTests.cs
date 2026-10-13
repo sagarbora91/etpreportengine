@@ -19,7 +19,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
     private const string Viewer = "diag_er_viewer";
     private const string Automation = "diag_er_automation";
 
-    [Fact]
+    [SqlFact]
     public async Task Every_role_can_ingest_and_occurrences_store_the_role_never_the_account()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -41,7 +41,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal("New", await ScalarAsync("SELECT status FROM diag.error_register WHERE fingerprint=@f", ("@f", fingerprint)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Only_owner_and_automation_read_the_register_and_nobody_reads_the_tables()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -96,7 +96,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_malformed_batch_is_refused_and_bad_items_are_rejected_one_by_one()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -144,7 +144,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal("1.11", await ScalarAsync("SELECT first_version FROM diag.error_register WHERE fingerprint=@f", ("@f", good)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Duplicates_are_ignored_in_the_batch_and_across_batches()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -167,7 +167,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Empty((await DiagSql.QueryAsync(database, Owner, "EXEC diag.load_error_register @reference=@r", ("@r", "NOSUCHREF000")))[0]);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Latest_stack_keeps_token_frames_and_is_not_blanked_by_an_occurrence_without_a_stack()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -194,7 +194,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.StartsWith("\"Type00.", JsonDocument.Parse(stack).RootElement[0].GetRawText(), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_fix_turns_into_recurred_only_for_an_occurrence_from_the_fixed_version_or_later()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -246,7 +246,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Owner_status_changes_follow_the_lifecycle()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -288,7 +288,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(51805, await SetAsync("Seen"));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Merge_moves_occurrences_and_counts_and_later_occurrences_follow()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -326,7 +326,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(4L, await ScalarAsync("SELECT occurrence_count FROM diag.error_register WHERE error_register_id=@id", ("@id", intoId)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task More_than_200_a_day_keep_only_the_counter_and_old_occurrences_are_pruned_keeping_20()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);
@@ -356,7 +356,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(20, await ScalarAsync(count, ("@f", old)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task A_lost_cursor_resending_a_spam_day_does_not_count_the_overflow_again()
     {
         // 1.11.1 (1.11.0 review minor 7): only 200 per day are stored, so the 5 overflow lines were found by no stored row.
@@ -379,7 +379,7 @@ public sealed class ErrorRegisterSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(206L, await ScalarAsync("SELECT occurrence_count FROM diag.error_register WHERE fingerprint=@f", ("@f", spam)));
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Result_sets_have_the_contract_columns()
     {
         await DiagSql.EnsureUsersAsync(database, Owner, Manager, Viewer, Automation);

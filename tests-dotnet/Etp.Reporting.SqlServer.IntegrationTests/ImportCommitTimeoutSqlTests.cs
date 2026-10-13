@@ -9,7 +9,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 // import must be judged by what the database holds, not by the lost reply.
 public sealed class ImportCommitTimeoutSqlTests
 {
-    [Theory]
+    [SqlTheory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task Commit_timeout_reports_the_import_by_what_the_database_committed(bool serverCommitted)

@@ -12,7 +12,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// <summary>Source files kept inside the database as import evidence (IF-023, Owner decision OD-2; spec 5.1 B and 11.2).</summary>
 public sealed class EvidenceSqlTests
 {
-    [Fact]
+    [SqlFact]
     public async Task Bytes_retained_in_import_transaction_and_deduplicated()
     {
         var database = new SqlDatabaseFixture();
@@ -62,7 +62,7 @@ public sealed class EvidenceSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Duplicate_result_retains_missing_bytes()
     {
         var database = new SqlDatabaseFixture();
@@ -94,7 +94,7 @@ public sealed class EvidenceSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Viewer_cannot_read_evidence()
     {
         var database = new SqlDatabaseFixture();
@@ -126,7 +126,7 @@ public sealed class EvidenceSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Keep_source_files_for_earlier_imports_stores_matching_files_and_imports_nothing()
     {
         var database = new SqlDatabaseFixture();
@@ -196,7 +196,7 @@ public sealed class EvidenceSqlTests
         }
     }
 
-    [Fact]
+    [SqlFact]
     public async Task Retaining_new_bytes_does_not_block_an_import_of_another_file()
     {
         var database = new SqlDatabaseFixture();
@@ -234,7 +234,7 @@ public sealed class EvidenceSqlTests
 
     // Review 1.9.3 finding 5: the rollback of the evidence is proven on every route, not only R025 (sales).
     // The file under test runs beside R025 so a snapshot without its own date takes the folder's date.
-    [Theory]
+    [SqlTheory]
     [InlineData("R025")] // sales
     [InlineData("R022")] // revenue
     [InlineData("R013")] // enrichment
@@ -282,7 +282,7 @@ public sealed class EvidenceSqlTests
     }
 
     // Review 1.9.3 finding 5: the use case's own duplicate check, before the import lock (ExistsInScope).
-    [Fact]
+    [SqlFact]
     public async Task Use_case_duplicate_before_the_lock_keeps_missing_bytes()
     {
         var database = new SqlDatabaseFixture();
@@ -315,7 +315,7 @@ public sealed class EvidenceSqlTests
 
     // Review 1.9.3 finding 5: the duplicate the use case finds only under the import lock (a second import of the
     // same file that waited on the first). Whichever wins, the bytes are held once and the states say who kept them.
-    [Fact]
+    [SqlFact]
     public async Task Use_case_duplicate_found_under_the_import_lock_keeps_missing_bytes()
     {
         var database = new SqlDatabaseFixture();
@@ -373,7 +373,7 @@ public sealed class EvidenceSqlTests
     }
 
     // Review 1.9.3 finding 3: Settings → Database and the walk never wait on an import in progress.
-    [Fact]
+    [SqlFact]
     public async Task Summary_and_walk_do_not_wait_on_an_import_in_progress()
     {
         var database = new SqlDatabaseFixture();
