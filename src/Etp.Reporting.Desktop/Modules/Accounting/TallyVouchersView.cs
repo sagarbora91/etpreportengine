@@ -25,26 +25,34 @@ public sealed class TallyVouchersView : UserControl
     private long? savedBatch;
     private bool busy;
 
-    public ComboBox CompanyInput { get; } = new() { MinHeight = 44, Width = 320, DisplayMemberPath = nameof(TallyProfile.CompanyName) };
-    public ComboBox StoreInput { get; } = new() { MinHeight = 44, Width = 160 };
-    public DatePicker DateInput { get; } = new() { MinHeight = 44, Width = 170, SelectedDate = DateTime.Today.AddDays(-1) };
+    public ComboBox CompanyInput { get; } = new() { Width = 320, DisplayMemberPath = nameof(TallyProfile.CompanyName) };
+    public ComboBox StoreInput { get; } = new() { Width = 160 };
+    public DatePicker DateInput { get; } = new() { Width = 170, SelectedDate = DateTime.Today.AddDays(-1) };
     public DataGrid VoucherGrid { get; } = NewGrid(260);
     public DataGrid FindingGrid { get; } = NewGrid(180);
     public TextBlock SummaryText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 0) };
-    public TextBox ReasonInput { get; } = new() { Width = 420, MinHeight = 44, Padding = new(6), MaxLength = 1000 };
+    public TextBox ReasonInput { get; } = new() { Width = 420, MaxLength = 1000 };
     public TextBlock StatusText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
     public Button PrepareButton { get; }
     public Button SaveButton { get; }
     public Button AcceptButton { get; }
 
-    public TallyVouchersView(Func<bool> canAdminister, Func<ProfileService> profiles, Func<BatchService> batches)
+    /// <summary>The Send to Tally card under the vouchers (1.12 U3); null when no transfer actions are wired.</summary>
+    public TallyTransferView? Transfer { get; }
+
+    /// <param name="transfer">Builds the Tally transfer actions. When omitted, <see cref="TallyTransferActionsProvider.Factory"/> is used;
+    /// when that is also null the transfer card is not shown.</param>
+    public TallyVouchersView(Func<bool> canAdminister, Func<ProfileService> profiles, Func<BatchService> batches,
+        Func<ITallyTransferActions>? transfer = null)
     {
         this.canAdminister = canAdminister;
         this.profiles = profiles;
         this.batches = batches;
+        transfer ??= TallyTransferActionsProvider.Factory;
+        if (transfer is not null) Transfer = new TallyTransferView(canAdminister, transfer);
         Column(VoucherGrid, "Invoice", nameof(VoucherRow.Invoice), 130);
         Column(VoucherGrid, "Result", nameof(VoucherRow.Result), 110);
-        Column(VoucherGrid, "Amount (₹)", nameof(VoucherRow.Amount), 110);
+        Column(VoucherGrid, "Amount (₹)", nameof(VoucherRow.Amount), 110, numeric: true);
         Column(VoucherGrid, "Reason", nameof(VoucherRow.Reason), 520);
         Column(FindingGrid, "Kind", nameof(FindingRow.Kind), 90);
         Column(FindingGrid, "Rule", nameof(FindingRow.Rule), 120);
@@ -58,6 +66,7 @@ public sealed class TallyVouchersView : UserControl
             StoreInput.ItemsSource = (CompanyInput.SelectedItem as TallyProfile)?.StoreCodes ?? Array.Empty<string>();
             StoreInput.SelectedIndex = StoreInput.Items.Count > 0 ? 0 : -1;
             Clear();
+            if (Transfer is not null) _ = Transfer.ShowCompanyAsync(CompanyInput.SelectedItem as TallyProfile);
         };
         StoreInput.SelectionChanged += (_, _) => Clear();
         DateInput.SelectedDateChanged += (_, _) => Clear();
@@ -90,7 +99,10 @@ public sealed class TallyVouchersView : UserControl
                      choice, SummaryText, VoucherGrid, Heading("Validation findings"), FindingGrid, accept, StatusText
                  })
             body.Children.Add(child);
-        Content = new Expander { Header = "Tally vouchers", IsExpanded = true, Content = body, Margin = new(0, 18, 0, 0) };
+        var page = new StackPanel();
+        page.Children.Add(new Expander { Header = "Tally vouchers", IsExpanded = true, Content = body, Margin = new(0, 18, 0, 0) });
+        if (Transfer is not null) page.Children.Add(Transfer);
+        Content = page;
         Loaded += async (_, _) => await RunAsync(LoadCompaniesAsync);
     }
 
@@ -180,19 +192,38 @@ public sealed class TallyVouchersView : UserControl
 
     private Button Action(string text, Func<Task> action)
     {
-        var button = new Button { Content = text, MinHeight = 44, Padding = new(12, 6, 12, 6), Margin = new(4), VerticalAlignment = VerticalAlignment.Bottom };
+        var button = new Button { Content = text, Margin = new(4), VerticalAlignment = VerticalAlignment.Bottom };
         button.Click += async (_, _) => await RunAsync(action);
         System.Windows.Automation.AutomationProperties.SetName(button, text);
         return button;
     }
 
-    private static DataGrid NewGrid(double height) =>
-        new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = height, MinHeight = 100, RowHeight = 36, Margin = new(0, 6, 0, 8) };
+    private static DataGrid NewGrid(double height)
+    {
+        var grid = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = height, MinHeight = 100, Margin = new(0, 6, 0, 8) };
+        grid.SetResourceReference(DataGrid.RowHeightProperty, "ActiveGridRowHeight");
+        return grid;
+    }
 
-    private static void Column(DataGrid grid, string header, string binding, double width) =>
-        grid.Columns.Add(new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width });
+    /// <summary>Money columns are right-aligned (G2); the "₹" is in the header once (G3).</summary>
+    private static void Column(DataGrid grid, string header, string binding, double width, bool numeric = false)
+    {
+        var column = new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width };
+        if (numeric)
+        {
+            var style = new Style(typeof(TextBlock));
+            style.Setters.Add(new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right));
+            column.ElementStyle = style;
+        }
+        grid.Columns.Add(column);
+    }
 
-    private static TextBlock Heading(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, Margin = new(0, 10, 0, 0) };
+    private static TextBlock Heading(string text)
+    {
+        var heading = new TextBlock { Text = text, Margin = new(0, 10, 0, 0) };
+        heading.SetResourceReference(StyleProperty, "CardTitleText");
+        return heading;
+    }
 
     private static StackPanel Field(string label, Control control)
     {

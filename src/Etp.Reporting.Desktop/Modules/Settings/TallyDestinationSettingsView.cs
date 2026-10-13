@@ -7,37 +7,51 @@ namespace Etp.Reporting.Desktop.Modules.Settings;
 
 public sealed class TallyDestinationSettingsView : StackPanel
 {
-    private readonly Func<string> connection;
     private readonly Func<bool> isOwner;
-    private readonly Func<string,AccountingService> serviceFactory;
-    private readonly TextBox company = new() { MinHeight = 44, MaxLength = 200 };
-    private readonly ComboBox environment = new() { MinHeight = 44, ItemsSource = new[] { "TEST", "PRODUCTION" }, SelectedIndex = 0 };
-    private readonly TextBox confirmation = new() { MinHeight = 44 };
-    private readonly TextBox reason = new() { MinHeight = 44, MaxLength = 1000 };
+    private readonly Func<AccountingService> serviceFactory;
+    private readonly TextBox company = new() { MaxLength = 200 };
+    private readonly ComboBox environment = new() { ItemsSource = new[] { "TEST", "PRODUCTION" }, SelectedIndex = 0 };
+    private readonly TextBox confirmation = new();
+    private readonly TextBox reason = new() { MaxLength = 1000 };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
     private string[]? saved;
     public bool IsBusy { get; private set; }
     private string[] Values => [company.Text, environment.SelectedItem?.ToString() ?? "TEST", confirmation.Text, reason.Text];
     public bool HasDraft => saved is not null && !Values.SequenceEqual(saved);
 
-    public TallyDestinationSettingsView(Func<string> connection, Func<bool> isOwner, Func<string,AccountingService> serviceFactory)
+    /// <summary>The composition root hands the screen its service; the screen never sees a connection string (A1 rule).</summary>
+    public TallyDestinationSettingsView(Func<bool> isOwner, Func<AccountingService> serviceFactory)
     {
-        this.connection = connection; this.isOwner = isOwner; this.serviceFactory = serviceFactory;
+        this.isOwner = isOwner; this.serviceFactory = serviceFactory;
         Margin = new Thickness(0, 18, 0, 0);
-        Children.Add(new TextBlock { Text = "Tally file destination", FontWeight = FontWeights.SemiBold });
-        Children.Add(new TextBlock { Text = "Company and TEST label are saved with every exported file. Live export remains unavailable until Tally setup and read-back are approved in Phase 7.", TextWrapping = TextWrapping.Wrap });
+        var heading = new TextBlock { Text = "Tally file destination" };
+        heading.SetResourceReference(StyleProperty, "CardTitleText");
+        Children.Add(heading);
+        var hint = new TextBlock { Text = "Company and TEST label are saved with every exported file. Live export remains unavailable until Tally setup and read-back are approved in Phase 7.", TextWrapping = TextWrapping.Wrap };
+        hint.SetResourceReference(StyleProperty, "CaptionText");
+        Children.Add(hint);
         AddField("Tally company name (leave blank until D12 is decided)", company);
         AddField("Environment", environment);
         AddField("Type the exact company name to save PRODUCTION", confirmation);
         AddField("Change reason", reason);
-        var save = new Button { Content = "Save Tally destination", MinHeight = 44, HorizontalAlignment = HorizontalAlignment.Left };
+        var save = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
+        System.Windows.Automation.AutomationProperties.SetName(save, "Save Tally destination");
         save.Click += async (_, _) => await SaveDraftAsync(); Children.Add(save); Children.Add(status);
         IsEnabled = false;
     }
 
+    /// <summary>Kept until SettingsWorkspaceView builds the screen with the overload above; then delete it and the
+    /// ArchitectureGuardTests allowlist line for this file (a connection string is not allowed in a screen).</summary>
+    public TallyDestinationSettingsView(Func<string> connection, Func<bool> isOwner, Func<string,AccountingService> serviceFactory)
+        : this(isOwner, () => serviceFactory(connection()))
+    {
+    }
+
     private void AddField(string label, Control control)
     {
-        Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 6, 0, 2) });
+        var caption = new TextBlock { Text = label, Margin = new Thickness(0, 6, 0, 2) };
+        caption.SetResourceReference(StyleProperty, "FieldLabelText");
+        Children.Add(caption);
         System.Windows.Automation.AutomationProperties.SetName(control, label); Children.Add(control);
     }
 
@@ -47,7 +61,7 @@ public sealed class TallyDestinationSettingsView : StackPanel
         IsBusy = true; IsEnabled = false;
         try
         {
-            var value = await serviceFactory(connection()).LoadDestinationAsync();
+            var value = await serviceFactory().LoadDestinationAsync();
             company.Text = value.CompanyName ?? ""; environment.SelectedItem = value.EnvironmentLabel;
             confirmation.Clear(); reason.Clear(); saved = Values;
         }
@@ -67,7 +81,7 @@ public sealed class TallyDestinationSettingsView : StackPanel
         IsBusy = true; IsEnabled = false;
         try
         {
-            await serviceFactory(connection()).SaveDestinationAsync(new(company.Text, environment.SelectedItem?.ToString() ?? "TEST", confirmation.Text, reason.Text));
+            await serviceFactory().SaveDestinationAsync(new(company.Text, environment.SelectedItem?.ToString() ?? "TEST", confirmation.Text, reason.Text));
             confirmation.Clear(); reason.Clear(); saved = Values;
             status.Text = "Tally destination saved. This does not enable live Tally export.";
             return true;
