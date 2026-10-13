@@ -3,56 +3,61 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              automation:AutomationProperties.Name="Accounting preparation workspace">
+    <!-- Template: list page with a toolbar (ETP-DESIGN-SYSTEM section 11). The shell header is the page title (T2). One primary
+         button: the next step of the selected batch (RefreshActionState), never a numbered step (B4). -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel>
-        <TextBlock Text="Prepare → Review → Export" FontSize="18" FontWeight="SemiBold"/>
-        <TextBlock Text="Prepare the final report, review entries and record a TEST Tally file. The file export does not confirm any result in Tally."
-                   Foreground="{DynamicResource SecondaryText}" Margin="0,4,0,10" TextWrapping="Wrap"/>
+        <TextBlock Text="Prepare the final report, review the entries and write a TEST Tally file. Writing the file does not confirm any result in Tally."
+                   Style="{DynamicResource CaptionText}" Margin="0,0,0,10"/>
         <WrapPanel>
-            <TextBox x:Name="AccountingStoreInput" Width="110" Padding="6"
+            <TextBox x:Name="AccountingStoreInput" Width="110"
                      automation:AutomationProperties.Name="Accounting store"/>
             <DatePicker x:Name="AccountingDateInput" Width="145" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Accounting business date"/>
-            <Button x:Name="PreviewTaskButton" Content="1 Prepare preview" Click="PreviewAccountingBatch_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="SaveTaskButton" Content="Save batch" Click="SaveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="ApproveTaskButton" Content="2 Approve selected" Click="ApproveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="RejectTaskButton" Content="Reject selected" Click="RejectAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="TallyTaskButton" Content="3 Write Tally file…" Click="ExportTallyXml_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="PreviewTaskButton" Content="Prepare" Click="PreviewAccountingBatch_Click" Style="{DynamicResource PrimaryButton}" Margin="8,0,0,0"/>
+            <Button x:Name="SaveTaskButton" Content="Save" Click="SaveAccountingBatch_Click" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Save batch"/>
+            <Button x:Name="ApproveTaskButton" Content="Approve" Click="ApproveAccountingBatch_Click" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Approve selected batch"/>
+            <Button x:Name="RejectTaskButton" Content="Reject" Click="RejectAccountingBatch_Click" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Reject selected batch"/>
+            <Button x:Name="TallyTaskButton" Content="Write file" Click="ExportTallyXml_Click" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Write Tally file for selected batch"/>
         </WrapPanel>
-        <TextBlock x:Name="DestinationStatus" Margin="0,8,0,0" TextWrapping="Wrap"/>
-        <TextBlock x:Name="ActionGuidance" Margin="0,6,0,0" TextWrapping="Wrap"/>
-        <TextBlock x:Name="AccountingStatus" Margin="0,10,0,0" TextWrapping="Wrap"
+        <TextBlock x:Name="DestinationStatus" Margin="0,8,0,0" Style="{DynamicResource BodyText}"/>
+        <TextBlock x:Name="ActionGuidance" Margin="0,6,0,0" Style="{DynamicResource CaptionText}"/>
+        <TextBlock x:Name="AccountingStatus" Margin="0,10,0,0" Style="{DynamicResource BodyText}"
                    automation:AutomationProperties.Name="Accounting status"
                    automation:AutomationProperties.LiveSetting="Polite"/>
         <DataGrid x:Name="AccountingEntryGrid" AutoGenerateColumns="True" IsReadOnly="True"
-                  MaxHeight="250" Margin="0,8,0,0"
+                  MinHeight="160" Margin="0,8,0,0"
                   automation:AutomationProperties.Name="Accounting batch preview"/>
-        <TextBlock Text="Accounting batch history" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <TextBlock Text="Accounting batch history" Style="{DynamicResource CardTitleText}" Margin="0,14,0,6"/>
         <DataGrid x:Name="AccountingBatchGrid" AutoGenerateColumns="True" IsReadOnly="True"
-                  SelectionMode="Single" MaxHeight="220"
+                  SelectionMode="Single" MinHeight="160"
                   automation:AutomationProperties.Name="Accounting batch history"/>
-        <TextBlock Text="Export history — file evidence; Tally result not checked" FontWeight="SemiBold" Margin="0,14,0,6"/>
-        <DataGrid x:Name="AccountingExportHistoryGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="220"
+        <TextBlock Text="Export history: file evidence, Tally result not checked" Style="{DynamicResource CardTitleText}" Margin="0,14,0,6"/>
+        <DataGrid x:Name="AccountingExportHistoryGrid" AutoGenerateColumns="True" IsReadOnly="True" MinHeight="160"
                   automation:AutomationProperties.Name="Accounting export history"/>
-        <TextBlock Text="Owner-approved ledger mapping" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <TextBlock Text="Owner-approved ledger mapping" Style="{DynamicResource CardTitleText}" Margin="0,14,0,6"/>
         <WrapPanel>
             <ComboBox x:Name="AccountingEventInput" Width="150" SelectedIndex="0"
                       automation:AutomationProperties.Name="Accounting business event">
                 <ComboBoxItem Content="NET_SALES"/><ComboBoxItem Content="TENDER_TOTAL"/>
                 <ComboBoxItem Content="SERVICE_SALES"/><ComboBoxItem Content="ADJUSTMENT"/>
             </ComboBox>
-            <TextBox x:Name="DebitLedgerInput" Width="170" Padding="6" Margin="8,0,0,0" ToolTip="Debit ledger"
+            <TextBox x:Name="DebitLedgerInput" Width="170" Margin="8,0,0,0" ToolTip="Debit ledger"
                      automation:AutomationProperties.Name="Debit ledger"/>
-            <TextBox x:Name="CreditLedgerInput" Width="170" Padding="6" Margin="8,0,0,0" ToolTip="Credit ledger"
+            <TextBox x:Name="CreditLedgerInput" Width="170" Margin="8,0,0,0" ToolTip="Credit ledger"
                      automation:AutomationProperties.Name="Credit ledger"/>
-            <TextBox x:Name="AccountingNarrationInput" Width="220" Padding="6" Margin="8,0,0,0"
+            <TextBox x:Name="AccountingNarrationInput" Width="220" Margin="8,0,0,0"
                      Text="ETP {description} - {reference}" ToolTip="Narration template"
                      automation:AutomationProperties.Name="Accounting narration template"/>
-            <TextBox x:Name="AccountingMappingReasonInput" Width="210" Padding="6" Margin="8,0,0,0"
+            <TextBox x:Name="AccountingMappingReasonInput" Width="210" Margin="8,0,0,0"
                      ToolTip="Owner approval reason" automation:AutomationProperties.Name="Accounting approval reason"/>
-            <Button Content="Approve mapping" Click="ApproveAccountingMapping_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="ApproveMappingButton" Content="Approve mapping" Click="ApproveAccountingMapping_Click" Margin="8,0,0,0"/>
         </WrapPanel>
-        <StackPanel><TextBlock Text="Batch decision reason"/><TextBox x:Name="BatchApprovalReasonInput" automation:AutomationProperties.Name="Batch decision reason"/></StackPanel>
+        <StackPanel Margin="0,10,0,0"><TextBlock Text="Batch decision reason" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="BatchApprovalReasonInput" automation:AutomationProperties.Name="Batch decision reason"/></StackPanel>
     </StackPanel>
     </ScrollViewer>
 </UserControl>

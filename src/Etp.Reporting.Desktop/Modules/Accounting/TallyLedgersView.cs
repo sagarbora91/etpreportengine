@@ -20,12 +20,12 @@ public sealed class TallyLedgersView : UserControl
     private IReadOnlyList<MappingRow> loaded = [];
     private bool busy;
 
-    public DataGrid MappingGrid { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 260, MinHeight = 100, RowHeight = 36, Margin = new(0, 6, 0, 8) };
-    public ComboBox StoreInput { get; } = new() { MinHeight = 44, Width = 160 };
-    public ComboBox EventInput { get; } = new() { MinHeight = 44, Width = 240, IsEditable = true };
-    public TextBox LedgerInput { get; } = new() { Width = 300, MinHeight = 44, Padding = new(6), MaxLength = 200 };
-    public DatePicker FromInput { get; } = new() { MinHeight = 44, Width = 170, SelectedDate = DateTime.Today };
-    public TextBox ReasonInput { get; } = new() { Width = 420, MinHeight = 44, Padding = new(6), MaxLength = 1000 };
+    public DataGrid MappingGrid { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 260, MinHeight = 100, Margin = new(0, 6, 0, 8) };
+    public ComboBox StoreInput { get; } = new() { Width = 160 };
+    public ComboBox EventInput { get; } = new() { Width = 240, IsEditable = true };
+    public TextBox LedgerInput { get; } = new() { Width = 300, MaxLength = 200 };
+    public DatePicker FromInput { get; } = new() { Width = 170, SelectedDate = DateTime.Today };
+    public TextBox ReasonInput { get; } = new() { Width = 420, MaxLength = 1000 };
     public TextBlock NeededText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 0) };
     public TextBlock StatusText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
     public Button SaveButton { get; }
@@ -35,12 +35,13 @@ public sealed class TallyLedgersView : UserControl
         this.canAdminister = canAdminister;
         this.profiles = profiles;
         this.mappings = mappings;
+        MappingGrid.SetResourceReference(DataGrid.RowHeightProperty, "ActiveGridRowHeight");
         Column("Business event", nameof(LedgerRow.Event), 190);
         Column("Store", nameof(LedgerRow.Store), 90);
         Column("Tally ledger", nameof(LedgerRow.Ledger), 260);
         Column("From", nameof(LedgerRow.From), 110);
         Column("To", nameof(LedgerRow.To), 110);
-        Column("Version", nameof(LedgerRow.Version), 70);
+        Column("Version", nameof(LedgerRow.Version), 70, numeric: true);
         Column("In use", nameof(LedgerRow.InUse), 70);
         Column("Changed by", nameof(LedgerRow.ChangedBy), 180);
         System.Windows.Automation.AutomationProperties.SetName(MappingGrid, "Tally ledger mappings");
@@ -127,14 +128,23 @@ public sealed class TallyLedgersView : UserControl
 
     private Button Action(string text, Func<Task> action)
     {
-        var button = new Button { Content = text, MinHeight = 44, Padding = new(12, 6, 12, 6), Margin = new(4), VerticalAlignment = VerticalAlignment.Bottom };
+        var button = new Button { Content = text, Margin = new(4), VerticalAlignment = VerticalAlignment.Bottom };
         button.Click += async (_, _) => await RunAsync(action);
         System.Windows.Automation.AutomationProperties.SetName(button, text);
         return button;
     }
 
-    private void Column(string header, string binding, double width) =>
-        MappingGrid.Columns.Add(new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width });
+    private void Column(string header, string binding, double width, bool numeric = false)
+    {
+        var column = new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width };
+        if (numeric)
+        {
+            var style = new Style(typeof(TextBlock));
+            style.Setters.Add(new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right));
+            column.ElementStyle = style;
+        }
+        MappingGrid.Columns.Add(column);
+    }
 
     private static StackPanel Field(string label, Control control)
     {
