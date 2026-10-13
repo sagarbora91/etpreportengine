@@ -232,8 +232,8 @@ public sealed class DailyWorkflowWorkspaceViewTests
 
     private static DailyWorkflowWorkspaceView CreateView(IDailyWorkflowQuery query, FakeCommands commands,
         DailyWorkflowWorkspaceAccess? access = null, FakePackGenerator? generator = null) => new(
-        new DailyWorkflowPresentationSession(), () => "Integrated Security=True", _ => query,
-        _ => commands, _ => generator ?? new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1))),
+        new DailyWorkflowPresentationSession(), () => query,
+        () => commands, () => generator ?? new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1))),
         () => access ?? new(true, true, true), (_, _, _) => Task.CompletedTask,
         (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)
         { StoreCode = "WLMHW", BusinessDate = DateTime.Today.AddDays(-1) };

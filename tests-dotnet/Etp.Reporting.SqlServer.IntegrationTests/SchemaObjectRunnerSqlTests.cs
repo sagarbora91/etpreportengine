@@ -292,7 +292,7 @@ public sealed class SchemaObjectRunnerSqlTests
                 await File.WriteAllTextAsync(planFile, await stdout);
                 var script = Path.Combine(Repository(), "scripts", "bootstrap-etp-prerequisites.ps1").Replace("'", "''", StringComparison.Ordinal);
                 var parsed = await RunPowerShellCommandAsync(
-                    $". '{script}' -ApplicationDirectory 'C:\UnusedBootstrapTest'; $plan = ConvertFrom-EtpDatabaseChangePlan -Text ([IO.File]::ReadAllText('{planFile.Replace("'", "''", StringComparison.Ordinal)}')); " +
+                    $". '{script}' -ApplicationDirectory 'C:\\UnusedBootstrapTest'; $plan = ConvertFrom-EtpDatabaseChangePlan -Text ([IO.File]::ReadAllText('{planFile.Replace("'", "''", StringComparison.Ordinal)}')); " +
                     "Write-Output \"migrations=$($plan.PendingMigrations.Count) changes=$($plan.HasChanges)\"");
                 Assert.True(parsed.ExitCode == 0, parsed.Output);
                 Assert.Contains("migrations=0", parsed.Output, StringComparison.Ordinal);

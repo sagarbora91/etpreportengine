@@ -273,8 +273,8 @@ public sealed class TargetCopyTests
     }
 
     private static DailyWorkflowWorkspaceView CreateStaffView(IDailyWorkflowQuery query, IDailyWorkflowCommands commands, DailyWorkflowWorkspaceAccess access) => new(
-        new DailyWorkflowPresentationSession(), () => "Integrated Security=True", _ => query, _ => commands,
-        _ => throw new InvalidOperationException("No pack expected."), () => access, (_, _, _) => Task.CompletedTask,
+        new DailyWorkflowPresentationSession(), () => query, () => commands,
+        () => throw new InvalidOperationException("No pack expected."), () => access, (_, _, _) => Task.CompletedTask,
         (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)
         { StoreCode = "TST01", BusinessDate = new DateTime(2026, 10, 9) };
 

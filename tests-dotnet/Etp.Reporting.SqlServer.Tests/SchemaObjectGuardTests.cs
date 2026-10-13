@@ -56,9 +56,9 @@ public sealed partial class SchemaObjectGuardTests
     {
         Assert.Equal("dbo.v_x", Clean(ModuleDefinition().Match("EXEC(N'CREATE OR ALTER VIEW dbo.v_x AS SELECT 1 AS a');").Groups["name"].Value));
         Assert.Equal("dbo.p", Clean(ModuleDefinition().Match("ALTER PROC [dbo].[p] AS SELECT 1").Groups["name"].Value));
-        Assert.False(ModuleDefinition().IsMatch("CREATE TRIGGER dbo.trg_x ON dbo.t AFTER UPDATE AS SELECT 1"));
+        Assert.DoesNotMatch(ModuleDefinition(), "CREATE TRIGGER dbo.trg_x ON dbo.t AFTER UPDATE AS SELECT 1");
         Assert.Equal("dbo.record_operational_audit", Clean(ProcedureCall().Match("EXEC dbo.record_operational_audit ''Approval''").Groups["name"].Value));
-        Assert.False(ProcedureCall().IsMatch("EXEC(N'SELECT 1')"));
+        Assert.DoesNotMatch(ProcedureCall(), "EXEC(N'SELECT 1')");
     }
 
     [Fact]

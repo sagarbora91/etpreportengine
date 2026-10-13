@@ -86,7 +86,7 @@ public sealed class PhaseFiveAccountingTests
             var approved=Assert.Single(await service.LoadBatchesAsync());
             RunSta(()=>
             {
-                var view=new AccountingWorkspaceView(new AccountingPresentationSession(_=>service),()=>database.ConnectionString);
+                var view=new AccountingWorkspaceView(new AccountingPresentationSession(()=>service));
                 view.AttachHost(()=>new AccessSession("synthetic","Owner",AccessRole.Owner,true),error=>error.Message);
                 var grid=(DataGrid)view.FindName("AccountingBatchGrid");grid.ItemsSource=new[]{approved};grid.SelectedIndex=0;
                 ((TextBox)view.FindName("BatchApprovalReasonInput")).Text="Correction needed before export";

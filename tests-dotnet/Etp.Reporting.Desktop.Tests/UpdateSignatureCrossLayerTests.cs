@@ -69,8 +69,8 @@ public sealed class UpdateSignatureCrossLayerTests
                 Directory.GetFiles(published).Select(p => Path.GetFileName(p)).Order(StringComparer.Ordinal));
             var manifestBytes = await File.ReadAllBytesAsync(Path.Combine(published, "release.json"));
             Assert.False(manifestBytes is [0xEF, 0xBB, 0xBF, ..], "release.json is written without a byte order mark.");
-            Assert.Equal(ReleaseSignatureOutcome.Verified,
-                ReleaseSignatureVerifier.Verify(manifestBytes, await File.ReadAllBytesAsync(Path.Combine(published, "release.json.sig")), [trusted]).Outcome);
+            var signatureBytes = await File.ReadAllBytesAsync(Path.Combine(published, "release.json.sig"));
+            Assert.Equal(ReleaseSignatureOutcome.Verified, ReleaseSignatureVerifier.Verify(manifestBytes, signatureBytes, [trusted]).Outcome);
 
             var choice = UpdateFeedSelector.Choose(new ReleaseVersion(1, 11, 3), UpdateFeedReader.Read(feed), [trusted]);
             Assert.Equal(UpdateFeedStatus.UpdateAvailable, choice.Status);

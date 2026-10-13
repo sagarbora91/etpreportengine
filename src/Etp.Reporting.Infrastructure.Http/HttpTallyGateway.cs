@@ -129,7 +129,7 @@ public sealed class HttpTallyGateway : ITallyReadbackGateway, ITallyImportGatewa
                 return new(body, null, status, TallyGatewayFailure.Redirected, "Something on the Tally port tried to send ETP elsewhere. ETP never follows a redirect; check that the port is Tally's.");
             if (response.Content.Headers.ContentLength is > MaxResponseBytes)
                 return new(body, null, status, TallyGatewayFailure.Truncated, "Tally's answer is larger than 50 MB. Read back fewer days at a time.");
-            byte[] content;
+            byte[]? content;
             try
             {
                 content = await ReadCappedAsync(response.Content, linked.Token).ConfigureAwait(false);

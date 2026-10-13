@@ -85,9 +85,9 @@ public static class CollectionsStatementBuilder
 
         // Cash: the deposit is the evidence; the day's cash tenders are shown for information.
         var cashTenders = expectedRows.Where(row => row.EvidenceKind == CashDepositKind)
-            .GroupBy(row => (row.StoreCode, row.BusinessDate))
+            .GroupBy(row => (row.StoreCode, BusinessDate: row.BusinessDate))
             .ToDictionary(group => group.Key, group => group.Sum(row => row.Amount));
-        var depositByDay = deposits.GroupBy(row => (row.StoreCode, row.DepositDate)).ToDictionary(group => group.Key, group => group.First());
+        var depositByDay = deposits.GroupBy(row => (row.StoreCode, BusinessDate: row.DepositDate)).ToDictionary(group => group.Key, group => group.First());
         foreach (var key in cashTenders.Keys.Union(depositByDay.Keys))
         {
             var tender = cashTenders.TryGetValue(key, out var total) ? total : (decimal?)null;
