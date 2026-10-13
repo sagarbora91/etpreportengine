@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
 using Etp.Reporting.Desktop.Modules.Reports;
+using Etp.Reporting.Desktop.Modules.Settings;
 
 namespace Etp.Reporting.Desktop.Modules.DailyWorkflow;
 
@@ -63,7 +64,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         this.exportPackExcelAsync = exportPackExcelAsync ?? throw new ArgumentNullException(nameof(exportPackExcelAsync));
         this.exportPackPdfAsync = exportPackPdfAsync ?? throw new ArgumentNullException(nameof(exportPackPdfAsync));
         InitializeComponent();
-        var brandEntry = new Button { Content = "Enter stock by brand", MinHeight = 44, Margin = new Thickness(6) };
+        var brandEntry = new Button { Content = "Enter stock by brand", Margin = DesignTokens.Gap("Space8", null, null, null) };
         brandEntry.Click += (_, _) =>
         {
             if (BrandStockEntryWindowFactory is not { } create) return;
@@ -74,8 +75,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         };
         ((Panel)SaveStockCountButton.Parent).Children.Add(brandEntry);
         BusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
-        StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-        StaffTargetToInput.SelectedDate = DateTime.Today.AddDays(-1);
+        ApplyStaffTargetPeriodDefaults();
         InitializeStaffTargetCopy();
         RefreshAccessState();
     }
@@ -84,6 +84,28 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     /// <summary>"Enter stock by brand": store and business date to the dialog. Set by the composition root (1.12 A1).</summary>
     internal Func<string, DateOnly, Window>? BrandStockEntryWindowFactory { get; set; }
+
+    /// <summary>
+    /// 1.12 U2 (decision 52, lane N1): the "Mark as no-sale day" or "Withdraw" button for a store-day, built by N1's
+    /// <c>NoSaleDayActions</c> (the composition root sets this from <c>MainWindow.NoSaleDays</c>); null when the day needs neither.
+    /// The last argument is called after a mark or a withdraw, so the band refreshes. Unset: no button.
+    /// </summary>
+    public Func<string, DateOnly, Func<Task>, Task<UIElement?>>? NoSaleDayButtonFactory { get; set; }
+
+    /// <summary>Whether the verdict band shows the no-sale day button (tests read it).</summary>
+    internal bool NoSaleDayButtonVisible => NoSaleDayHost.Visibility == Visibility.Visible;
+
+    /// <summary>
+    /// 1.12 U2 (wave plan C-d): the staff-target period follows the header date: From = the first day of its month, To = the
+    /// last day. Called at start and whenever the business date changes.
+    /// </summary>
+    private void ApplyStaffTargetPeriodDefaults()
+    {
+        if (BusinessDateInput.SelectedDate is not { } header) return;
+        var (from, to) = TargetCopy.DefaultPeriod(DateOnly.FromDateTime(header));
+        StaffTargetFromInput.SelectedDate = from.ToDateTime(TimeOnly.MinValue);
+        StaffTargetToInput.SelectedDate = to.ToDateTime(TimeOnly.MinValue);
+    }
 
     public Func<Task>? DashboardRefreshRequestedAsync { get; set; }
 
@@ -140,6 +162,10 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         ToolTipService.SetShowOnDisabled(SaveStaffTargetButton, true);
         RefreshStaffTargetCopyAccess(current);
         FinaliseDayButton.IsEnabled = current.CanImport && stateAllowsFinalise;
+        // B6: a disabled Finalise says why.
+        FinaliseDayButton.ToolTip = FinaliseDayButton.IsEnabled ? null
+            : !current.CanImport ? "Owner or Store Manager permission is required."
+            : "Finalise is available when the day is ready. Refresh, then complete what the band lists.";
         ReopenDayButton.IsEnabled = current.CanAdminister;
         ReopenReasonInput.IsEnabled = current.CanAdminister;
         // FIX-17: generating a pack saves a report generation, which SQL allows only the Owner and Store Managers
@@ -369,7 +395,38 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         StockCountsGrid.ItemsSource = state.StockCounts;
         stateAllowsFinalise = state.CanFinalise;
         RefreshAccessState();
+        _ = ShowNoSaleDayButtonAsync(state);
     }
+
+    private int noSaleRevision;
+
+    /// <summary>
+    /// Decision 52: on a day with no sales file that is not finalised, the Owner and the Store Manager get N1's "Mark as no-sale
+    /// day" (or "Withdraw" when it is marked) in the verdict band. A Viewer, a finalised day and a day with sales get nothing.
+    /// </summary>
+    private async Task ShowNoSaleDayButtonAsync(DailyWorkflowPresentationState state)
+    {
+        var revision = ++noSaleRevision;
+        NoSaleDayHost.Content = null;
+        NoSaleDayHost.Visibility = Visibility.Collapsed;
+        if (!ShowsNoSaleDayButton(state, access()) || NoSaleDayButtonFactory is not { } create || string.IsNullOrWhiteSpace(StoreCode)) return;
+        try
+        {
+            var scope = SelectedScope();
+            var button = await create(scope.StoreCode, scope.BusinessDate, RefreshAsync);
+            if (revision != noSaleRevision || button is null) return;
+            NoSaleDayHost.Content = button;
+            NoSaleDayHost.Visibility = Visibility.Visible;
+        }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "DailyWorkflow.Workspace", "NO_SALE_DAY_BUTTON_FAILED", DesktopDiagnosticSeverity.Warning);
+        }
+    }
+
+    /// <summary>The rule above, as a pure function (tests).</summary>
+    internal static bool ShowsNoSaleDayButton(DailyWorkflowPresentationState state, DailyWorkflowWorkspaceAccess current) =>
+        state.IsAvailable && state.NoSalesFile && !state.IsLocked && current.CanImport;
 
     /// <summary>DS-08: the verdict band takes the tone of the state (soft fill, tone-coloured word) instead of one green box.</summary>
     private void ApplyVerdictTone(DailyWorkflowTone? tone)
@@ -521,7 +578,10 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private async void GenerateDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateDailyPackAsync();
     private async void GenerateCombinedDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateCombinedDailyPackAsync();
     private void Scope_Changed(object sender, SelectionChangedEventArgs e)
-        => InvalidateScope();
+    {
+        if (ReferenceEquals(sender, BusinessDateInput) && IsInitialized) ApplyStaffTargetPeriodDefaults();
+        InvalidateScope();
+    }
 
     private void InvalidateScope()
     {
@@ -536,6 +596,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         InputStatus.Text = string.Empty;
         ManualInputsGrid.ItemsSource = null;
         StockCountsGrid.ItemsSource = null;
+        ++noSaleRevision;
+        NoSaleDayHost.Content = null;
+        NoSaleDayHost.Visibility = Visibility.Collapsed;
         RefreshAccessState();
     }
 
