@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Etp.Reporting.Application\Etp.Reporting.Application.csproj" Aliases="EtpApplication" />
     <ProjectReference Include="..\Etp.Reporting.Import\Etp.Reporting.Import.csproj" />
+    <ProjectReference Include="..\Etp.Reporting.Infrastructure.Http\Etp.Reporting.Infrastructure.Http.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Infrastructure.SqlServer\Etp.Reporting.Infrastructure.SqlServer.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Reporting\Etp.Reporting.Reporting.csproj" />
   </ItemGroup>
@@ -29,6 +30,7 @@
          This is the same set build-windows-release.ps1 curates; they stay in step. -->
     <Content Include="..\..\scripts\bootstrap-etp-prerequisites.ps1;
                       ..\..\scripts\backup-etp-database.ps1;
+                      ..\..\scripts\copy-etp-backup-to-disk.ps1;
                       ..\..\scripts\etp-operations-common.ps1;
                       ..\..\scripts\initialize-etp-operation-folders.ps1;
                       ..\..\scripts\install-daily-backup-task.ps1;

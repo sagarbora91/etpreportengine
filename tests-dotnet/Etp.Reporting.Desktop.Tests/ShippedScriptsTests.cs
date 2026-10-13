@@ -195,6 +195,8 @@ public sealed class ShippedScriptsTests
     [InlineData("initialize-etp-operation-folders.ps1")]
     [InlineData("install-etp-sql-operations.ps1")]
     [InlineData("restore-etp-database.ps1")]
+    // 1.12 wave 2 (G1, decision 54): the nightly copy of the verified backup to the second disk.
+    [InlineData("copy-etp-backup-to-disk.ps1")]
     public void Operational_scripts_ship_beside_the_application(string name)
         => Assert.Contains(name, ShippedNames());
 

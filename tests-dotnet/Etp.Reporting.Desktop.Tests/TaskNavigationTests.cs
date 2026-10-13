@@ -15,13 +15,17 @@ public sealed class TaskNavigationTests
         "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
         "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
         "keep-evidence", "dashboard-overview", "tally-ledgers", "tally-vouchers",
-        "health-check", "error-register"
+        "health-check", "error-register",
+        // 1.12 wave 2 (U1 rows): the Morning page, Collections setup and Software update are the Owner's.
+        "morning", "collections-setup", "update-settings"
     ];
     private static readonly string[] ImportRoleTasks =
     [
         "walk-ins", "finalisation", "register-expense", "cash-input", "import-files", "stock-count", "masters",
         "investigation", "register-inward", "register-outward", "register-credit", "register-service",
-        "register-transfer", "register-vendor", "register-courier"
+        "register-transfer", "register-vendor", "register-courier",
+        // 1.12 wave 2 (U1 rows for U4): bank files import and deposits in transit need the import role.
+        "bank-files", "deposits-in-transit"
     ];
 
     // 60 fixed tasks (18 for every role, 15 that need the import role, 27 Owner-only),
@@ -34,10 +38,12 @@ public sealed class TaskNavigationTests
     // added "tally-ledgers" and "tally-vouchers" for the Owner.
     // 1.11.0 self-diagnostics added the Owner-only "health-check" and "error-register" (decision 33) and the
     // "health-check" Help topic for every role.
+    // 1.12 wave 2 added six rows: "morning", "collections-setup", "update-settings" (Owner), "bank-files",
+    // "deposits-in-transit" (import role) and "collections-statement" (every role): 66 fixed tasks, 88/58/41.
     [Theory]
-    [InlineData("OWNER", 82)]
-    [InlineData("STORE_MANAGER", 55)]
-    [InlineData("VIEWER", 40)]
+    [InlineData("OWNER", 88)]
+    [InlineData("STORE_MANAGER", 58)]
+    [InlineData("VIEWER", 41)]
     public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
     {
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
@@ -46,7 +52,7 @@ public sealed class TaskNavigationTests
         Assert.DoesNotContain(TaskNavigation.All, task => task.Id.StartsWith("help:", StringComparison.Ordinal));
         Assert.Equal(23, TaskNavigation.HelpTasks.Count);
         Assert.All(TaskNavigation.HelpTasks, task => Assert.Same(task, TaskNavigation.Find(task.Id)));
-        Assert.Equal(60, TaskNavigation.All.Count(task => task.ReportCode is null));
+        Assert.Equal(66, TaskNavigation.All.Count(task => task.ReportCode is null));
         string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
         Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));
         var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order().ToArray();

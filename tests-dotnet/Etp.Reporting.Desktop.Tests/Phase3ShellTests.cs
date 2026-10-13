@@ -181,11 +181,11 @@ public sealed class Phase3ShellTests
         var cases=ExtractedWorkspaceUiSmokeTests.CreateWorkspaces(Path.Combine(Path.GetTempPath(),"EtpPhase3Ui",Guid.NewGuid().ToString("N")));
         T View<T>(string name)=>(T)(object)cases.Single(c=>c.Name==name).View;
         var window=new MainWindow(new ShellViewModel(new ShellNavigationService()),View<DashboardView>("Dashboard"),
-            _=>throw new InvalidOperationException("Synthetic dashboard unavailable"),View<SettingsWorkspaceView>("Settings"),new DesktopConnectionState("Server=(local);Database=EtpPhase3Synthetic;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=1"),
-            _=>throw new InvalidOperationException("Synthetic access"),View<ArchiveWorkspaceView>("Archive"),View<RegistersWorkspaceView>("Registers"),
+            ()=>throw new InvalidOperationException("Synthetic dashboard unavailable"),View<SettingsWorkspaceView>("Settings"),new DesktopConnectionState("Server=(local);Database=EtpPhase3Synthetic;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=1"),
+            ()=>throw new InvalidOperationException("Synthetic access"),View<ArchiveWorkspaceView>("Archive"),View<RegistersWorkspaceView>("Registers"),
             View<DailyWorkflowWorkspaceView>("Daily"),View<SourceInboxWorkspaceView>("SourceInbox"),View<ReportsWorkspaceView>("Reports"),
             View<AccountingWorkspaceView>("Accounting"),View<OperationsWorkspaceView>("Operations"),View<InvestigationApprovalsWorkspaceView>("Investigation"),
-            View<AdministrationWorkspaceView>("Administration"),_=>throw new InvalidOperationException("Synthetic audit"),View<ImportWorkspaceView>("Import"));
+            View<AdministrationWorkspaceView>("Administration"),()=>throw new InvalidOperationException("Synthetic audit"),View<ImportWorkspaceView>("Import"));
         typeof(MainWindow).GetField("currentAccess",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,new AccessSession("synthetic","Synthetic owner",AccessRole.Owner,true));
         window.ApplyStoreCatalog(TestStoreCatalog.Entries);
         window.WelcomeOverlay.Visibility=Visibility.Collapsed;

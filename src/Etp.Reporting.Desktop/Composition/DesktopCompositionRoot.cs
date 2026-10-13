@@ -119,7 +119,7 @@ public sealed partial class DesktopCompositionRoot
         Func<string, AccountingService> accountingServiceFactory = value => new SqlServerAccountingService(value);
         Func<string, AdministrationService> administrationServiceFactory = value => new SqlServerAdministrationService(value);
         Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory = value => new SqlServerDatabaseLifecycleService(value);
-        // Settings is the connection editor, so it keeps its string-keyed factories (Settings and MainWindow are on the
+        // Settings is the connection editor, so it keeps its string-keyed factories (Settings is on the
         // ArchitectureGuardTests allowlist until their owning lanes move them).
         var settingsWorkspaceView = new SettingsWorkspaceView(
             new DesktopSettingsPresentationSession(settingsStore, connectionState, temporaryConnection),
@@ -141,7 +141,9 @@ public sealed partial class DesktopCompositionRoot
             static (_, _, _) => Task.CompletedTask,
             (path, document) => reportExportCoordinator.ExportPackExcelAsync(path, document),
             (path, document) => reportExportCoordinator.ExportPackPdfAsync(path, document));
-        dailyWorkflowWorkspaceView.BrandStockEntryWindowFactory = (store, date) => new BrandStockEntryWindow(Current(), store, date);
+        dailyWorkflowWorkspaceView.BrandStockEntryWindowFactory = (store, date) => new BrandStockEntryWindow(CreateBrandStockEntryServices(() => connectionState.Factory), store, date);
+        // 1.12 wave 2 (U2 x N1): Close day's verdict band places N1's Mark / Withdraw button on an open day without a sales file.
+        dailyWorkflowWorkspaceView.NoSaleDayButtonFactory = CreateNoSaleDayButtonAsync;
         var archiveSession = new ArchiveDistributionPresentationSession(
             () => new SqlServerReportArchiveQuery(Current()),
             () => new SqlServerSharingContactsService(Current()),
@@ -162,10 +164,10 @@ public sealed partial class DesktopCompositionRoot
         var window = new MainWindow(
             shell,
             dashboardView,
-            dashboardQueryFactory,
+            () => dashboardQueryFactory(Current()),
             settingsWorkspaceView,
             connectionState,
-            accessSessionQueryFactory,
+            () => accessSessionQueryFactory(Current()),
             archiveWorkspaceView,
             registersWorkspaceView,
             dailyWorkflowWorkspaceView,
@@ -175,7 +177,7 @@ public sealed partial class DesktopCompositionRoot
             operations.Operations,
             operations.Investigation,
             operations.Administration,
-            databaseLifecycleServiceFactory,
+            () => databaseLifecycleServiceFactory(Current()),
             importWorkspaceView);
         AttachImportHistory(window, Current);
         window.serviceExcelExport = (path, metadata, data) =>

@@ -15,7 +15,7 @@ namespace Etp.Reporting.Desktop.Modules.NoSaleDays;
 /// else builds the dialog. Owner and Store Manager get a button; a Viewer (and a start with no role) gets null, so the
 /// caller shows nothing. The SQL procedures check the role again.
 /// <para><see cref="Current"/> is set once by <c>DesktopCompositionRoot.NoSaleDays.cs</c>; the shell exposes it as
-/// <c>MainWindow.NoSaleDays</c> (U1).</para>
+/// <c>MainWindow.NoSaleDayButtons</c> (U1; wired in <c>DesktopCompositionRoot.NoSaleDays.cs</c>).</para>
 /// </summary>
 public sealed class NoSaleDayActions
 {

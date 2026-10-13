@@ -90,7 +90,7 @@ public partial class App : Application
                 var window = compositionRoot.CreateMainWindow();
                 window.Show();
                 if (e.Args.Contains("--capture-review"))
-                    _ = ImportReviewSession.RunAsync(window, compositionRoot.LoadConnectionString(), e.Args);
+                    _ = ImportReviewSession.RunAsync(window, e.Args);
             },
             compositionRoot.InitializeConfiguredDatabaseAsync,
             compositionRoot.WaitForAutomationSqlAsync);

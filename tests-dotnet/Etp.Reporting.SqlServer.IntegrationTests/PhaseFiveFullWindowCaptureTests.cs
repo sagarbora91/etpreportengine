@@ -41,10 +41,10 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     // "tally-vouchers"; 1.11.0 the Owner's "health-check" and "error-register" and the "health-check"
     // Help topic for every role. TaskNavigationTests holds the same lists.
     // 1.11.2 (lane L6, UX audit 5.1): the 23 Help topics left TaskNavigation.All (F1 and the Help Centre reach them through
-    // TaskNavigation.HelpTasks), so the catalogue is 82/55/40. The walk still visits every Help topic for every role, so
-    // it covers 105/78/63 screens as before; the Help count is written out on its own.
+    // TaskNavigation.HelpTasks), so the catalogue is 82/55/40 (1.12 wave 2: 88/58/41 with six new rows). The walk still visits every Help
+    // topic for every role, so it covers 111/81/64 screens; the Help count is written out on its own.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 82, ["STORE_MANAGER"] = 55, ["VIEWER"] = 40 };
+        new Dictionary<string, int> { ["OWNER"] = 88, ["STORE_MANAGER"] = 58, ["VIEWER"] = 41 };
     private const int ExpectedHelpTopicCount = 23;
     private static readonly string[] OwnerOnlyTasks =
     [
@@ -52,13 +52,15 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
         "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
         "keep-evidence", "dashboard-overview", "tally-ledgers", "tally-vouchers",
-        "health-check", "error-register"
+        "health-check", "error-register",
+        "morning", "collections-setup", "update-settings"
     ];
     private static readonly string[] ImportRoleTasks =
     [
         "walk-ins", "finalisation", "register-expense", "cash-input", "import-files", "stock-count", "masters",
         "investigation", "register-inward", "register-outward", "register-credit", "register-service",
-        "register-transfer", "register-vendor", "register-courier"
+        "register-transfer", "register-vendor", "register-courier",
+        "bank-files", "deposits-in-transit"
     ];
 
     private static string[] ExpectedDestinations(string role)

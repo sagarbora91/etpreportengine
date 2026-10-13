@@ -20,9 +20,10 @@ public sealed class ArchitectureGuardTests
         ["Etp.Reporting.Infrastructure.SqlServer"] =
             ["Etp.Reporting.Application", "Etp.Reporting.Domain", "Etp.Reporting.Import", "Etp.Reporting.Reporting"],
         ["Etp.Reporting.Desktop"] =
-            ["Etp.Reporting.Application", "Etp.Reporting.Import", "Etp.Reporting.Infrastructure.SqlServer", "Etp.Reporting.Reporting"],
+            ["Etp.Reporting.Application", "Etp.Reporting.Import", "Etp.Reporting.Infrastructure.Http", "Etp.Reporting.Infrastructure.SqlServer", "Etp.Reporting.Reporting"],
         // 1.12 (plan A1/D1): the Tally HTTP gateway sits beside the SQL adapter and depends on the Application only.
         ["Etp.Reporting.Infrastructure.Http"] = ["Etp.Reporting.Application"],
+        // 1.12 wave 2 (U3): Desktop builds the HttpTallyGateway in DesktopCompositionRoot.Accounting.cs.
     };
 
     // Projects the table may name before they exist on disk (wave-1 lanes create them; A2 owns the csproj).
@@ -31,13 +32,12 @@ public sealed class ArchitectureGuardTests
     // Desktop files (relative to src\Etp.Reporting.Desktop, forward slashes) that still use
     // Microsoft.Data.SqlClient outside Composition\. The list may only shrink: remove a line when
     // its file stops using SqlClient, never add one. 1.12 (A1) removed the health-check probes,
-    // ConnectionStringValidation and PowerShellOperationsService; these four read SqlException
-    // numbers for diagnostics, or are the review harness, and belong to other lanes.
+    // ConnectionStringValidation and PowerShellOperationsService; 1.12 wave 2 (U1) removed ImportReviewSession. These three
+    // read SqlException numbers for diagnostics.
     private static readonly string[] SqlClientAllowlist =
     [
         "DesktopDiagnostics.cs",
         "DesktopFriendlyError.cs",
-        "ImportReviewSession.cs",
         "StartupFailureText.cs",
     ];
 
@@ -60,16 +60,10 @@ public sealed class ArchitectureGuardTests
         "Modules/Settings/SettingsWorkspaceView.xaml.cs",
     ];
 
-    // Files that still hold a connection string after 1.12 wave 1, each owned by a wave-2 lane (MainWindow: U1;
-    // EveningMastersView: U2; TallyDestinationSettingsView: U3; BrandStockEntryWindow: U2; ImportReviewSession: the
-    // review harness). The list may only shrink: remove a line when its file is moved to services, never add one.
+    // Files that still hold a connection string. 1.12 wave 2 emptied it (U1: MainWindow, ImportReviewSession; U2:
+    // EveningMastersView, BrandStockEntryWindow; U3: TallyDestinationSettingsView). It stays empty: never add a line.
     private static readonly string[] ConnectionStringAllowlist =
     [
-        "ImportReviewSession.cs",
-        "MainWindow.xaml.cs",
-        "Modules/Reports/BrandStockEntryWindow.cs",
-        "Modules/Settings/EveningMastersView.cs",
-        "Modules/Settings/TallyDestinationSettingsView.cs",
     ];
 
     [Fact]

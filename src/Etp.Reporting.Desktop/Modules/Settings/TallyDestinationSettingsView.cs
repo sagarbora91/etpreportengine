@@ -40,13 +40,6 @@ public sealed class TallyDestinationSettingsView : StackPanel
         IsEnabled = false;
     }
 
-    /// <summary>Kept until SettingsWorkspaceView builds the screen with the overload above; then delete it and the
-    /// ArchitectureGuardTests allowlist line for this file (a connection string is not allowed in a screen).</summary>
-    public TallyDestinationSettingsView(Func<string> connection, Func<bool> isOwner, Func<string,AccountingService> serviceFactory)
-        : this(isOwner, () => serviceFactory(connection()))
-    {
-    }
-
     private void AddField(string label, Control control)
     {
         var caption = new TextBlock { Text = label, Margin = new Thickness(0, 6, 0, 2) };

@@ -68,7 +68,7 @@ public partial class SettingsWorkspaceView : UserControl
         smtpFields.Children.Insert(smtpFields.Children.IndexOf(smtpTlsInput) + 1, shareCustomerNamesInput);
         if (accountingServiceFactory is not null)
         {
-            tallySettings = new(() => session.ConnectionString, () => access.CanAdminister, accountingServiceFactory);
+            tallySettings = new(() => access.CanAdminister, () => accountingServiceFactory(session.ConnectionString));
             ProductSettingsPanel.Children.Add(tallySettings);
         }
         ConnectionStringInput.TextChanged += (_, _) => ++connectionCheckRevision;
