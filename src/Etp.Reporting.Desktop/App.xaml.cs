@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -72,6 +72,16 @@ public partial class App : Application
             Shutdown(2);
             return;
         }
+        // Interactive start only: the headless verbs and setup have their own refusal (--plan-database-changes).
+        // Same path as a rejected configuration: recorded, one message, exit 2, no window and no mutex left behind.
+        if (!headless && await compositionRoot.CheckObjectsUpToDateAsync() is { } objectsRefusal)
+        {
+            DesktopDiagnostics.Record(new InvalidOperationException(objectsRefusal), "Startup", "STARTUP_CONFIGURATION_REJECTED", DesktopDiagnosticSeverity.Critical);
+            MessageBox.Show("ETP Reporting Engine cannot start yet. " + objectsRefusal,
+                "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(2);
+            return;
+        }
         var startup = new DesktopStartupCoordinator(
             compositionRoot.InitializeDatabaseAsync,
             compositionRoot.RunAutomationOnceAsync,
@@ -82,7 +92,8 @@ public partial class App : Application
                 if (e.Args.Contains("--capture-review"))
                     _ = ImportReviewSession.RunAsync(window, compositionRoot.LoadConnectionString(), e.Args);
             },
-            compositionRoot.InitializeConfiguredDatabaseAsync);
+            compositionRoot.InitializeConfiguredDatabaseAsync,
+            compositionRoot.WaitForAutomationSqlAsync);
         var mode = DesktopStartupCoordinator.Route(e.Args);
         if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

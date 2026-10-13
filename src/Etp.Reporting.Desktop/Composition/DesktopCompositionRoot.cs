@@ -201,6 +201,8 @@ public sealed partial class DesktopCompositionRoot
     partial void RegisterCollections(ScreenRegistry registry);
     partial void RegisterImportFixes(ScreenRegistry registry);
     partial void RegisterService(ScreenRegistry registry);
+    partial void RegisterNoSaleDays(ScreenRegistry registry);
+    partial void RegisterStartup();
 
     /// <summary>
     /// The connection factory for the running window's current connection. Wave-2 registrations read it when a
@@ -211,11 +213,13 @@ public sealed partial class DesktopCompositionRoot
     private void RegisterScreens(ScreenRegistry registry, DesktopConnectionState connectionState)
     {
         currentConnections = () => connectionState.Factory;
+        RegisterStartup();
         RegisterMorning(registry);
         RegisterUpdates(registry);
         RegisterCollections(registry);
         RegisterImportFixes(registry);
         RegisterService(registry);
+        RegisterNoSaleDays(registry);
     }
 
     /// <summary>The factory of the window's current connection (for the wave-2 <c>Register*</c> hooks).</summary>
@@ -269,6 +273,39 @@ public sealed partial class DesktopCompositionRoot
     /// </summary>
     public Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default) =>
         NightlyHealthSchedule.RunAfterAutomationAsync(RunWatchFolderAutomationAsync, CreateNightlyHealthSchedule().RunIfDueAsync, cancellationToken);
+
+    /// <summary>Waits (bounded, transient errors only) for SQL Server before the unattended task starts; one Information line per wait.</summary>
+    public async Task WaitForAutomationSqlAsync(CancellationToken cancellationToken = default)
+    {
+        var connectionString = LoadAutomationConnectionString();
+        try
+        {
+            await SqlStartupWait.WaitAsync(
+                token => SqlStartupWait.ProbeAsync(connectionString, token),
+                Task.Delay,
+                () => TimeSpan.FromMilliseconds(Environment.TickCount64),
+                line =>
+                {
+                    DesktopDiagnostics.Record(null, "UnattendedAutomation", "STARTUP_SQL_WAIT", DesktopDiagnosticSeverity.Information);
+                    try { Console.Error.WriteLine("ETP-STARTUP-WAIT mode=automation-once: " + line); } catch (IOException) { } catch (ObjectDisposedException) { }
+                },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        // WaitAsync only rethrows a transient error once the budget is spent: the STARTUP_FAILED line then says so.
+        catch (Exception exception) when (SqlStartupWait.IsTransient(exception))
+        {
+            throw new SqlStartupWaitExpiredException(exception, SqlStartupWait.DefaultBudget);
+        }
+    }
+
+    /// <summary>
+    /// Interactive start only (A3 follow-up): null when the database matches this installation or the check cannot tell;
+    /// otherwise the refusal text. One journal read, no object text compare against the files beyond A3's planner.
+    /// </summary>
+    public Task<string?> CheckObjectsUpToDateAsync(CancellationToken cancellationToken = default) =>
+        StartupObjectsCheck.RefusalAsync(LoadConnectionString(), MigrationDirectory,
+            exception => DesktopDiagnostics.Record(exception, "Startup", "STARTUP_OBJECTS_CHECK_SKIPPED", DesktopDiagnosticSeverity.Warning),
+            cancellationToken);
 
     private async Task<int> RunWatchFolderAutomationAsync(CancellationToken cancellationToken)
     {
