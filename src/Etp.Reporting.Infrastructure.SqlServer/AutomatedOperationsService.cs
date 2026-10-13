@@ -76,7 +76,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                     failed++;
                     MoveCompletedSource(source,paths.FailedPath);
                     await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),null,null,"Failed",
-                        $"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed."+shopResultNote,started,cancellationToken);
+                        WithNote($"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed.",shopResultNote),started,cancellationToken);
                     continue;
                 }
                 MoveCompletedSource(source,route==AutomationSourceRoute.Duplicate ? duplicatePath : paths.ProcessedPath);
@@ -88,8 +88,8 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 var unread=batch.Files.Count(IsSavedDespiteFailure);
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),stores.Length==1?stores[0]:null,
                     dates.Length==1?dates[0]:null,imported==0?"Skipped":"Succeeded",
-                    $"{imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed."+(warnings>0?$" {warnings} warning(s); review the file results.":"")+
-                    (unread>0?$" {unread} saved but not read back; see Import History.":"")+shopResultNote,started,cancellationToken);
+                    WithNote($"{imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed."+(warnings>0?$" {warnings} warning(s); review the file results.":"")+
+                    (unread>0?$" {unread} saved but not read back; see Import History.":""),shopResultNote),started,cancellationToken);
             }
             catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
             {
@@ -99,7 +99,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 try { MoveCompletedSource(source, paths.FailedPath); }
                 catch (Exception moveException) when (moveException is IOException or UnauthorizedAccessException)
                 { safe = $"{safe} The source could not be moved to Failed and remains available for the next run."; }
-                await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null, "Failed", safe + shopResultNote, started, cancellationToken);
+                await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null, "Failed", WithNote(safe, shopResultNote), started, cancellationToken);
             }
         }
 
@@ -124,6 +124,21 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
             }
         }
         return new(processed, failed, duplicates, packs, $"Unattended run completed: {processed} source(s) processed, {failed} failed, {packs} report pack(s) generated.");
+    }
+
+    /// <summary>
+    /// Review IR-6: the run message is cut at <see cref="Phase2OperationsRepository.AutomationMessageLimit"/> characters. The B-1
+    /// sentence (the shop's result was not written) must survive the cut, so the base message is shortened first, ending in "...".
+    /// </summary>
+    internal static string WithNote(string message, string note)
+    {
+        const int limit = Phase2OperationsRepository.AutomationMessageLimit;
+        message ??= "";
+        if (string.IsNullOrEmpty(note)) return message;
+        if (message.Length + note.Length <= limit) return message + note;
+        if (note.Length >= limit) return note[..limit];
+        var room = limit - note.Length;
+        return (room > 3 ? message[..(room - 3)].TrimEnd() + "..." : message[..room]) + note;
     }
 
     /// <summary>

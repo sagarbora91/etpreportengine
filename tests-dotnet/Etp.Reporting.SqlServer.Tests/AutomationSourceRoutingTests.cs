@@ -1,5 +1,6 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.Infrastructure.SqlServer.ShopResults;
 
 namespace Etp.Reporting.SqlServer.Tests;
 
@@ -63,5 +64,23 @@ public sealed class AutomationSourceRoutingTests
         Assert.Equal(AutomationSourceRoute.Processed, AutomatedOperationsService.RouteOf(new([File("Duplicate"), File("Imported", CommitState.Committed)])));
         Assert.Equal(AutomationSourceRoute.Failed, AutomatedOperationsService.RouteOf(new([File("Unknown layout")])));
         Assert.Equal(AutomationSourceRoute.Processed, AutomatedOperationsService.RouteOf(new([File("Not needed")])));
+    }
+
+    [Fact]
+    public void The_shop_result_failure_sentence_survives_the_500_character_cut()
+    {
+        // Review IR-6: a long classifier message must not push the B-1 sentence past automation_runs' 500 characters.
+        var note = ShopResultWriter.FailureSentence(ShopResultWriter.FolderDenied);
+        Assert.Equal(500, Phase2OperationsRepository.AutomationMessageLimit);
+        foreach (var length in new[] { 0, 10, 500 - note.Length, 501 - note.Length, 499, 500, 2000 })
+        {
+            var message = AutomatedOperationsService.WithNote(new string('m', length), note);
+            Assert.True(message.Length <= 500, $"{length}: {message.Length}");
+            Assert.EndsWith(note, message, StringComparison.Ordinal);
+            if (length + note.Length > 500) Assert.EndsWith("..." + note, message, StringComparison.Ordinal);
+            else Assert.Equal(new string('m', length) + note, message);
+        }
+        Assert.Equal("Base.", AutomatedOperationsService.WithNote("Base.", ""));
+        Assert.Equal(new string('m', 900), AutomatedOperationsService.WithNote(new string('m', 900), ""));
     }
 }

@@ -249,10 +249,13 @@ public sealed class Phase2OperationsRepository(string connectionString)
         return rows;
     }
 
+    /// <summary>automation_runs.safe_message holds at most this many characters (0011).</summary>
+    internal const int AutomationMessageLimit = 500;
+
     internal async Task RecordAutomationRunAsync(string type, string? safeFileName, string? store, DateOnly? date, string outcome, string message, DateTime startedUtc, CancellationToken token)
     {
         if (safeFileName?.Length > 260) safeFileName = safeFileName[..260];
-        if (message.Length > 500) message = message[..500];
+        if (message.Length > AutomationMessageLimit) message = message[..AutomationMessageLimit];
         const string sql = """
             INSERT dbo.automation_runs(run_type,source_file_name,store_code,business_date,outcome,safe_message,started_utc,completed_utc,run_by)
             VALUES(@type,@file,@store,@date,@outcome,@message,@started,SYSUTCDATETIME(),SUSER_SNAME());
