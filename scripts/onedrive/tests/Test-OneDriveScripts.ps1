@@ -221,7 +221,7 @@ try {
     Assert-True ($code -eq 0 -and $script:LastOutput -match 'Sheet for 2026-10-11: accepted\.') 'Show: an accepted result is shown green (exit 0)'
     Assert-True ((Get-Content -Raw (Join-Path $root 'showlogs-titan\last-result.txt')) -match 'accepted') 'Show writes last-result.txt'
     $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showHelios, '-NoWindow')
-    Assert-True ($code -eq 2 -and $script:LastOutput -match 'REFUSED' -and $script:LastOutput -match 'Fix: Reopen the day') 'Show: a refused result names the file, the reason and the fix (exit 2)'
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'REFUSED' -and $script:LastOutput -match 'Fix: Tell the office') 'Show: a refused result names the file, the reason and the fix (exit 2)'
     $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showService, '-NoWindow')
     Assert-True ($code -eq 2 -and $script:LastOutput -match 'accepted, with a warning' -and $script:LastOutput -match 'imported under its own date') 'Show: a file-name date that differs from the sheet is a warning, not a refusal'
 
