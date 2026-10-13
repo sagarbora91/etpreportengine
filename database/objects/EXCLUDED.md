@@ -22,5 +22,10 @@ CHECK constraints use (it is on the live database at 0048).
 `scripts/Export-EtpSchemaObjects.ps1` rewrites the section between the markers. Do not edit it by hand.
 
 <!-- BEGIN GENERATED EXCLUSIONS -->
-(not generated yet: the objects baseline is exported at integration)
+Exported from a scratch database on 2026-10-13.
+
+| Object | Why |
+|---|---|
+| `dbo.application_users_visible_row` | a security policy uses it |
+| `dbo.is_blank_text` | a constraint uses it |
 <!-- END GENERATED EXCLUSIONS -->
