@@ -286,7 +286,8 @@ public static partial class SchemaObjectFiles
     [GeneratedRegex(@"^--[ \t]*>>>[ \t]*GRANTS[ \t]*\r?$", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex GrantsLine();
 
-    [GeneratedRegex(@"^[ \t]*GO[ \t]*(--[^\r\n]*)?\r?$", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // Non-capturing: Regex.Split would put a captured group into the batches.
+    [GeneratedRegex(@"^[ \t]*GO[ \t]*(?:--[^\r\n]*)?\r?$",RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GoLine();
 
     [GeneratedRegex(@"^[ \t]*(?<verb>CREATE[ \t]+OR[ \t]+ALTER|CREATE|ALTER)\s+(?<kind>VIEW|PROCEDURE|PROC|FUNCTION)\s+(?<name>(\[[^\]\r\n]+\]|[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*(\[[^\]\r\n]+\]|[A-Za-z_][A-Za-z0-9_]*))",
