@@ -129,7 +129,11 @@ function Get-EtpShopResultSummary {
         if (-not $check.Valid) { $why = $check.Reason }
         else {
             $payload = $check.Payload
-            if ([string]$payload.role -ne $Role -or [string]$payload.businessDate -ne $latest.Day) { $why = 'it belongs to another shop or day' }
+            # Review m-1 (decision 53): the sequence too, so a genuine earlier verdict copied to a higher -N name cannot
+            # override a later one.
+            if ([string]$payload.role -ne $Role -or [string]$payload.businessDate -ne $latest.Day -or [string]$payload.sequence -ne [string]$latest.Sequence) {
+                $why = 'it belongs to another shop, day or send'
+            }
         }
     }
     if ($why) {

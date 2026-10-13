@@ -238,6 +238,11 @@ try {
     $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showTitan, '-NoWindow')
     Assert-True ($code -eq 2 -and $script:LastOutput -match 'different key') 'A result signed with another shop''s key is not trusted'
     Remove-Item (Join-Path $titanResults '2026-10-12.result.json')
+    # Review m-1: a genuine earlier verdict copied to a higher sequence name is not a verdict for that send.
+    Copy-Item (Join-Path $titanResults '2026-10-11.result.json') (Join-Path $titanResults '2026-10-11-5.result.json')
+    $code = Invoke-Script 'Show-ShopResults.ps1' @('-ConfigPath', $showTitan, '-NoWindow')
+    Assert-True ($code -eq 2 -and $script:LastOutput -match 'could not be checked' -and $script:LastOutput -match 'another shop, day or send') 'A result copied to another sequence name is "could not be checked"'
+    Remove-Item (Join-Path $titanResults '2026-10-11-5.result.json')
     $manifestExpression = "`$k = [Convert]::FromBase64String((Get-Content -Raw '$titanKey').Trim()); Get-EtpManifestHmac -Manifest ([pscustomobject]@{ schemaVersion = 2; role = 'TITAN'; day = '2026-10-11'; pcName = 'X'; keyId = 'k'; createdLocal = 'c'; files = @() }) -Key `$k"
     $manifestHmac = Invoke-Common $manifestExpression
     Assert-True ($manifestHmac -match '^[0-9A-F]{64}$') 'A genuine manifest signature for the TITAN key was produced for the replay test'

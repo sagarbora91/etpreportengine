@@ -80,7 +80,7 @@ public sealed class SqlServerCollectionsImportService : ICollectionsImportServic
             CommandTimeout = 300
         };
         Add(command, "@layout", SqlDbType.Int, layout.Id);
-        Add(command, "@name", SqlDbType.NVarChar, Path.GetFileName(snapshot.FileName), 260);
+        Add(command, "@name", SqlDbType.NVarChar, MaskedFileName(Path.GetFileName(snapshot.FileName)), 260);
         Add(command, "@sha", SqlDbType.Char, snapshot.Sha256, 64);
         Add(command, "@size", SqlDbType.BigInt, snapshot.FileSizeBytes);
         Add(command, "@sheet", SqlDbType.NVarChar, read.Header!.SheetName.Length > 128 ? read.Header.SheetName[..128] : read.Header.SheetName, 128);
@@ -156,6 +156,13 @@ public sealed class SqlServerCollectionsImportService : ICollectionsImportServic
                 reader.GetString(6), OptionalString(reader, 7), reader.GetInt32(8), reader.GetInt32(9), reader.GetString(10)));
         return layouts;
     }
+
+    /// <summary>
+    /// Review m-5 (decision 53): some bank exports put the full account number in the file name, and import_files keeps the name.
+    /// Every run of five or more digits keeps only its last four ("XXXXXXXXXX5678"), as bank accounts keep only their last four.
+    /// </summary>
+    internal static string MaskedFileName(string fileName) =>
+        System.Text.RegularExpressions.Regex.Replace(fileName ?? "", "[0-9]{5,}", match => new string('X', match.Length - 4) + match.Value[^4..]);
 
     internal const string NotAllowedToKeep =
         "ETP could not save a copy of this statement file, so nothing was imported. Only an Owner or Store Manager can import statement files, " +

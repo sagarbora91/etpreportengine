@@ -91,6 +91,14 @@ public sealed class CollectionsServiceBoundaryTests
     }
 
     [Fact]
+    public void A_stored_statement_file_name_keeps_only_the_last_four_of_any_long_number()
+    {
+        Assert.Equal("Statement_XXXXXXXXXX5678_Aug.csv", SqlServerCollectionsImportService.MaskedFileName("Statement_50100012345678_Aug.csv"));
+        Assert.Equal("acct X2345 and 1234.csv", SqlServerCollectionsImportService.MaskedFileName("acct 12345 and 1234.csv"));
+        Assert.Equal("settlement-2026-08-01.csv", SqlServerCollectionsImportService.MaskedFileName("settlement-2026-08-01.csv"));
+    }
+
+    [Fact]
     public void Import_results_read_as_plain_sentences()
     {
         Assert.Equal("Imported 3 lines. 5 lines were imported before. It replaces an earlier export of the same statement.",

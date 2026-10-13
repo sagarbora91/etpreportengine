@@ -16,12 +16,18 @@ hand, as today. Keep the sticks in two places and the passphrase on paper, apart
 
 .EXAMPLE
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\release\New-EtpReleaseSigningKey.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'
+
+.PARAMETER AllowFixedDrive
+Review m-9 (decision 53): many USB SSDs and large sticks report themselves to Windows as Fixed, not Removable. With this
+switch such a drive is accepted after you type its letter to confirm it is a USB stick you will unplug (never an internal
+disk). The system drive, network drives and OneDrive stay refused.
 #>
 [CmdletBinding()]
 param(
     # Two folders, each on a different removable drive.
     [Parameter(Mandatory)][ValidateCount(2, 2)][string[]]$UsbFolder,
-    [ValidateRange(100000, 10000000)][int]$Iterations = 600000
+    [ValidateRange(100000, 10000000)][int]$Iterations = 600000,
+    [switch]$AllowFixedDrive
 )
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'EtpReleaseSigning.psm1') -Force
@@ -36,7 +42,15 @@ foreach ($folder in $UsbFolder) {
     $root = [IO.Path]::GetPathRoot($full)
     if ($root -notmatch '^[A-Za-z]:\\$') { throw "$folder is not on a local drive letter." }
     $drive = New-Object IO.DriveInfo($root)
-    if ($drive.DriveType -ne [IO.DriveType]::Removable) { throw "$folder is not on a removable drive (it is $($drive.DriveType)). Use the USB sticks." }
+    if ($drive.DriveType -eq [IO.DriveType]::Fixed -and $AllowFixedDrive) {
+        if ($root.TrimEnd('\') -ieq $env:SystemDrive) { throw "$folder is on the system drive." }
+        $letter = $root.Substring(0, 1).ToUpperInvariant()
+        $typed = Read-Host "$root reports itself as a fixed drive. If it is a USB stick you will unplug and keep apart, type FIXED $letter to use it"
+        if ("$typed".Trim() -cne "FIXED $letter") { throw "$folder was not confirmed as a USB stick. Nothing was written." }
+    }
+    elseif ($drive.DriveType -ne [IO.DriveType]::Removable) {
+        throw "$folder is not on a removable drive (it is $($drive.DriveType)). Use the USB sticks$(if ($drive.DriveType -eq [IO.DriveType]::Fixed) { ', or -AllowFixedDrive for a USB stick that Windows reports as fixed' })."
+    }
     if ($root.TrimEnd('\') -ieq $env:SystemDrive) { throw "$folder is on the system drive." }
     foreach ($name in 'OneDrive', 'OneDriveCommercial', 'OneDriveConsumer') {
         $sync = [Environment]::GetEnvironmentVariable($name)
