@@ -29,6 +29,17 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        // 1.12 A3: --plan-database-changes is read-only and headless. It prints the pending
+        // migrations and database objects as JSON and exits, before the running mutex, so setup
+        // can ask while it upgrades.
+        if (DatabaseChangePlanCommand.IsRequested(e.Args))
+        {
+            headless = true;
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            Shutdown(await DatabaseChangePlanCommand.RunAsync(e.Args, Console.Out, WriteHeadlessFailure));
+            return;
+        }
         PublishRunningMutex();
         PresentationCulture.Initialize();
         Themes.ThemeBrushes.ApplyContrast(Resources);

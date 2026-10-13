@@ -19,11 +19,12 @@ public sealed class DatabaseSecurityProbeTests
         Assert.Empty(ReadOnlySqlGuard.Violations(sql));
 
     [Fact]
-    public void Five_database_probes_answer_DB01_to_DB05_in_order()
+    public void Six_database_probes_answer_DB01_to_DB05_and_DB07_in_order()
     {
         var probes = DatabaseProbes.Create("Server=.\\SQLEXPRESS;Database=EtpReporting;Integrated Security=true;TrustServerCertificate=true", null);
 
-        Assert.Equal(new[] { HealthCheckId.Db01, HealthCheckId.Db02, HealthCheckId.Db03, HealthCheckId.Db04, HealthCheckId.Db05 },
+        // 1.12 A3 added DB-07 (database objects); DB-06 is L9's ServiceScreenTimingProbe.
+        Assert.Equal(new[] { HealthCheckId.Db01, HealthCheckId.Db02, HealthCheckId.Db03, HealthCheckId.Db04, HealthCheckId.Db05, HealthCheckId.Db07 },
             probes.SelectMany(probe => probe.CheckIds));
     }
 

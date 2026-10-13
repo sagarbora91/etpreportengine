@@ -78,6 +78,33 @@ public static class HealthCheckTexts
     public static string DbMigrationsCurrent(int applied, string latest) =>
         $"All {Count(applied)} migrations are applied (latest {Token(latest)}).";
 
+    /// <summary>1.12 A3: DB-02 also counts this installation's database object files.</summary>
+    public static string DbMigrationsCurrent(int applied, string latest, int objectFiles) =>
+        $"All {Count(applied)} migrations are applied (latest {Token(latest)}); this release has {Count(objectFiles)} database object files.";
+
+    // ---- DB-07 (1.12 A3): database objects match this release -------------------------------------------------
+
+    public static string DbObjectsCurrent(int objects) =>
+        $"All {Count(objects)} database objects (views, procedures and functions) match this release.";
+
+    public const string DbObjectsNotFound = "Skipped: the database object files of this installation were not found. Run ETP setup on this PC.";
+
+    public const string DbObjectsNotRecorded = "The database has no object journal (dbo.schema_objects). Run ETP setup on this PC.";
+
+    public const string DbObjectFilesInvalid = "The database object files of this installation could not be read. Run ETP setup again; if it stays, send the support package.";
+
+    public static string DbObjectsChangedByHand(int count, string first) =>
+        $"{Count(count)} database object(s) were changed outside ETP setup (first {Token(first)}). Run ETP setup again to put back this release's version; if it stays, send the support package.";
+
+    public static string DbObjectsMissing(int count, string first) =>
+        $"{Count(count)} database object(s) of this release are missing (first {Token(first)}). Run ETP setup again.";
+
+    public static string DbObjectsPending(int count, string first) =>
+        $"{Count(count)} database object(s) differ from this release (first {Token(first)}). Run ETP setup on this PC.";
+
+    public static string DbObjectsUnknown(int count, string first) =>
+        $"The database records {Count(count)} object(s) this release has no file for (first {Token(first)}). Send the support package.";
+
     public static string DbMigrationsPending(int pending, string first) =>
         $"{Count(pending)} migration(s) not applied yet (first {Token(first)}). Run ETP setup on this PC.";
 

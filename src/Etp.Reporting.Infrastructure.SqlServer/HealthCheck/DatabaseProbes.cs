@@ -6,7 +6,7 @@ using Microsoft.Data.SqlClient;
 namespace Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 
 /// <summary>
-/// DB-01..05 (design 5.2). One probe per check, so the time budget cuts as little as possible. Every SQL text goes
+/// DB-01..05 (design 5.2) and DB-07 (1.12 A3). One probe per check, so the time budget cuts as little as possible. Every SQL text goes
 /// through <see cref="ReadOnlySqlGuard.Require"/> before a command is created (design 5.4); nothing here writes.
 /// DB-02 reads <c>dbo.schema_migrations</c> with its own SELECT rather than
 /// <see cref="SqlServerMigrationStore.GetAppliedAsync"/>, which creates the journal when it is missing.
@@ -26,8 +26,9 @@ public static class DatabaseProbes
     public const decimal DatabaseSizeWarningMegabytes = 6m * 1024m;
 
     /// <summary>
-    /// The five Database probes in run order. <paramref name="migrationDirectory"/> is the installation's
-    /// <c>database\migrations</c> folder; null or missing makes DB-02 Skipped.
+    /// The Database probes of this class in run order (DB-01..05, DB-07; DB-06 is L9's). <paramref name="migrationDirectory"/>
+    /// is the installation's <c>database\migrations</c> folder; null or missing makes DB-02 Skipped. DB-07 reads the
+    /// <c>database\objects</c> folder next to it; missing makes DB-07 Skipped.
     /// </summary>
     public static IReadOnlyList<IHealthProbe> Create(string connectionString, string? migrationDirectory, TimeProvider? timeProvider = null)
     {
@@ -39,7 +40,8 @@ public static class DatabaseProbes
             new Probe(HealthCheckId.Db02, (context, token) => MigrationsAsync(connectionString, migrationDirectory, token)),
             new Probe(HealthCheckId.Db03, (context, token) => IntegrityAsync(connectionString, clock, token)),
             new Probe(HealthCheckId.Db04, (context, token) => OptionsAsync(connectionString, token)),
-            new Probe(HealthCheckId.Db05, (context, token) => SizeAsync(connectionString, token))
+            new Probe(HealthCheckId.Db05, (context, token) => SizeAsync(connectionString, token)),
+            new Probe(HealthCheckId.Db07, (context, token) => ObjectsAsync(connectionString, migrationDirectory, token))
         ];
     }
 
@@ -124,7 +126,17 @@ public static class DatabaseProbes
         {
             return Line(HealthCheckId.Db02, HealthOutcome.Fail, "NOT_INITIALISED", HealthCheckTexts.DbNotInitialised, null, TimeSpan.Zero);
         }
-        return EvaluateMigrations(discovered, applied);
+        int? objectFiles = null;
+        try
+        {
+            var objects = await new DirectorySchemaObjectSource(SchemaObjectFiles.ObjectsDirectoryFor(migrationDirectory)).DiscoverAsync(cancellationToken).ConfigureAwait(false);
+            if (objects.Objects.Count > 0) objectFiles = objects.Objects.Count;
+        }
+        catch (SchemaObjectIntegrityException)
+        {
+            // DB-07 reports unreadable object files; DB-02 stays about the migrations.
+        }
+        return EvaluateMigrations(discovered, applied, objectFiles);
     }
 
     /// <summary>
@@ -132,7 +144,8 @@ public static class DatabaseProbes
     /// unknown older migration is Fail, a pending migration is Fail ("run ETP setup"), a database upgraded by a newer
     /// ETP is Warning ("update ETP on this PC").
     /// </summary>
-    internal static HealthCheckResult EvaluateMigrations(IReadOnlyList<MigrationScript> discovered, IReadOnlyList<(string Id, string Checksum)> applied)
+    internal static HealthCheckResult EvaluateMigrations(IReadOnlyList<MigrationScript> discovered, IReadOnlyList<(string Id, string Checksum)> applied,
+        int? objectFiles = null)
     {
         var known = new Dictionary<string, MigrationScript>(StringComparer.OrdinalIgnoreCase);
         foreach (var script in discovered) known.TryAdd(script.Id, script);
@@ -165,7 +178,88 @@ public static class DatabaseProbes
         if (pending.Length > 0)
             return Line(HealthCheckId.Db02, HealthOutcome.Fail, "PENDING", HealthCheckTexts.DbMigrationsPending(pending.Length, pending[0]), null, TimeSpan.Zero, metric, detail);
         var latest = applied.Select(item => item.Id).Max(StringComparer.Ordinal) ?? "";
-        return Line(HealthCheckId.Db02, HealthOutcome.Pass, HealthCheckTexts.Ok, HealthCheckTexts.DbMigrationsCurrent(applied.Count, latest), null, TimeSpan.Zero, metric);
+        var current = objectFiles is { } count
+            ? HealthCheckTexts.DbMigrationsCurrent(applied.Count, latest, count)
+            : HealthCheckTexts.DbMigrationsCurrent(applied.Count, latest);
+        return Line(HealthCheckId.Db02, HealthOutcome.Pass, HealthCheckTexts.Ok, current, null, TimeSpan.Zero, metric);
+    }
+
+    // ---- DB-07 (1.12 A3) -----------------------------------------------------------------------------------
+
+    /// <summary>
+    /// DB-07 "Database objects match this release" (Warning at most). Reads the object files, <c>dbo.schema_objects</c> and
+    /// the live definitions, and classifies with <see cref="SchemaObjectPlanner"/> what setup would do: a journaled object
+    /// whose definition no longer has the recorded hash was changed by hand; one setup would apply is pending (or missing).
+    /// </summary>
+    internal static async Task<HealthCheckResult> ObjectsAsync(string connectionString, string? migrationDirectory, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(migrationDirectory))
+            return Line(HealthCheckId.Db07, HealthOutcome.Skipped, "OBJECTS_NOT_FOUND", HealthCheckTexts.DbObjectsNotFound, null, TimeSpan.Zero);
+        SchemaObjectSet files;
+        try
+        {
+            files = await new DirectorySchemaObjectSource(SchemaObjectFiles.ObjectsDirectoryFor(migrationDirectory)).DiscoverAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (SchemaObjectIntegrityException)
+        {
+            return Line(HealthCheckId.Db07, HealthOutcome.Warning, "OBJECT_FILES_INVALID", HealthCheckTexts.DbObjectFilesInvalid, null, TimeSpan.Zero);
+        }
+        if (files.IsEmpty)
+            return Line(HealthCheckId.Db07, HealthOutcome.Skipped, "OBJECTS_NOT_FOUND", HealthCheckTexts.DbObjectsNotFound, null, TimeSpan.Zero);
+
+        await using var connection = await DatabaseProbeSql.OpenAsync(connectionString, cancellationToken).ConfigureAwait(false);
+        await using (var exists = DatabaseProbeSql.Command(connection, SchemaObjectSql.JournalExistsSql))
+            if (!await SchemaObjectSql.JournalExistsAsync(exists, cancellationToken).ConfigureAwait(false))
+                return Line(HealthCheckId.Db07, HealthOutcome.Warning, "OBJECTS_NOT_RECORDED", HealthCheckTexts.DbObjectsNotRecorded, null, TimeSpan.Zero);
+        IReadOnlyList<SchemaObjectJournalEntry> journal;
+        await using (var command = DatabaseProbeSql.Command(connection, SchemaObjectSql.JournalSql))
+            journal = await SchemaObjectSql.ReadJournalAsync(command, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<LiveSchemaObject> live;
+        await using (var command = DatabaseProbeSql.Command(connection, SchemaObjectSql.LiveObjectsSql))
+            live = await SchemaObjectSql.ReadLiveAsync(command, cancellationToken).ConfigureAwait(false);
+        return EvaluateObjects(files, journal, live);
+    }
+
+    internal static HealthCheckResult EvaluateObjects(SchemaObjectSet files, IReadOnlyList<SchemaObjectJournalEntry> journal, IReadOnlyList<LiveSchemaObject> live)
+    {
+        IReadOnlyList<SchemaObjectStep> steps;
+        try { steps = SchemaObjectPlanner.Plan(files, journal, live); }
+        catch (SchemaObjectIntegrityException)
+        {
+            return Line(HealthCheckId.Db07, HealthOutcome.Warning, "OBJECT_FILES_INVALID", HealthCheckTexts.DbObjectFilesInvalid, null, TimeSpan.Zero);
+        }
+
+        var byHand = new List<string>();
+        var missing = new List<string>();
+        var pending = new List<string>();
+        foreach (var step in steps)
+        {
+            if (step.Action == SchemaObjectAction.Retire) pending.Add(step.ObjectName);
+            else if (step.Action == SchemaObjectAction.Apply && step.Live is null) missing.Add(step.ObjectName);
+            else if (step.Action == SchemaObjectAction.Apply && step.Journal is not null
+                && string.Equals(step.Journal.FileSha256, step.FileSha256, StringComparison.OrdinalIgnoreCase)) byHand.Add(step.ObjectName);
+            else if (step.Action == SchemaObjectAction.Apply || (step.Action == SchemaObjectAction.Adopt && step.Journal is null)) pending.Add(step.ObjectName);
+        }
+        var known = new HashSet<string>(files.Objects.Select(file => file.ObjectName).Concat(files.Retired.Select(stub => stub.ObjectName)), StringComparer.OrdinalIgnoreCase);
+        var unknown = journal.Select(entry => entry.ObjectName).Where(name => !known.Contains(name)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        var subs = new List<HealthCheckSubResult>();
+        subs.AddRange(byHand.Select(name => new HealthCheckSubResult(HealthCheckTexts.DetailToken(name), HealthOutcome.Warning, "CHANGED_BY_HAND")));
+        subs.AddRange(missing.Select(name => new HealthCheckSubResult(HealthCheckTexts.DetailToken(name), HealthOutcome.Warning, "MISSING")));
+        subs.AddRange(pending.Select(name => new HealthCheckSubResult(HealthCheckTexts.DetailToken(name), HealthOutcome.Warning, "PENDING")));
+        subs.AddRange(unknown.Select(name => new HealthCheckSubResult(HealthCheckTexts.DetailToken(name), HealthOutcome.Warning, "NO_FILE")));
+        var detail = subs.Count > 0 ? subs : null;
+        decimal metric = files.Objects.Count;
+
+        if (byHand.Count > 0)
+            return Line(HealthCheckId.Db07, HealthOutcome.Warning, "CHANGED_BY_HAND", HealthCheckTexts.DbObjectsChangedByHand(byHand.Count, byHand[0]), null, TimeSpan.Zero, metric, detail);
+        if (missing.Count > 0)
+            return Line(HealthCheckId.Db07, HealthOutcome.Warning, "MISSING", HealthCheckTexts.DbObjectsMissing(missing.Count, missing[0]), null, TimeSpan.Zero, metric, detail);
+        if (pending.Count > 0)
+            return Line(HealthCheckId.Db07, HealthOutcome.Warning, "PENDING", HealthCheckTexts.DbObjectsPending(pending.Count, pending[0]), null, TimeSpan.Zero, metric, detail);
+        if (unknown.Length > 0)
+            return Line(HealthCheckId.Db07, HealthOutcome.Warning, "NO_FILE", HealthCheckTexts.DbObjectsUnknown(unknown.Length, unknown[0]), null, TimeSpan.Zero, metric, detail);
+        return Line(HealthCheckId.Db07, HealthOutcome.Pass, HealthCheckTexts.Ok, HealthCheckTexts.DbObjectsCurrent(files.Objects.Count), null, TimeSpan.Zero, metric);
     }
 
     // ---- DB-03 ---------------------------------------------------------------------------------------------
