@@ -180,8 +180,12 @@ public sealed class MorningView : UserControl, IShellScreen
         if (!Confirm(this, label, detail)) return;
         await RunAsync(async token =>
         {
-            var results = await services.FinaliseAll(summary.BusinessDate, ready.Select(card => card.StoreCode).ToArray(),
-                new Progress<string>(store => frame.Notice.Show(StatusTone.Information, "Finalising", $"Locking {NameOf(store)}…")), token);
+            var progress = new Progress<string>(store =>
+            {
+                void Show() => frame.Notice.Show(StatusTone.Information, "Finalising", $"Locking {NameOf(store)}…");
+                if (Dispatcher.CheckAccess()) Show(); else Dispatcher.BeginInvoke(Show);
+            });
+            var results = await services.FinaliseAll(summary.BusinessDate, ready.Select(card => card.StoreCode).ToArray(), progress, token);
             frame.Notice.Show(FinaliseTone(results), FinaliseTitle(results), FinaliseMessage(results, NameOf));
         });
         await LoadAsync();
