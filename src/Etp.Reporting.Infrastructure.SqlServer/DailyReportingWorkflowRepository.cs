@@ -49,9 +49,15 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
         var inputs = await LoadInputsAsync(connection, storeCode, businessDate, cancellationToken);
         var missingReports = RequiredReports.Except(imported, StringComparer.OrdinalIgnoreCase).ToArray();
         var missingInputs = inputs.Where(x => x.IsRequired && !x.IsPresent).Select(x => x.FieldCode).ToArray();
-        var status = ResolveStatus(storedStatus, imported.Count, missingReports.Length, missingInputs.Length);
+        // 1.12 N1 (decision 55, Q1 option a): a day marked as a no-sale day needs no source report and no daily entry; it is
+        // finalised and locked like any other day.
+        var noSaleDay = await ScalarAsync<int>(connection, NoSaleDaySql, storeCode, businessDate, cancellationToken) == 1;
+        if (noSaleDay) { missingReports = []; missingInputs = []; }
+        var status = ResolveStatus(storedStatus, noSaleDay ? Math.Max(1, imported.Count) : imported.Count, missingReports.Length, missingInputs.Length);
         var canFinalise = status != DailyReadinessStatus.Locked && missingReports.Length == 0 && missingInputs.Length == 0;
-        var message = status switch
+        var message = noSaleDay && status != DailyReadinessStatus.Locked
+            ? NoSaleDayStatusMessage
+            : status switch
         {
             DailyReadinessStatus.Locked => "The business date is finalised and protected from silent changes.",
             DailyReadinessStatus.NotReady => "No required ETP source report has been registered for this business date.",
@@ -61,6 +67,17 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
         };
         return new(storeCode, businessDate, status, imported, missingReports, inputs, missingInputs, canFinalise, message);
     }
+
+    /// <summary>The Close day line for a store-day marked as a no-sale day (lane N1).</summary>
+    public const string NoSaleDayStatusMessage = "Marked as a no-sale day: no source reports or daily entries are needed. Finalise the day when you are ready.";
+
+    /// <summary>1 when the store-day has a current no-sale mark, else 0. Guarded (nested IF): a database before 0068 has no view.</summary>
+    internal const string NoSaleDaySql = """
+        DECLARE @marked int=0;
+        IF OBJECT_ID(N'dbo.v_no_sale_days_current',N'V') IS NOT NULL
+          IF EXISTS(SELECT 1 FROM dbo.v_no_sale_days_current WHERE store_code=@store AND business_date=@date) SET @marked=1;
+        SELECT @marked;
+        """;
 
     public async Task SaveManualInputAsync(
         string storeCode,
