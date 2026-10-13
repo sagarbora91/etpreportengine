@@ -28,9 +28,15 @@ public sealed class DataTruthMasterRepository(string connectionString)
         if (string.IsNullOrWhiteSpace(value.SourceCode) || value.SourceCode.Length > 80 || value.AgencyName?.Length > 200)
             throw new ArgumentException("Enter a source payment code and an agency name of at most 200 characters.");
         if (!Modes.Contains(value.Mode, StringComparer.Ordinal)) throw new ArgumentException("Select a cash-book mode.");
+        // 1.12 collections (0063) ties a code to a settlement provider whose mode must match (trigger, THROW 51950). The Owner's
+        // remap here wins: a provider that no longer settles the new mode is detached (0063 backfill rule: "a mode the Owner
+        // changed keeps NULL"), and till cash only stays on a Cash code. Collections setup then shows "Provider not set up".
         const string sql = """
             MERGE dbo.tender_modes WITH(HOLDLOCK) t USING(SELECT @code source_tender_code) s ON t.source_tender_code=s.source_tender_code
-            WHEN MATCHED THEN UPDATE SET agency_name=@agency,mode=@mode,active=@active,modified_utc=SYSUTCDATETIME(),modified_by=ORIGINAL_LOGIN()
+            WHEN MATCHED THEN UPDATE SET agency_name=@agency,mode=@mode,active=@active,modified_utc=SYSUTCDATETIME(),modified_by=ORIGINAL_LOGIN(),
+             provider_key=CASE WHEN EXISTS(SELECT 1 FROM dbo.collection_providers p WHERE p.provider_key=t.provider_key
+                 AND p.mode=CASE WHEN @mode LIKE 'Service %' THEN STUFF(@mode,1,8,'') ELSE @mode END) THEN t.provider_key END,
+             is_till_cash=CASE WHEN @mode='Cash' THEN t.is_till_cash ELSE CONVERT(bit,0) END
             WHEN NOT MATCHED THEN INSERT(source_tender_code,agency_name,mode,active) VALUES(@code,@agency,@mode,@active);
             """;
         await using var connection = await OpenAsync(token);

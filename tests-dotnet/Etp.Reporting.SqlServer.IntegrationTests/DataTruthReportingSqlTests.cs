@@ -128,8 +128,11 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(ReconciliationStatus.Passed, tender.Status);
         Assert.Equal(118m, tender.TenderTotal);
         Assert.Contains("UPI: 236", tender.Message);
+        // 0063 maps PAYMENTTYPE25 to the AIRPAY provider (UPI). The Owner's remap in Settings still saves; the provider is detached.
+        Assert.Equal("AIRPAY", await database.ExecuteAsync("SELECT provider_key FROM dbo.tender_modes WHERE source_tender_code=N'PAYMENTTYPE25'"));
         await masters.SaveTenderModeAsync(new("PAYMENTTYPE25", "AIRPAY", "Card", true));
         Assert.Contains(await query.LoadTendersAsync(scope), x => x.TenderType == "Card" && x.SourceAmount == 236m);
+        Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.tender_modes WHERE source_tender_code=N'PAYMENTTYPE25' AND mode='Card' AND provider_key IS NULL"));
         await masters.SaveTenderModeAsync(new("PAYMENTTYPE25", "AIRPAY", "Card", false));
         Assert.Equal(ReconciliationStatus.Blocked, (await executor.ExecuteTenderReconciliationAsync(scope)).Status);
         await database.ExecuteAsync("INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,is_final) VALUES('REPORT','20260825',1,REPLICATE('b',64),'{}','test',1)");
