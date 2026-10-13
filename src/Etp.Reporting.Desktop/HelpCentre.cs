@@ -266,7 +266,10 @@ public static class ContextHelpRouter
         ["Investigation"] = "investigation",
         ["Admin / Settings"] = "administration",
         ["Masters"] = "administration",
-        ["Settings"] = "administration"
+        ["Settings"] = "administration",
+        // 1.12 wave 2 (integration): the Morning page (U1) and the collections screens (U4).
+        ["Morning"] = "morning",
+        ["Collections"] = "collections"
     };
 
     private static readonly IReadOnlyDictionary<string, string> FeatureTopics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

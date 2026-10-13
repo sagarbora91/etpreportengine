@@ -66,7 +66,7 @@ public static class NoSaleDayText
     public static string NoSalesLine(string? markedBy, DateTimeOffset markedUtc) =>
         $"No sales (marked by {Who(markedBy)} on {DisplayText.Date(MarkedOn(markedUtc))})";
 
-    /// <summary>"HEMW: no-sale day (marked by manager on 21 Aug 2026)" - the Today checklist and the Morning page.</summary>
+    /// <summary>"Shop One: no-sale day (marked by manager on 21 Aug 2026)" - the Today checklist and the Morning page.</summary>
     public static string ChecklistLine(string shopName, string? markedBy, DateTimeOffset markedUtc) =>
         $"{shopName}: no-sale day (marked by {Who(markedBy)} on {DisplayText.Date(MarkedOn(markedUtc))})";
 

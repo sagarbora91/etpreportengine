@@ -42,10 +42,10 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     // Help topic for every role. TaskNavigationTests holds the same lists.
     // 1.11.2 (lane L6, UX audit 5.1): the 23 Help topics left TaskNavigation.All (F1 and the Help Centre reach them through
     // TaskNavigation.HelpTasks), so the catalogue is 82/55/40 (1.12 wave 2: 88/58/41 with six new rows). The walk still visits every Help
-    // topic for every role, so it covers 111/81/64 screens; the Help count is written out on its own.
+    // topic for every role, so it covers 118/88/71 screens (30 Help topics); the Help count is written out on its own.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
         new Dictionary<string, int> { ["OWNER"] = 88, ["STORE_MANAGER"] = 58, ["VIEWER"] = 41 };
-    private const int ExpectedHelpTopicCount = 23;
+    private const int ExpectedHelpTopicCount = 30; // 1.12 wave 2 (DOC): seven new topics
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",

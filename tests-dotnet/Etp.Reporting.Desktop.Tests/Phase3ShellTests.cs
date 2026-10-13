@@ -29,7 +29,8 @@ public sealed class Phase3ShellTests
             var window=CreateWindow();
             typeof(MainWindow).GetMethod("CompleteWelcomeState",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(window,null);
             Assert.Equal(Visibility.Collapsed,window.WelcomeOverlay.Visibility);
-            Assert.IsType<DailySalesReportWorkspace>(window.FocusedWorkspaceHost.Content);
+            // 1.12 wave 2 (U1, decision 2): the Owner lands on Today > Morning; this window registers no Morning view.
+            Assert.Equal("morning",window.shell.CurrentRoute.TaskId);
             window.OpenSection("Today","Walk-ins");
             window.ShellStoreSelector.SelectedIndex=0;
             var next=new DateTime(2026,8,26);

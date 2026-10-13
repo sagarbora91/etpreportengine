@@ -155,7 +155,7 @@ public static class TodayChecklist
 
     /// <summary>The line for a marked store-day (its exports and entries are no longer asked for): who marked it and when.</summary>
     public static string NoSaleLine(NoSaleDay mark) =>
-        $"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", System.Globalization.CultureInfo.InvariantCulture)})";
+        $"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", Etp.Reporting.Reporting.IndianFormat.Culture)})";
 
     public static string NoSaleHeading(DateOnly businessDate, int stores) =>
         stores == 1 ? $"No-sale day for {businessDate:dd MMM yyyy}: 1 store" : $"No-sale days for {businessDate:dd MMM yyyy}: {stores} stores";

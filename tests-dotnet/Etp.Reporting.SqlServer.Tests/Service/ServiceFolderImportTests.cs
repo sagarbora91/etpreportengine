@@ -198,7 +198,7 @@ public sealed class ServiceFolderImportTests
         var retail = Path.Combine(folder, "HEMW_R025_20260825.xlsx");
         var service = Path.Combine(folder, "S009_PendingRepair.xlsx");
         var persistence = new ServicePersistence();
-        var summary = await new FolderImportService(persistence, new Reader(path => path == retail ? Sales(path) : S009(path, coverage: [])))
+        var summary = await new FolderImportService(persistence, new Reader(path => path == retail ? Sales(path) : S009(path, coverage: [])), serviceCentres: OneCentre)
             .RunFilesAsync([retail, service], new("tester"));
 
         Assert.Equal("Imported", Assert.Single(summary.Files, file => file.ReportCode == "R025").Status);
