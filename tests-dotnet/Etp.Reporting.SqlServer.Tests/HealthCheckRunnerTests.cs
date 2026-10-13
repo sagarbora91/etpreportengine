@@ -9,18 +9,18 @@ namespace Etp.Reporting.SqlServer.Tests;
 public sealed class HealthCheckRunnerTests
 {
     [Fact]
-    public async Task Every_one_of_the_54_ids_gets_exactly_one_line_in_catalogue_order()
+    public async Task Every_one_of_the_55_ids_gets_exactly_one_line_in_catalogue_order()
     {
         var runner = new HealthCheckRunner([new FakeProbe([HealthCheckId.Db01, HealthCheckId.Db04])], Options());
 
         var run = await runner.RunAsync(HealthCheckTrigger.Manual);
 
         Assert.Equal(HealthCheckId.All, run.Results.Select(line => line.CheckId));
-        Assert.Equal(54, run.Results.Count);
+        Assert.Equal(55, run.Results.Count);
         Assert.All(run.Results.Where(line => line.CheckId is not (HealthCheckId.Db01 or HealthCheckId.Db04)),
             line => Assert.Equal((HealthOutcome.Skipped, HealthCheckTexts.NotAvailable), (line.Outcome, line.FindingCode)));
         Assert.All(run.Results, line => Assert.Equal(HealthCheckId.AreaOf(line.CheckId), line.Area));
-        Assert.Equal(new HealthCheckCounts(2, 0, 0, 0, 52), run.Counts);
+        Assert.Equal(new HealthCheckCounts(2, 0, 0, 0, 53), run.Counts);
         Assert.Equal(HealthOutcome.Pass, run.Overall);
     }
 
