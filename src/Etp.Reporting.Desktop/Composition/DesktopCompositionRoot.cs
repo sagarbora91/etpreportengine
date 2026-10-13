@@ -270,6 +270,22 @@ public sealed partial class DesktopCompositionRoot
     public Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default) =>
         NightlyHealthSchedule.RunAfterAutomationAsync(RunWatchFolderAutomationAsync, CreateNightlyHealthSchedule().RunIfDueAsync, cancellationToken);
 
+    /// <summary>Waits (bounded, transient errors only) for SQL Server before the unattended task starts; one Information line per wait.</summary>
+    public Task WaitForAutomationSqlAsync(CancellationToken cancellationToken = default)
+    {
+        var connectionString = LoadAutomationConnectionString();
+        return SqlStartupWait.WaitAsync(
+            token => SqlStartupWait.ProbeAsync(connectionString, token),
+            Task.Delay,
+            () => TimeSpan.FromMilliseconds(Environment.TickCount64),
+            line =>
+            {
+                DesktopDiagnostics.Record(null, "UnattendedAutomation", "STARTUP_SQL_WAIT", DesktopDiagnosticSeverity.Information);
+                try { Console.Error.WriteLine("ETP-STARTUP-WAIT mode=automation-once: " + line); } catch (IOException) { } catch (ObjectDisposedException) { }
+            },
+            cancellationToken: cancellationToken);
+    }
+
     private async Task<int> RunWatchFolderAutomationAsync(CancellationToken cancellationToken)
     {
         var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString(), ImportFailureDiagnostics.Record, ReportPackFailureDiagnostics.Record)

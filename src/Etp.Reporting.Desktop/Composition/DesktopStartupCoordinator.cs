@@ -35,13 +35,16 @@ public sealed class DesktopStartupCoordinator
     private readonly Func<CancellationToken, Task> initializeConfiguredDatabase;
     private readonly Func<CancellationToken, Task<int>> runAutomationOnce;
     private readonly Action showMainWindow;
+    private readonly Func<CancellationToken, Task>? waitForAutomationSql;
 
     public DesktopStartupCoordinator(
         Func<CancellationToken, Task> initializeDatabase,
         Func<CancellationToken, Task<int>> runAutomationOnce,
         Action showMainWindow,
-        Func<CancellationToken, Task>? initializeConfiguredDatabase = null)
+        Func<CancellationToken, Task>? initializeConfiguredDatabase = null,
+        Func<CancellationToken, Task>? waitForAutomationSql = null)
     {
+        this.waitForAutomationSql = waitForAutomationSql;
         this.initializeDatabase = initializeDatabase ?? throw new ArgumentNullException(nameof(initializeDatabase));
         this.initializeConfiguredDatabase = initializeConfiguredDatabase ?? (_ => Task.FromException(new InvalidOperationException("Protected machine database initialization is not configured.")));
         this.runAutomationOnce = runAutomationOnce ?? throw new ArgumentNullException(nameof(runAutomationOnce));
@@ -93,6 +96,8 @@ public sealed class DesktopStartupCoordinator
                 return new(mode, 0, false, null);
             }
 
+            // After a boot or restore SQL Server may not accept connections yet: wait (bounded), then fail as before.
+            if (waitForAutomationSql is not null) await waitForAutomationSql(cancellationToken).ConfigureAwait(false);
             var exitCode = await runAutomationOnce(cancellationToken).ConfigureAwait(false);
             return new(mode, exitCode, false, null);
         }
