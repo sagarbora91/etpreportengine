@@ -12,7 +12,9 @@ $approvedTasks = @(
     "ETP Copy Backup To OneDrive",
     # 1.12 C1 (review M-6): the shop results tasks (Workpc publishes, a shop PC shows).
     "ETP Publish Shop Results",
-    "ETP Show Shop Results"
+    "ETP Show Shop Results",
+    # 1.12 G1 (decision 54): the nightly copy of the verified backup to the second disk.
+    "ETP Copy Backup To Disk"
 )
 foreach ($taskName in $approvedTasks) {
     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue

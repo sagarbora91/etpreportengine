@@ -124,7 +124,7 @@ public sealed class HealthCheckView : UserControl
     public const string ScreenTitle = "Health check";
     public const string OwnerOnlyText = "The health check is for the Owner. Ask the Owner to open Settings > Database > Health check.";
     public const string NotAvailableText = "The health check is not available in this build.";
-    public const string AboutText = "55 read-only checks of the database, security, reports, imports, data, operations and errors. The nightly run is at 02:30; this screen shows the latest run.";
+    public const string AboutText = "56 read-only checks of the database, security, reports, imports, data, operations and errors. The nightly run is at 02:30; this screen shows the latest run.";
     public const string NoRunText = "No health check has run yet. Press Run health check.";
     public const string ShopHoursQuestion = "This takes about a minute and reads the database. Run now?";
     public const int MaxKnownDays = 90;

@@ -36,7 +36,7 @@ public enum HealthCheckTrigger
     Nightly
 }
 
-/// <summary>The 55 check ids (design 5.2; DB-06, SEC-04 and OPS-10 added in 1.11.2, DB-07 in 1.12). The id text is what is stored and exported.</summary>
+/// <summary>The 56 check ids (design 5.2; DB-06, SEC-04 and OPS-10 added in 1.11.2, DB-07 and OPS-11 in 1.12). The id text is what is stored and exported.</summary>
 public static class HealthCheckId
 {
     public const string Db01 = "DB-01";
@@ -98,12 +98,15 @@ public static class HealthCheckId
     public const string Ops09 = "OPS-09";
     public const string Ops10 = "OPS-10";
 
+    /// <summary>1.12 G1 (decision 54): the nightly copy of the verified backup to the second disk is current.</summary>
+    public const string Ops11 = "OPS-11";
+
     public const string Err01 = "ERR-01";
     public const string Err02 = "ERR-02";
     public const string Err03 = "ERR-03";
     public const string Err04 = "ERR-04";
 
-    /// <summary>All 55 ids in catalogue order (DB, SEC, RPT, IMP, DATA, OPS, ERR). Run order is the runner's (design 5.3).</summary>
+    /// <summary>All 56 ids in catalogue order (DB, SEC, RPT, IMP, DATA, OPS, ERR). Run order is the runner's (design 5.3).</summary>
     public static IReadOnlyList<string> All { get; } =
     [
         Db01, Db02, Db03, Db04, Db05, Db06, Db07,
@@ -112,7 +115,7 @@ public static class HealthCheckId
         Rpt12, Rpt13, Rpt14, Rpt15, Rpt16, Rpt17, Rpt18, Rpt19, Rpt20, Rpt21, Rpt22,
         Imp01, Imp02, Imp03,
         Data01, Data02, Data03, Data04, Data05,
-        Ops01, Ops02, Ops03, Ops04, Ops05, Ops06, Ops07, Ops08, Ops09, Ops10,
+        Ops01, Ops02, Ops03, Ops04, Ops05, Ops06, Ops07, Ops08, Ops09, Ops10, Ops11,
         Err01, Err02, Err03, Err04
     ];
 

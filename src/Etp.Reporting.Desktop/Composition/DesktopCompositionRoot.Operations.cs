@@ -187,6 +187,7 @@ public sealed partial class DesktopCompositionRoot
         OperationsProbes.CreateDefault(new EtpConnectionFactory(targetConnectionString),                       // L7: OPS-01..09
             OperationsProbeSettings.ForThisMachine(automationPrincipal), new DelegateSqlBuildAssessor(AssessSqlBuild)),
         new OffPcCopyProbe(new WindowsOffPcCopyEnvironment()),                                                  // 1.11.2 L9: OPS-10
+        new DiskBackupProbe(new WindowsDiskBackupEnvironment()),                                                // 1.12 G1: OPS-11
         new DataProbes(targetConnectionString),                                                                 // L6: DATA-01..05
         new ImportProbes(targetConnectionString),                                                               // L6: IMP-01..03
         CreateReportProbes(targetConnectionString),                                                             // L5: RPT-01..22

@@ -205,6 +205,31 @@ public static class HealthCheckTexts
     public static string SecOwnersWithoutGrantOption(int count) =>
         $"{Count(count)} active Owner account(s) cannot save changes in Settings > Users from an unelevated ETP. Run ETP setup again as administrator.";
 
+    // ---- OPS-11 Disk backup copy (1.12 G1, decision 54) ----------------------------------------------------
+
+    public const string DiskNotConfigured = "NOT_CONFIGURED";
+    public const string DiskNotPresent = "DISK_NOT_PRESENT";
+    public const string DiskCopyOld = "DISK_COPY_OLD";
+    public const string DiskCopyMissing = "NO_DISK_COPY";
+    public const string DiskCopyUnreadable = "DISK_COPY_UNREADABLE";
+    public const string DiskCopyNotLatest = "DISK_COPY_NOT_LATEST";
+
+    public const string DiskSkippedNotConfigured = "Skipped: the nightly copy of the backup to the second disk is not set up on this PC.";
+
+    public const string DiskNotPresentText = "The backup disk for the nightly copy is not connected or not unlocked, so the disk copy cannot be made. Check the disk and its BitLocker unlock.";
+
+    public static string DiskCopyCurrent(decimal hours) =>
+        $"The newest backup copy on the second disk is {hours.ToString("0.#", CultureInfo.InvariantCulture)} hours old and matches the newest verified backup.";
+
+    public static string DiskCopyTooOld(decimal hours, int limitHours) =>
+        $"The newest backup copy on the second disk is {hours.ToString("0", CultureInfo.InvariantCulture)} hours old (limit {Count(limitHours)}). Check the task 'ETP Copy Backup To Disk' in Task Scheduler.";
+
+    public const string DiskCopyNone = "There is no backup copy on the second disk yet. The task 'ETP Copy Backup To Disk' has not completed a copy.";
+
+    public const string DiskCopyUnreadableText = "The receipt of the backup copy on the second disk could not be read. Check the disk copy task and its log on that disk.";
+
+    public const string DiskCopyNotLatestText = "The backup copy on the second disk is not the newest verified backup. Check the task 'ETP Copy Backup To Disk' in Task Scheduler.";
+
     // ---- Helpers -------------------------------------------------------------------------------------------
 
     public static string Date(DateOnly date) => Etp.Reporting.Application.Formatting.DisplayText.Date(date);
