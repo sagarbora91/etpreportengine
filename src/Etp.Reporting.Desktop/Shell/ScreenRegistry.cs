@@ -15,7 +15,24 @@ public sealed record ScreenRequest(
     DateOnly BusinessDate,
     string? StoreCode,
     ShellAccess Access,
-    Action<string> Navigate);
+    Action<string> Navigate)
+{
+    /// <summary>
+    /// 1.12 U1: opens another task with a route argument (a Fix button passes the import history key). The argument is a
+    /// route value only; it is never stored on disk (pins and recents keep task ids). Unknown ids are ignored.
+    /// </summary>
+    public Action<string, string?> NavigateWithArgument { get; init; } = (taskId, _) => { };
+}
+
+/// <summary>
+/// 1.12 U1: a registered screen the shell can ask for its state. <see cref="IsBusy"/> keeps the shell from leaving the
+/// screen (or closing ETP) while it works, as for the built-in workspaces; <see cref="Refresh"/> is what F5 does on it.
+/// </summary>
+public interface IShellScreen
+{
+    bool IsBusy { get; }
+    void Refresh();
+}
 
 /// <summary>
 /// Task id -> view factory (1.12 A1 seam). The composition root registers each wave-2 screen here
