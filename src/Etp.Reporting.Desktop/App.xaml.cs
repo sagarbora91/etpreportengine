@@ -82,7 +82,8 @@ public partial class App : Application
                 if (e.Args.Contains("--capture-review"))
                     _ = ImportReviewSession.RunAsync(window, compositionRoot.LoadConnectionString(), e.Args);
             },
-            compositionRoot.InitializeConfiguredDatabaseAsync);
+            compositionRoot.InitializeConfiguredDatabaseAsync,
+            compositionRoot.WaitForAutomationSqlAsync);
         var mode = DesktopStartupCoordinator.Route(e.Args);
         if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
