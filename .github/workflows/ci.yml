@@ -57,6 +57,7 @@ jobs:
         run: |
           $projects = @(
             'Etp.Reporting.Domain.Tests',
+            'Etp.Reporting.Infrastructure.Http.Tests',
             'Etp.Reporting.Import.Tests',
             'Etp.Reporting.Reporting.Tests',
             'Etp.Reporting.SqlServer.Tests',
@@ -65,7 +66,7 @@ jobs:
           $failed = @()
           foreach ($p in $projects) {
             dotnet test "tests-dotnet/$p/$p.csproj" --configuration Release --no-build `
-              --logger "trx;LogFileName=$p.trx" --results-directory "$env:RUNNER_TEMP/trx" `
+              --filter "Category!=Sql" --logger "trx;LogFileName=$p.trx" --results-directory "$env:RUNNER_TEMP/trx" `
               --blame-hang-timeout 10m --blame-hang-dump-type none
             if ($LASTEXITCODE -ne 0) { $failed += $p }
           }

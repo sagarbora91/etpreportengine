@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- HTTP clients for 1.12 (D1 Tally engine). References Application only and no packages; created by lane A2 so that D1 owns no .csproj. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />
+  </ItemGroup>
+
+</Project>
