@@ -27,6 +27,19 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
 
 public static class TaskNavigation
 {
+    /// <summary>The Morning page's route destination (1.12 U1).</summary>
+    public const string MorningDestination = "Morning";
+
+    /// <summary>The collections screens' route destination (1.12 U4 registers the views).</summary>
+    public const string CollectionsDestination = "Collections";
+
+    /// <summary>
+    /// 1.12 wave 2: tasks whose view only a registration provides (<see cref="ScreenRegistry"/>). Until the owning lane
+    /// registers one, the shell shows a plain "not in this build" page instead of falling through to a built-in screen.
+    /// </summary>
+    public static IReadOnlySet<string> RegisteredOnly { get; } = new HashSet<string>(StringComparer.Ordinal)
+        { "morning", "collections-setup", "bank-files", "collections-statement", "deposits-in-transit", "update-settings" };
+
     public static TaskDestination? Find(string? id) => All.FirstOrDefault(x => x.Id == id) ?? HelpTasks.FirstOrDefault(x => x.Id == id);
     public static IReadOnlyList<string> Sections { get; } = ["Today", "Import", "Reports", "Stock", "Service", "Settings"];
     public static IReadOnlyList<TaskDestination> All { get; } = Build();
@@ -98,8 +111,18 @@ public static class TaskNavigation
                 "cash-input" => ["cash", "enter cash", "service entries"],
                 "backups" => ["backup", "back up"],
                 "service-today" => ["service", "service centre", "service today"],
+                // 1.12 wave 2 (Appendix B of the wave plan): U1 adds the rows, the owning lane registers the view.
+                "morning" => ["morning", "start page", "finalise all", "finalise all stores", "what needs me"],
+                "collections-setup" => ["collections", "bank accounts", "providers", "statement layouts"],
+                "bank-files" => ["bank statement", "settlement files", "bank files", "upi settlement", "card settlement"],
+                "collections-statement" => ["collections", "expected vs evidence", "collections statement"],
+                "deposits-in-transit" => ["deposits", "cash deposit", "bank credited", "in transit"],
+                "update-settings" => ["update", "software update", "new version"],
                 _ => [id.Replace('-', ' ')]
             }));
+        // 1.12 U1 (decision 2): the Owner's landing page. First Today tab, so OpenSection("Today") lands an Owner here and
+        // every other role on Today > Sales (they cannot open it).
+        Add("morning", "Morning", "Today", "Morning", MorningDestination, "morning", 3);
         Add("walk-ins", "Walk-ins", "Today", "Walk-ins", "Manual Entry", "manual", 2);
         Add("readiness", "Close day", "Today", "Close day", "Daily Workflow", "readiness", 1);
         Add("finalisation", "Finalise day", "Today", "Close day", "Daily Workflow", "finalisation", 2);
@@ -166,6 +189,15 @@ public static class TaskNavigation
         Add("register-transfer", "Stock transfers", "Stock", "Registers", "Registers", "register", 2);
         Add("register-vendor", "Vendor invoices", "Today", "Close day", "Registers", "register", 2);
         Add("register-courier", "Courier", "Today", "Close day", "Registers", "register", 2);
+        // 1.12 wave 2 screens (wave plan Appendix B). Collections setup and Software update are Settings pages (Owner);
+        // the bank files import and the deposits list need the import role; the statement is for every role (a Viewer
+        // gets totals without bank references, U4). Collections setup sits under Integrations: Settings may hold at most
+        // ten sections, or the list scrolls on the shop's 768-pixel panel (TaskNavigationTests).
+        Add("collections-setup", "Collections setup", "Settings", "Integrations", "Settings", "collections-setup", 3);
+        Add("update-settings", "Software update", "Settings", "Software update", "Settings", "update-settings", 3);
+        Add("bank-files", "Bank and settlement files", "Import", "Bank files", CollectionsDestination, "bank-files", 2);
+        Add("collections-statement", "Collections: expected vs evidence", "Reports", "Collections", CollectionsDestination, "collections-statement", 1);
+        Add("deposits-in-transit", "Deposits in transit", "Reports", "Collections", CollectionsDestination, "deposits-in-transit", 2);
         foreach (var report in ProductReportCatalogue.All)
         {
             var (rail, tab) = report.Code switch
@@ -178,7 +210,7 @@ public static class TaskNavigation
             };
             result.Add(new("report-" + report.Code, report.Code == "dsr" ? "Sales" : report.Name, rail, tab, "Sales Reports", "report", 1, report.Code, ReportTaskAliases.For(report.Code).ToArray()));
         }
-        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help", "Today", "Pending", "Jobs", "Claims", "Parts", "Money" };
+        var tabOrder = new[] { "Morning", "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Bank files", "Staff", "Tender & service", "Collections", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Software update", "Control centre", "Registers", "Help", "Today", "Pending", "Jobs", "Claims", "Parts", "Money" };
         return result.OrderBy(t => Array.IndexOf(Sections.ToArray(), t.Rail)).ThenBy(t => Array.IndexOf(tabOrder, t.Tab)).ThenBy(t => t.ReportCode is null ? 1 : 0).ToArray();
     }
 }

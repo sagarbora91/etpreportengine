@@ -46,6 +46,12 @@ public sealed class ScreenRegistry
 
     public IReadOnlyCollection<string> TaskIds => factories.Keys;
 
+    /// <summary>
+    /// 1.12 U1: the window this registry belongs to, so a <c>Register*</c> hook can also hand the shell a service it shows
+    /// outside a screen (N1's no-sale buttons and service for the Today checklist). Null for a registry built on its own.
+    /// </summary>
+    internal MainWindow? Window { get; init; }
+
     public void Register(string taskId, Func<ScreenRequest, UserControl> create)
     {
         if (string.IsNullOrWhiteSpace(taskId)) throw new ArgumentException("A screen needs its task id.", nameof(taskId));
@@ -70,5 +76,7 @@ public sealed class ScreenRegistry
 public partial class MainWindow
 {
     /// <summary>Screens registered by the composition root (1.12 A1); <see cref="TaskNavigator"/> consults it first.</summary>
-    internal ScreenRegistry Screens { get; } = new();
+    private ScreenRegistry? screens;
+
+    internal ScreenRegistry Screens => screens ??= new ScreenRegistry { Window = this };
 }

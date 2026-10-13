@@ -16,8 +16,12 @@ namespace Etp.Reporting.Desktop.Composition;
 // the view (ArchitectureGuardTests).
 public sealed partial class DesktopCompositionRoot
 {
-    partial void RegisterMorning(ScreenRegistry registry) =>
+    partial void RegisterMorning(ScreenRegistry registry)
+    {
         registry.Register(MorningTask, request => new MorningView(CreateMorningServices(), request));
+        // The Today checklist's no-sale lines (decision 52) read N1's service from the same current connection.
+        if (registry.Window is { } window) window.noSaleDays = () => new SqlServerNoSaleDayService(CurrentConnections());
+    }
 
     /// <summary>The Morning page's task id (TaskNavigation, Today &gt; Morning, Owner only).</summary>
     internal const string MorningTask = "morning";

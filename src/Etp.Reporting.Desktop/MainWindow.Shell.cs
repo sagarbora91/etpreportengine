@@ -100,6 +100,7 @@ public partial class MainWindow
     {
         activeSection = task.Rail;
         PageTitle.Text = task.Rail;
+        UpdatePinButton(task);
         SectionTabs.Children.Clear();
         var groups = TaskNavigation.InSection(task.Rail, CurrentShellAccess).Select(t => t.Tab).Distinct().ToArray();
         if (groups.Length > 4)
@@ -316,6 +317,8 @@ public partial class MainWindow
 
     private void RefreshCurrentWorkspace()
     {
+        // 1.12 U1: a registered screen (Morning, the wave-2 screens) refreshes itself.
+        if (FocusedWorkspaceHost.Content is IShellScreen screen) { screen.Refresh(); return; }
         switch (CurrentModuleId)
         {
             case "dashboard" when shell.CurrentRoute.Destination is "Daily Workflow" or "Manual Entry": _ = dailyWorkflowWorkspace.RefreshAsync(); break;

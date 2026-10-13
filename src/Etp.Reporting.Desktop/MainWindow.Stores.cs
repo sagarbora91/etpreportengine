@@ -7,6 +7,9 @@ public partial class MainWindow
 {
     internal StoreScopeCatalog StoreScopes { get; } = new();
 
+    /// <summary>The database the window works on (the review harness checks it is a disposable test database).</summary>
+    internal string DatabaseName => connectionState.Factory.DatabaseName;
+
     internal async Task RefreshStoresAsync()
     {
         var stores = await new StoreCatalogRepository(connectionState.ConnectionString).LoadAsync();

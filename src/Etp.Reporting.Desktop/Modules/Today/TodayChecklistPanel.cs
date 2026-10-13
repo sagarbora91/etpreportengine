@@ -5,6 +5,8 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using DailyReadinessQuery = EtpApplication::Etp.Reporting.Application.DailyReadiness.IDailyReadinessQuery;
 using DailyReadinessResult = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessResult;
+using NoSaleDay = EtpApplication::Etp.Reporting.Application.NoSaleDays.NoSaleDay;
+using Etp.Reporting.Desktop.Modules.Morning;
 
 namespace Etp.Reporting.Desktop.Modules.Today;
 
@@ -30,6 +32,19 @@ public sealed class TodayChecklistPanel : Border
     /// instead of leaving the header on "All stores". The shell sets it; without it a line opens its task as before.
     /// </summary>
     public Action<string, string>? OpenTaskForStore { get; set; }
+
+    /// <summary>
+    /// 1.12 U1 (decision 52): the no-sale marks of the business date (N1's <c>INoSaleDayService.LoadAsync</c>). A marked
+    /// store-day's exports and entries leave the list (N1's readiness); the panel then names the mark instead. Null: none.
+    /// </summary>
+    public Func<DateOnly, CancellationToken, Task<IReadOnlyList<NoSaleDay>>>? LoadNoSaleDays { get; set; }
+
+    /// <summary>N1's Mark / Withdraw buttons (MainWindow.NoSaleDayButtons); without them the panel shows the text only.</summary>
+    public Func<NoSaleDayButtons?>? NoSaleButtons { get; set; }
+
+    /// <summary>The no-sale marks on screen.</summary>
+    public IReadOnlyList<NoSaleDay> NoSaleDays { get; private set; } = [];
+
     private readonly StackPanel lines = new();
     private int revision;
 
@@ -82,7 +97,9 @@ public sealed class TodayChecklistPanel : Border
         try
         {
             var result = await readiness.LoadAsync(request, cancellationToken);
+            var marks = await LoadMarksAsync(request.BusinessDate, headerStore, cancellationToken);
             if (current != revision) return;
+            NoSaleDays = marks;
             Show(result, request.BusinessDate);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -101,6 +118,23 @@ public sealed class TodayChecklistPanel : Border
     public Task RefreshLastAsync() =>
         lastDate is { } date ? RefreshAsync(date, lastStore) : Task.CompletedTask;
 
+    /// <summary>The marks for the date (one store, or all); a failure leaves them out and is recorded, never blocking the list.</summary>
+    private async Task<IReadOnlyList<NoSaleDay>> LoadMarksAsync(DateOnly businessDate, string? headerStore, CancellationToken cancellationToken)
+    {
+        if (LoadNoSaleDays is not { } load) return [];
+        try
+        {
+            var marks = await load(businessDate, cancellationToken);
+            return string.IsNullOrWhiteSpace(headerStore) ? marks
+                : marks.Where(mark => string.Equals(mark.StoreCode, headerStore.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            DesktopDiagnostics.Record(exception, "Today.Checklist", "TODAY_NO_SALE_DAYS_FAILED", DesktopDiagnosticSeverity.Warning);
+            return [];
+        }
+    }
+
     private void Show(DailyReadinessResult result, DateOnly businessDate) =>
         Show(TodayChecklist.Lines(result, access(), shopName), businessDate, null);
 
@@ -117,20 +151,38 @@ public sealed class TodayChecklistPanel : Border
             Visibility = Visibility.Visible;
             return;
         }
-        if (items.Count == 0)
+        var marks = NoSaleDays;
+        if (items.Count == 0 && marks.Count == 0)
         {
             heading.Text = string.Empty;
             Visibility = Visibility.Collapsed;
             return;
         }
-        // DS-03: waiting for files is amber; red is kept for a check that could not run.
-        SetResourceReference(BorderBrushProperty, "Warning");
-        heading.Text = TodayChecklist.Heading(businessDate, items.Count);
+        // DS-03: waiting for files is amber; red is kept for a check that could not run. Only no-sale marks: information.
+        SetResourceReference(BorderBrushProperty, items.Count == 0 ? "Information" : "Warning");
+        heading.Text = items.Count == 0 ? TodayChecklist.NoSaleHeading(businessDate, marks.Count) : TodayChecklist.Heading(businessDate, items.Count);
+        var buttons = NoSaleButtons?.Invoke();
         // The day's lines grouped by shop (named), then the month's targets apart from them.
         foreach (var shop in items.Where(x => x.Section != TodayChecklistSection.ThisMonth).GroupBy(x => x.ShopName))
         {
             if (shop.Key.Length > 0) lines.Children.Add(GroupHeader(shop.Key));
             foreach (var item in shop) lines.Children.Add(Row(item));
+            // 1.12 U1 (decision 52): a shop with no sales file can be marked as a no-sale day (Owner, Store Manager).
+            if (buttons is not null && TodayChecklist.CanMarkNoSale(shop, access()) && shop.First().StoreCode is { Length: > 0 } store)
+                lines.Children.Add(ActionRow(buttons.Mark(store, businessDate, () => _ = RefreshLastAsync())));
+        }
+        foreach (var mark in marks)
+        {
+            lines.Children.Add(GroupHeader(TodayChecklist.ShopName(mark.StoreCode, shopName)));
+            var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2), LastChildFill = true };
+            if (buttons is not null && access().CanImport)
+            {
+                var withdraw = buttons.Withdraw(mark.StoreCode, businessDate, () => _ = RefreshLastAsync());
+                DockPanel.SetDock(withdraw, Dock.Right);
+                row.Children.Add(withdraw);
+            }
+            row.Children.Add(Text(TodayChecklist.NoSaleLine(mark)));
+            lines.Children.Add(row);
         }
         var month = items.Where(x => x.Section == TodayChecklistSection.ThisMonth).ToArray();
         if (month.Length > 0)
@@ -164,6 +216,14 @@ public sealed class TodayChecklistPanel : Border
         DockPanel.SetDock(button, Dock.Right);
         row.Children.Add(button);
         row.Children.Add(Text(item.PlainMessage.Length > 0 ? item.PlainMessage : item.Message));
+        return row;
+    }
+
+    private static UIElement ActionRow(UIElement button)
+    {
+        var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2), LastChildFill = false };
+        DockPanel.SetDock(button, Dock.Right);
+        row.Children.Add(button);
         return row;
     }
 

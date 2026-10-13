@@ -8,6 +8,7 @@ using DailyReadinessItem = EtpApplication::Etp.Reporting.Application.DailyReadin
 using DailyReadinessQuery = EtpApplication::Etp.Reporting.Application.DailyReadiness.IDailyReadinessQuery;
 using DailyReadinessRequest = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessRequest;
 using DailyReadinessResult = EtpApplication::Etp.Reporting.Application.DailyReadiness.DailyReadinessResult;
+using NoSaleDay = EtpApplication::Etp.Reporting.Application.NoSaleDays.NoSaleDay;
 
 namespace Etp.Reporting.Desktop.Modules.Today;
 
@@ -16,7 +17,7 @@ namespace Etp.Reporting.Desktop.Modules.Today;
 /// the screen where the item is fixed, and whether the signed-in role may open that screen.
 /// </summary>
 public sealed record TodayChecklistLine(string Message, string ActionLabel, string TaskId, bool CanOpen, string? Tooltip,
-    string StoreCode = "", string ShopName = "", string PlainMessage = "", TodayChecklistSection Section = TodayChecklistSection.EnterNow);
+    string StoreCode = "", string ShopName = "", string PlainMessage = "", TodayChecklistSection Section = TodayChecklistSection.EnterNow, string Code = "");
 
 /// <summary>
 /// 1.11.2 (UX audit top 6): who can act on a line. Exports come from the shop PC, so the Owner can only wait for them
@@ -141,8 +142,23 @@ public static class TodayChecklist
         var path = item.Destination == DailyReadinessDestination.SettingsMonthlyTargets ? task.Path + " → " + MonthlyTargetsTab : task.Path;
         return new(item.Message, ActionLabel(item.Destination), taskId, allowed,
             allowed ? "Open " + path : $"{path} needs a different role. Ask the Owner.",
-            item.StoreCode, shop, PlainMessage(item, shop), SectionFor(item.Kind));
+            item.StoreCode, shop, PlainMessage(item, shop), SectionFor(item.Kind), item.Code);
     }
+
+    /// <summary>
+    /// 1.12 U1 (decision 52): a shop whose sales lines file has not arrived can be marked as a no-sale day from its group,
+    /// by an Owner or a Store Manager. N1's procedure still refuses a day that has sales, a locked day and a future day.
+    /// </summary>
+    public static bool CanMarkNoSale(IEnumerable<TodayChecklistLine> shopLines, ShellAccess access) =>
+        access.CanImport && shopLines.Any(line => line.Section == TodayChecklistSection.WaitingForShop
+            && string.Equals(line.Code, "R025", StringComparison.OrdinalIgnoreCase) && line.StoreCode.Length > 0);
+
+    /// <summary>The line for a marked store-day (its exports and entries are no longer asked for): who marked it and when.</summary>
+    public static string NoSaleLine(NoSaleDay mark) =>
+        $"No-sale day (marked by {mark.MarkedBy} on {mark.MarkedUtc.ToLocalTime().ToString("dd MMM", System.Globalization.CultureInfo.InvariantCulture)})";
+
+    public static string NoSaleHeading(DateOnly businessDate, int stores) =>
+        stores == 1 ? $"No-sale day for {businessDate:dd MMM yyyy}: 1 store" : $"No-sale days for {businessDate:dd MMM yyyy}: {stores} stores";
 
     public static string Heading(DateOnly businessDate, int count) =>
         count == 1 ? $"What's missing for {businessDate:dd MMM yyyy}: 1 item" : $"What's missing for {businessDate:dd MMM yyyy}: {count} items";

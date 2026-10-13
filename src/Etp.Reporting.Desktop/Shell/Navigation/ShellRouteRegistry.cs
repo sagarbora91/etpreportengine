@@ -19,6 +19,9 @@ public static class ShellRouteRegistry
         new("Operations Centre", "exceptions"),
         new("Report Archive", "archive"),
         new("Service Centre", "service"),
+        // 1.12 wave 2: the Owner's Morning page (U1) and the collections screens (U4). Their views come from ScreenRegistry.
+        new(TaskNavigation.MorningDestination, "morning"),
+        new(TaskNavigation.CollectionsDestination, "collections"),
         new("Settings", "settings"),
         new("Admin / Settings", "settings")
     ];
