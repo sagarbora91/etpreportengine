@@ -182,8 +182,8 @@ public sealed class MorningView : UserControl, IShellScreen
         {
             var progress = new Progress<string>(store =>
             {
-                void Show() => frame.Notice.Show(StatusTone.Information, "Finalising", $"Locking {NameOf(store)}…");
-                if (Dispatcher.CheckAccess()) Show(); else Dispatcher.BeginInvoke(Show);
+                void ShowProgress() => frame.Notice.Show(StatusTone.Information, "Finalising", $"Locking {NameOf(store)}…");
+                if (Dispatcher.CheckAccess()) ShowProgress(); else Dispatcher.BeginInvoke(ShowProgress);
             });
             var results = await services.FinaliseAll(summary.BusinessDate, ready.Select(card => card.StoreCode).ToArray(), progress, token);
             frame.Notice.Show(FinaliseTone(results), FinaliseTitle(results), FinaliseMessage(results, NameOf));

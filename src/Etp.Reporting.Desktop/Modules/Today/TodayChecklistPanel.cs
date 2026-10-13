@@ -125,8 +125,9 @@ public sealed class TodayChecklistPanel : Border
         try
         {
             var marks = await load(businessDate, cancellationToken);
-            return string.IsNullOrWhiteSpace(headerStore) ? marks
-                : marks.Where(mark => string.Equals(mark.StoreCode, headerStore.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+            var store = headerStore?.Trim() ?? string.Empty;
+            return store.Length == 0 ? marks
+                : marks.Where(mark => string.Equals(mark.StoreCode, store, StringComparison.OrdinalIgnoreCase)).ToArray();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

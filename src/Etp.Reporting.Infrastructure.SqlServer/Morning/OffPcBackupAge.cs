@@ -18,7 +18,7 @@ public static class OffPcBackupAge
             if (string.IsNullOrWhiteSpace(root)) return (false, null);
             var folder = Path.Combine(root, OffPcCopyProbe.BackupFolderName);
             if (!Directory.Exists(folder)) return (false, null);
-            var newest = Directory.EnumerateFiles(folder, "*.bak.enc").Select(File.GetLastWriteTimeUtc)
+            var newest = Directory.EnumerateFiles(folder, "*.bak.enc").Select(path => File.GetLastWriteTimeUtc(path))
                 .OrderDescending().Cast<DateTime?>().FirstOrDefault();
             if (newest is null) return (true, null);
             var hours = (nowUtc - new DateTimeOffset(newest.Value, TimeSpan.Zero)).TotalHours;
