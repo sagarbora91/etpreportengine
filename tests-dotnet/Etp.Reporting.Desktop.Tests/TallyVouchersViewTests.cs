@@ -15,7 +15,7 @@ public sealed class TallyVouchersViewTests
         RunSta(() =>
         {
             var batches = new FakeBatches();
-            var view = new TallyVouchersView(() => "fixture", () => true, _ => new FakeProfiles(), _ => batches);
+            var view = new TallyVouchersView(() => true, () => new FakeProfiles(), () => batches);
             view.LoadCompaniesAsync().GetAwaiter().GetResult();
             Assert.Equal("TEST - ETP Golden", ((TallyProfile)view.CompanyInput.SelectedItem).CompanyName);
             Assert.Equal(new[] { "STOREA", "STOREB" }, (IEnumerable<string>)view.StoreInput.ItemsSource);
@@ -52,7 +52,7 @@ public sealed class TallyVouchersViewTests
         RunSta(() =>
         {
             var batches = new FakeBatches();
-            var view = new TallyVouchersView(() => "fixture", () => true, _ => new FakeProfiles(), _ => batches);
+            var view = new TallyVouchersView(() => true, () => new FakeProfiles(), () => batches);
             view.LoadCompaniesAsync().GetAwaiter().GetResult();
             Click(view.PrepareButton);
             view.FindingGrid.SelectedIndex = 0;
@@ -67,7 +67,7 @@ public sealed class TallyVouchersViewTests
     {
         RunSta(() =>
         {
-            var view = new TallyVouchersView(() => "fixture", () => true, _ => new FakeProfiles(), _ => new FakeBatches());
+            var view = new TallyVouchersView(() => true, () => new FakeProfiles(), () => new FakeBatches());
             view.LoadCompaniesAsync().GetAwaiter().GetResult();
             Click(view.PrepareButton);
             Assert.True(view.SaveButton.IsEnabled);
@@ -83,11 +83,11 @@ public sealed class TallyVouchersViewTests
         RunSta(() =>
         {
             var batches = new FakeBatches();
-            var view = new TallyVouchersView(() => "fixture", () => true, _ => new FakeProfiles(), _ => batches);
+            var view = new TallyVouchersView(() => true, () => new FakeProfiles(), () => batches);
             view.LoadCompaniesAsync().GetAwaiter().GetResult();
             Assert.Single((IEnumerable<TallyProfile>)view.CompanyInput.ItemsSource);
 
-            var viewer = new TallyVouchersView(() => "fixture", () => false, _ => new FakeProfiles(), _ => batches);
+            var viewer = new TallyVouchersView(() => false, () => new FakeProfiles(), () => batches);
             Click(viewer.PrepareButton);
             Assert.Equal("Owner permission is required.", viewer.StatusText.Text);
             Assert.Null(batches.Previewed);

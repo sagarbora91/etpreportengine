@@ -509,6 +509,11 @@ public sealed partial class TaskNavigator(MainWindow window)
         int[] body; int[] actions;
         var openItems = false;
         var id = task.Id;
+        // 1.12 (A1 seam): a screen the composition root registered comes before the built-in ones below.
+        if (window.Screens.Contains(id) && window.Screens.TryCreate(new ScreenRequest(id, argument, DateOnly.FromDateTime(appliedDate),
+                string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore, window.CurrentShellAccess,
+                taskId => { if (TaskNavigation.Find(taskId) is { } next) NavigateTask(next); }), out var registered) && registered is not null)
+            return registered;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
             return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, argument, NavigateServiceJob, NavigateService);
         // 1.11.0 self-diagnostics: the Owner-only Health check and Error register screens (Operations Centre, Settings > Database).

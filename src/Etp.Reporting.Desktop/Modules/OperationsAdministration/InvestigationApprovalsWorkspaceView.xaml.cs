@@ -14,9 +14,8 @@ namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;
 
 public partial class InvestigationApprovalsWorkspaceView : UserControl
 {
-    private readonly Func<string> connectionStringProvider;
-    private readonly Func<string, IOperationsAdministrationService> operationsServiceFactory;
-    private readonly Func<string, IInvestigationQuery> investigationQueryFactory;
+    private readonly Func<IOperationsAdministrationService> operationsServiceFactory;
+    private readonly Func<IInvestigationQuery> investigationQueryFactory;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
     private readonly WorkspaceOperationGate operationGate = new();
     private readonly SelectionReasonDrafts approvalReasons;
@@ -25,11 +24,9 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
     public void DiscardRetainedDraft() { approvalReasons.Discard(); AdjustmentTypeInput.Clear(); AdjustmentAmountInput.Clear(); AdjustmentReasonInput.Clear(); }
 
     public InvestigationApprovalsWorkspaceView(
-        Func<string> connectionStringProvider,
-        Func<string, IOperationsAdministrationService> operationsServiceFactory,
-        Func<string, IInvestigationQuery> investigationQueryFactory)
+        Func<IOperationsAdministrationService> operationsServiceFactory,
+        Func<IInvestigationQuery> investigationQueryFactory)
     {
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.operationsServiceFactory = operationsServiceFactory ?? throw new ArgumentNullException(nameof(operationsServiceFactory));
         this.investigationQueryFactory = investigationQueryFactory ?? throw new ArgumentNullException(nameof(investigationQueryFactory));
         InitializeComponent();
@@ -65,14 +62,14 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
         catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "APPROVAL_REFRESH_FAILED"); InvestigationStatus.Text = DesktopDiagnostics.WithReference(OperationsAdministrationWorkspaceErrors.Friendly(ex), reference); }
     }
 
-    private IOperationsAdministrationService OperationsService => operationsServiceFactory(connectionStringProvider());
+    private IOperationsAdministrationService OperationsService => operationsServiceFactory();
     private async void RunGlobalSearch_Click(object sender, RoutedEventArgs e)
     {
         using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
-            var rows = await investigationQueryFactory(connectionStringProvider()).SearchAsync(GlobalSearchInput.Text);
+            var rows = await investigationQueryFactory().SearchAsync(GlobalSearchInput.Text);
             InvestigationGrid.ItemsSource = rows;
             InvestigationStatus.Text = $"{rows.Count:N0} result(s) across recorded transactions, sources, reports and registers.";
         }

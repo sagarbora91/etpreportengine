@@ -15,7 +15,6 @@ public sealed record ImportWorkspaceAccess(bool CanImport, bool CanAdminister);
 public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 {
     private readonly DesktopImportCoordinator coordinator;
-    private readonly Func<string> connectionStringProvider;
     private Func<ImportWorkspaceAccess> accessProvider = static () => new(false, false);
     // Reloads the role from the database. accessProvider returns the host's cached copy,
     // which cannot notice a role the Owner revoked after this window loaded it.
@@ -25,10 +24,9 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     private IReadOnlyList<FolderImportFileResult> latestResults = [];
     private FolderImportOptions? lastImportOptions;
     private string currentTask = "import-files";
-    public ImportWorkspaceView(DesktopImportCoordinator coordinator, Func<string> connectionStringProvider)
+    public ImportWorkspaceView(DesktopImportCoordinator coordinator)
     {
         this.coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         CaptureImportControls();
         BuildResultColumns();
@@ -139,7 +137,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             });
             var summary = retry
                 ? await coordinator.RetryFailedFolderAsync(progress)
-                : await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);
+                : await coordinator.ImportFolderAsync(WorkbookPathInput.Text, options, progress);
             latestResults = retry ? MergeRetryResults(previousResults, summary.Files) : summary.Files;
             SelectTask(currentTask);
             ShowScope();

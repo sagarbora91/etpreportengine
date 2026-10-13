@@ -14,9 +14,9 @@ public sealed class StockMovementLocationReportTests
         RunSta(async () =>
         {
             var previews = new List<ReportPresentationSnapshot>();
-            var view = new ReportsWorkspaceView(() => "synthetic", _ => new MovementQuery(),
-                _ => throw new InvalidOperationException("Unexpected operational query"),
-                _ => throw new InvalidOperationException("Unexpected trend query"),
+            var view = new ReportsWorkspaceView(() => new MovementQuery(),
+                () => throw new InvalidOperationException("Unexpected operational query"),
+                () => throw new InvalidOperationException("Unexpected trend query"),
                 new ReportExportCoordinator(), new UnusedDiagnostic());
             view.SetStores(TestStoreCatalog.Create());
             view.ApplyScope(new(2026, 9, 1), new(2026, 9, 10), "WLMHW");
@@ -38,9 +38,9 @@ public sealed class StockMovementLocationReportTests
         RunSta(async () =>
         {
             var previews = new List<ReportPresentationSnapshot>();
-            var view = new ReportsWorkspaceView(() => "synthetic", _ => new MovementQuery(hasSnapshot: false),
-                _ => throw new InvalidOperationException("Unexpected operational query"),
-                _ => throw new InvalidOperationException("Unexpected trend query"),
+            var view = new ReportsWorkspaceView(() => new MovementQuery(hasSnapshot: false),
+                () => throw new InvalidOperationException("Unexpected operational query"),
+                () => throw new InvalidOperationException("Unexpected trend query"),
                 new ReportExportCoordinator(), new UnusedDiagnostic());
             view.SetStores(TestStoreCatalog.Create());
             view.ApplyScope(new(2026, 9, 1), new(2026, 9, 10), "WLMHW");

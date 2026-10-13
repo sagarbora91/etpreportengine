@@ -258,8 +258,8 @@ public sealed class ReportsRequestOrderingTests
 
     private static ReportsWorkspaceView CreateView(DeferredTrendQuery query, List<ReportPresentationSnapshot> previews, IReportExportCoordinator? exporter = null, decimal salesAmount = 42m)
     {
-        var view = new ReportsWorkspaceView(() => "synthetic", _ => new SalesQuery(salesAmount),
-            _ => throw new InvalidOperationException("Unexpected operational query"), _ => query,
+        var view = new ReportsWorkspaceView(() => new SalesQuery(salesAmount),
+            () => throw new InvalidOperationException("Unexpected operational query"), () => query,
             exporter ?? new ReportExportCoordinator(), new UnusedDiagnostic());
         view.SetStores(TestStoreCatalog.Create());
         view.ApplyScope(new(2026, 9, 1), new(2026, 9, 10), "WLMHW");

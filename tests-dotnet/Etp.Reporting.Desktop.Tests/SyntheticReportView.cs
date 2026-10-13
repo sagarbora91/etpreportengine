@@ -17,9 +17,9 @@ internal static class SyntheticReportView
     {
         ReportPresentationSnapshot? current = null;
         var operational = new OperationalQuery(empty, snapshotDate ?? new(2026, 8, 25));
-        var view = new ReportsWorkspaceView(() => "synthetic", _ => new ControlledQuery(empty), _ => operational,
-            _ => new TrendQuery(empty), exporter ?? new ReportExportCoordinator(), new Diagnostic(empty),
-            (_, store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(empty ? [] : [new(new(2026, 8, 25), store, 100m, "Synthetic opening", new Dictionary<string, decimal> { ["Cash"] = 118m }, 20m, 10m, 5m, 5m, 10m, 0m, 223m, null, 0m, 0m, "Complete")]));
+        var view = new ReportsWorkspaceView(() => new ControlledQuery(empty), () => operational,
+            () => new TrendQuery(empty), exporter ?? new ReportExportCoordinator(), new Diagnostic(empty),
+            (store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(empty ? [] : [new(new(2026, 8, 25), store, 100m, "Synthetic opening", new Dictionary<string, decimal> { ["Cash"] = 118m }, 20m, 10m, 5m, 5m, 10m, 0m, 223m, null, 0m, 0m, "Complete")]));
         view.SetStores(TestStoreCatalog.Create());
         view.ApplyScope(new(2026, 8, 25), new(2026, 8, 25), "Titan World");
         view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask, (snapshot, rows, status) => { current = snapshot; preview?.Invoke(snapshot, rows, status); }, _ => { }, _ => { });

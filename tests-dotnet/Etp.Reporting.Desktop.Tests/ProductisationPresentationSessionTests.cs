@@ -21,13 +21,13 @@ public sealed class ProductisationPresentationSessionTests
         var first = Generation(1, 2);
         var second = Generation(2, 3);
 
-        await session.OpenAsync("connection", first);
+        await session.OpenAsync(first);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            session.CreatePackageAsync("connection", second, "second.zip", "Owner"));
+            session.CreatePackageAsync(second, "second.zip", "Owner"));
         Assert.Equal(0, distribution.PackageCalls);
 
-        var receipt = await session.CreatePackageAsync("connection", first, "first.zip", "Owner");
+        var receipt = await session.CreatePackageAsync(first, "first.zip", "Owner");
 
         Assert.Equal("first.zip", receipt.Path);
         Assert.Equal("first.zip", session.ShareFileFor(first));
@@ -44,18 +44,18 @@ public sealed class ProductisationPresentationSessionTests
         var session = ArchiveSession(archive, distribution);
         var first = Generation(1, 2);
         var second = Generation(2, 3);
-        await session.OpenAsync("connection", first);
-        await session.CreatePackageAsync("connection", first, "first.zip", "Owner");
+        await session.OpenAsync(first);
+        await session.CreatePackageAsync(first, "first.zip", "Owner");
 
-        await session.SearchAsync("connection", new ReportArchiveSearch());
+        await session.SearchAsync(new ReportArchiveSearch());
 
         Assert.Null(session.CurrentDocument);
         Assert.Null(session.CurrentShareFile);
         Assert.Throws<InvalidOperationException>(() => session.ShareFileFor(first));
 
-        await session.OpenAsync("connection", first);
-        await session.CreatePackageAsync("connection", first, "first.zip", "Owner");
-        await session.SearchAsync("connection", new ReportArchiveSearch("WLMHW", new DateOnly(2026, 8, 25)));
+        await session.OpenAsync(first);
+        await session.CreatePackageAsync(first, "first.zip", "Owner");
+        await session.SearchAsync(new ReportArchiveSearch("WLMHW", new DateOnly(2026, 8, 25)));
         Assert.Null(session.CurrentDocument);
         Assert.Null(session.CurrentShareFile);
     }
@@ -65,11 +65,11 @@ public sealed class ProductisationPresentationSessionTests
     {
         var archive = new FakeArchiveQuery();
         var session = ArchiveSession(archive, new FakeDistributionService());
-        await session.OpenAsync("connection", Generation(1, 2));
+        await session.OpenAsync(Generation(1, 2));
         archive.OpenFailure = new InvalidDataException("Hash mismatch");
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            session.OpenAsync("connection", Generation(2, 3)));
+            session.OpenAsync(Generation(2, 3)));
 
         Assert.Null(session.CurrentDocument);
         Assert.Throws<InvalidOperationException>(() => session.DocumentForExport(Generation(2, 3)));
@@ -81,7 +81,7 @@ public sealed class ProductisationPresentationSessionTests
         var session = ArchiveSession(new FakeArchiveQuery(), new FakeDistributionService());
         var opened = Generation(1, 2);
         var newlySelected = Generation(2, 3);
-        await session.OpenAsync("connection", opened);
+        await session.OpenAsync(opened);
 
         Assert.Same(session.CurrentDocument, session.DocumentForExport(opened));
         Assert.Throws<InvalidOperationException>(() => session.DocumentForExport(newlySelected));
@@ -93,13 +93,13 @@ public sealed class ProductisationPresentationSessionTests
         var distribution = new FakeDistributionService();
         var session = ArchiveSession(new FakeArchiveQuery(), distribution);
         var generation = Generation(1, 2);
-        await session.OpenAsync("connection", generation);
-        await session.CreatePackageAsync("connection", generation, "first.zip", "Owner");
+        await session.OpenAsync(generation);
+        await session.CreatePackageAsync(generation, "first.zip", "Owner");
         var attempt = new RecordDistributionAttempt(generation.Id, null, "EMAIL", "Configured recipient",
             "first.zip", "INITIATED", "Email draft opened; delivery is not claimed.");
 
-        var policy = await session.ValidateEmailAttachmentAsync("connection", generation);
-        await session.RecordAttemptAsync("connection", attempt);
+        var policy = await session.ValidateEmailAttachmentAsync(generation);
+        await session.RecordAttemptAsync(attempt);
 
         Assert.Equal(12, policy.MaximumAttachmentMb);
         Assert.Equal("first.zip", distribution.ValidatedAttachment);
@@ -110,11 +110,11 @@ public sealed class ProductisationPresentationSessionTests
     public async Task Accounting_preview_owns_the_exact_draft_and_generation_used_for_save()
     {
         var service = new FakeAccountingService();
-        var session = new AccountingPresentationSession(_ => service);
+        var session = new AccountingPresentationSession(() => service);
         var scope = new AccountingScope("WLMHW", new DateOnly(2026, 8, 25));
 
-        var preview = await session.PreviewAsync("connection", scope);
-        var id = await session.SaveCurrentAsync("connection", scope);
+        var preview = await session.PreviewAsync(scope);
+        var id = await session.SaveCurrentAsync(scope);
 
         Assert.Equal(41, id);
         Assert.Equal(preview.ReportGenerationId, session.Current.ReportGenerationId);
@@ -129,19 +129,19 @@ public sealed class ProductisationPresentationSessionTests
     public async Task Failed_accounting_preview_clears_stale_draft_and_export_requires_approval()
     {
         var service = new FakeAccountingService();
-        var session = new AccountingPresentationSession(_ => service);
+        var session = new AccountingPresentationSession(() => service);
         var scope = new AccountingScope("WLMHW", new DateOnly(2026, 8, 25));
-        await session.PreviewAsync("connection", scope);
+        await session.PreviewAsync(scope);
         service.PreviewFailure = new InvalidOperationException("blocked");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => session.PreviewAsync("connection", scope));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.PreviewAsync(scope));
 
         Assert.Null(session.Current.Draft);
         Assert.Null(session.Current.ReportGenerationId);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            session.SaveCurrentAsync("connection", scope));
+            session.SaveCurrentAsync(scope));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            session.ExportAsync("connection", Batch("DRAFT"), "Saagar Traders", "batch.xml"));
+            session.ExportAsync(Batch("DRAFT"), "Saagar Traders", "batch.xml"));
         Assert.Equal(0, service.ExportCalls);
     }
 
@@ -149,16 +149,16 @@ public sealed class ProductisationPresentationSessionTests
     public async Task Accounting_save_cannot_reuse_a_preview_after_scope_changes_or_refreshes()
     {
         var service = new FakeAccountingService();
-        var session = new AccountingPresentationSession(_ => service);
+        var session = new AccountingPresentationSession(() => service);
         var previewed = new AccountingScope("WLMHW", new DateOnly(2026, 8, 25));
         var changed = new AccountingScope("HEMW", new DateOnly(2026, 8, 26));
-        await session.PreviewAsync("connection", previewed);
+        await session.PreviewAsync(previewed);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SaveCurrentAsync("connection", changed));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SaveCurrentAsync(changed));
         Assert.Null(service.LastSave);
 
-        await session.RefreshAsync("connection");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SaveCurrentAsync("connection", previewed));
+        await session.RefreshAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SaveCurrentAsync(previewed));
         Assert.Null(service.LastSave);
     }
 
@@ -166,12 +166,12 @@ public sealed class ProductisationPresentationSessionTests
     public async Task Registers_session_owns_refreshed_rows_and_relays_the_audited_save()
     {
         var service = new FakeRegisterService();
-        var session = new RegistersPresentationSession(_ => service);
+        var session = new RegistersPresentationSession(() => service);
         var draft = new DigitalRegisterEntryDraft("INWARD", 7, "WLMHW", new DateOnly(2026, 8, 25),
             "INV-1", null, "Vendor", 2, 100, "ref", "Owner", "DRAFT", "remarks");
 
-        var rows = await session.RefreshAsync("connection", "INV-1");
-        var id = await session.SaveAsync("connection", draft, "Verified source");
+        var rows = await session.RefreshAsync("INV-1");
+        var id = await session.SaveAsync(draft, "Verified source");
 
         Assert.Same(rows, session.Entries);
         Assert.Equal(17, id);
@@ -183,7 +183,7 @@ public sealed class ProductisationPresentationSessionTests
     private static ArchiveDistributionPresentationSession ArchiveSession(
         FakeArchiveQuery archive,
         FakeDistributionService distribution) =>
-        new(_ => archive, _ => new FakeSharingContactsService(), _ => distribution, _ => true);
+        new(() => archive, () => new FakeSharingContactsService(), () => distribution, _ => true);
 
     private static ArchivedReportGenerationSummary Generation(long id, int number) =>
         new(id, "WLMHW", new DateOnly(2026, 8, 25), number, "control", "document",

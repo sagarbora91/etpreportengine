@@ -54,10 +54,9 @@ public sealed class DailyWorkflowWorkspaceViewTests
             var currentAccess = new DailyWorkflowWorkspaceAccess(true, true, false);
             var view = new DailyWorkflowWorkspaceView(
                 new DailyWorkflowPresentationSession(),
-                () => "Integrated Security=True",
-                _ => query,
-                _ => commands,
-                _ => generator,
+                () => query,
+                () => commands,
+                () => generator,
                 () => currentAccess,
                 (operation, status, _) => { audits.Add($"{operation}:{status}"); return Task.CompletedTask; },
                 (_, _) => Task.CompletedTask,
@@ -116,10 +115,9 @@ public sealed class DailyWorkflowWorkspaceViewTests
                 ["R025"], [], [], [], true, "Ready."));
             var view = new DailyWorkflowWorkspaceView(
                 new DailyWorkflowPresentationSession(),
-                () => "Integrated Security=True",
-                _ => query,
-                _ => new FakeCommands(),
-                _ => new FakePackGenerator(DateOnly.FromDateTime(date)),
+                () => query,
+                () => new FakeCommands(),
+                () => new FakePackGenerator(DateOnly.FromDateTime(date)),
                 () => new(true, true, true),
                 (_, _, _) => Task.CompletedTask,
                 (_, _) => Task.CompletedTask,

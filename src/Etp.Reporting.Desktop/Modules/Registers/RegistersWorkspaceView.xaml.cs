@@ -13,16 +13,14 @@ namespace Etp.Reporting.Desktop.Modules.Registers;
 public sealed partial class RegistersWorkspaceView : UserControl
 {
     private readonly RegistersPresentationSession session;
-    private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private bool restoringSelection;
     private int registerRefreshRevision;
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
-    public RegistersWorkspaceView(RegistersPresentationSession session, Func<string> connectionStringProvider)
+    public RegistersWorkspaceView(RegistersPresentationSession session)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         RegisterBusinessDateInput.SelectedDate = DateTime.Today;
     }
@@ -57,7 +55,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
             RequireViewAccess();
             VerifyRegisterButton.IsEnabled = accessProvider().CanAdminister;
             var registerType = SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant();
-            var rows = await session.RefreshAsync(connectionStringProvider(), RegisterSearchInput.Text, registerType: registerType);
+            var rows = await session.RefreshAsync(RegisterSearchInput.Text, registerType: registerType);
             if (revision != registerRefreshRevision) return;
             var visible = rows.Where(x => x.RegisterType == registerType).ToArray();
             RegisterGrid.ItemsSource = visible;
@@ -105,7 +103,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
                 accessProvider().DisplayName,
                 verify ? "VERIFIED" : "DRAFT",
                 RegisterRemarksInput.Text);
-            var id = await session.SaveAsync(connectionStringProvider(), entry, RegisterReasonInput.Text);
+            var id = await session.SaveAsync(entry, RegisterReasonInput.Text);
             SetStatus($"Register entry {id:N0} saved with audit history.");
             ClearEntry();
             RegisterReasonInput.Clear();

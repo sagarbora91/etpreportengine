@@ -21,8 +21,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             var service = new FakeOperationsService();
             var view = new OperationsWorkspaceView(
                 new OperationsAdministrationPresentationSession(),
-                () => "connection",
-                _ => service,
+                () => service,
                 (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
                 _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([new("Test task", "Not installed", null, null, null, "Settings do not install a task.")]));
 
@@ -52,8 +51,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             var service = new FakeOperationsService { IssuesSyncedUtc = synced };
             var view = new OperationsWorkspaceView(
                 new OperationsAdministrationPresentationSession(),
-                () => "connection",
-                _ => service,
+                () => service,
                 (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
                 _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([]));
             view.UpdateAccess(new(true, false, false));
@@ -76,8 +74,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         RunSta(async () =>
         {
             var operations = new FakeOperationsService();
-            var investigation = new InvestigationApprovalsWorkspaceView(
-                () => "connection", _ => operations, _ => new FakeInvestigationQuery());
+            var investigation = new InvestigationApprovalsWorkspaceView(() => operations, () => new FakeInvestigationQuery());
             await investigation.RefreshApprovalsAsync();
             Assert.StartsWith("Your Windows account does not have permission for this action.", investigation.StatusText, StringComparison.Ordinal);
             investigation.UpdateAccess(new(true, false, false));
@@ -90,7 +87,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
 
             var administrationService = new FakeAdministrationService();
             var administration = new AdministrationWorkspaceView(
-                new OperationsAdministrationPresentationSession(), () => "connection", _ => administrationService);
+                new OperationsAdministrationPresentationSession(), () => administrationService);
             await administration.RefreshAsync();
             Assert.Equal(0, administrationService.Loads);
             Assert.StartsWith("Master administration could not be loaded: Owner permission is required.", administration.StatusText, StringComparison.Ordinal);
@@ -129,7 +126,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         RunSta(async () =>
         {
             var service = new FakeOperationsService();
-            var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service,
+            var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => service,
                 (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
                 _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([new("Test task", "Not installed", null, null, null, "Settings do not install a task.")]));
             view.UpdateAccess(new(true, true, true)); await view.RefreshAsync();
@@ -156,7 +153,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         RunSta(async () =>
         {
             var service = new FakeOperationsService { FailWatchSave = true };
-            var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service,
+            var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => service,
                 (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
                 _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([new("Test task", "Not installed", null, null, null, "Settings do not install a task.")]));
             view.UpdateAccess(new(true, true, true)); await view.RefreshAsync();
@@ -173,7 +170,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         RunSta(async () =>
         {
             var service = new FakeAdministrationService { FailMasterSave = true };
-            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true,true,true));
             var code=(TextBox)view.FindName("MasterCodeInput");code.Text="STORE-TEST";
             Assert.Single(view.UnsavedDrafts);Assert.False(await view.SaveMasterDraftAsync());Assert.Equal("STORE-TEST",code.Text);
@@ -186,7 +183,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
     {
         RunSta(() =>
         {
-            var view = new InvestigationApprovalsWorkspaceView(() => "connection",_ => new FakeOperationsService(),_ => new FakeInvestigationQuery());
+            var view = new InvestigationApprovalsWorkspaceView(() => new FakeOperationsService(),() => new FakeInvestigationQuery());
             var grid = (DataGrid)view.FindName("InvestigationGrid");
             var invoice = new InvestigationHit("Invoice","INV-001","HEMW",new(2026,8,25),"Found","Display label")
                 { TargetTaskId="invoice-lineage",TargetId=73,StoreCode="HEMW" };
@@ -235,7 +232,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             var service = new FakeAdministrationService();
             var view = new AdministrationWorkspaceView(
-                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+                new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
 
@@ -266,7 +263,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             var service = new FakeAdministrationService { NeedsElevation = true };
             var view = new AdministrationWorkspaceView(
-                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+                new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
 
@@ -306,7 +303,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                     new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(4613, "Grantor does not have GRANT permission.", State: 1, Class: 16, Procedure: "", Line: 1))
             };
             var view = new AdministrationWorkspaceView(
-                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+                new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
             Assert.True(view.CanSaveUserAccess);
@@ -340,7 +337,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             var service = new FakeAdministrationService { NeedsElevation = true };
             var view = new AdministrationWorkspaceView(
-                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+                new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
             var active = (CheckBox)view.FindName("UserActiveInput");
@@ -393,7 +390,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                     new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(4613, "Grantor does not have GRANT permission.", State: 1, Class: 16, Procedure: "", Line: 1))
             };
             var view = new AdministrationWorkspaceView(
-                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+                new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
             ((TextBox)view.FindName("UserIdentityInput")).Text = @"WORKPC\Clerk";

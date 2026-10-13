@@ -241,8 +241,8 @@ public sealed class BlankDailySheetTests
 
     private static ImportWorkspaceView CreateView(bool canImport)
     {
-        var coordinator = new DesktopImportCoordinator(_ => throw new InvalidOperationException("No database in this test."));
-        var view = new ImportWorkspaceView(coordinator, () => "synthetic");
+        var coordinator = new DesktopImportCoordinator(() => throw new InvalidOperationException("No database in this test."));
+        var view = new ImportWorkspaceView(coordinator);
         view.AttachHost(() => new(canImport, false), () => Task.FromResult(new ImportWorkspaceAccess(canImport, false)),
             (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
         return view;

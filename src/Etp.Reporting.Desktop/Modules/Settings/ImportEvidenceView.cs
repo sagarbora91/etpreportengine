@@ -24,9 +24,8 @@ public sealed class ImportEvidenceView : UserControl
     public const string BusySummaryText = "An import is running, so the evidence size cannot be read yet. Use \"Refresh evidence size\" when it finishes.";
     public const string BusyWalkText = "An import is running, so the earlier imports cannot be listed yet. Nothing was changed; start \"" + KeepEarlierSourcesText + "\" again when it finishes.";
 
-    private readonly Func<string> connectionString;
     private readonly Func<bool> canAdminister;
-    private readonly Func<string, ImportEvidenceService> serviceFactory;
+    private readonly Func<ImportEvidenceService> serviceFactory;
     private readonly Func<IReadOnlyList<string>?> chooseFolders;
     private readonly TextBlock size = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 6) };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
@@ -38,12 +37,12 @@ public sealed class ImportEvidenceView : UserControl
     private bool busy;
     private bool loaded;
 
-    public ImportEvidenceView(Func<string> connectionString, Func<bool> canAdminister,
-        Func<string, ImportEvidenceService>? serviceFactory = null, Func<IReadOnlyList<string>?>? chooseFolders = null)
+    /// <param name="serviceFactory">The evidence service, built by whoever hosts the view (1.12 A1: never a connection string).</param>
+    public ImportEvidenceView(Func<ImportEvidenceService> serviceFactory, Func<bool> canAdminister,
+        Func<IReadOnlyList<string>?>? chooseFolders = null)
     {
-        this.connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         this.canAdminister = canAdminister ?? throw new ArgumentNullException(nameof(canAdminister));
-        this.serviceFactory = serviceFactory ?? (value => new SqlServerImportEvidenceService(value));
         this.chooseFolders = chooseFolders ?? ChooseFolders;
         AutomationProperties.SetName(size, "Database evidence size");
         AutomationProperties.SetName(status, "Source file evidence status");
@@ -110,7 +109,7 @@ public sealed class ImportEvidenceView : UserControl
 
     private async Task LoadSummaryAsync()
     {
-        try { size.Text = Describe(await serviceFactory(connectionString()).LoadSummaryAsync()); }
+        try { size.Text = Describe(await serviceFactory().LoadSummaryAsync()); }
         catch (ImportEvidenceBusyException) { size.Text = BusySummaryText; return; }
         loaded = true;
     }
@@ -120,7 +119,7 @@ public sealed class ImportEvidenceView : UserControl
         if (!canAdminister()) { status.Text = "Owner permission is required."; return; }
         var folders = chooseFolders();
         if (folders is not { Count: > 0 }) { status.Text = "No folder was chosen. Nothing changed."; return; }
-        var service = serviceFactory(connectionString());
+        var service = serviceFactory();
         status.Text = "Hashing source files…";
         using var cancellation = new CancellationTokenSource();
         walk = cancellation;

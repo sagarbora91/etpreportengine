@@ -8,7 +8,7 @@ namespace Etp.Reporting.Desktop.Modules.Settings;
 /// <summary>The reporting masters used by the imports and report queries.</summary>
 public sealed class DataTruthMastersView : UserControl
 {
-    private readonly Func<string> connectionString;
+    private readonly Func<DataTruthMasterRepository> repository;
     private readonly Func<bool> canAdminister;
     private readonly DataGrid tenders = Table();
     private readonly DataGrid staff = Table();
@@ -23,9 +23,10 @@ public sealed class DataTruthMastersView : UserControl
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
     private bool busy;
 
-    public DataTruthMastersView(Func<string> connectionString, Func<bool> canAdminister)
+    /// <param name="repository">The reporting-masters store, built by whoever hosts the view (1.12 A1: never a connection string).</param>
+    public DataTruthMastersView(Func<DataTruthMasterRepository> repository, Func<bool> canAdminister)
     {
-        this.connectionString = connectionString;
+        this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         this.canAdminister = canAdminister;
         System.Windows.Automation.AutomationProperties.SetName(tenders, "Tender modes");
         System.Windows.Automation.AutomationProperties.SetName(staff, "Staff master");
@@ -76,7 +77,7 @@ public sealed class DataTruthMastersView : UserControl
         Loaded += async (_, _) => await RunAsync(RefreshDataAsync);
     }
 
-    private DataTruthMasterRepository Repository => new(connectionString());
+    private DataTruthMasterRepository Repository => repository();
     private async Task RefreshDataAsync()
     {
         var repository = Repository;

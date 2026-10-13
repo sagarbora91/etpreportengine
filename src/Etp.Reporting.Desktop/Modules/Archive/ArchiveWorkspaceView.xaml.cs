@@ -21,7 +21,6 @@ public delegate Task ExportArchivedReportAsync(string filePath, ReportPackDocume
 public sealed partial class ArchiveWorkspaceView : UserControl
 {
     private readonly ArchiveDistributionPresentationSession session;
-    private readonly Func<string> connectionStringProvider;
     private readonly ExportArchivedReportAsync exportExcelAsync;
     private readonly ExportArchivedReportAsync exportPdfAsync;
     private readonly IArchiveShareLauncher shareLauncher;
@@ -32,13 +31,11 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     public ArchiveWorkspaceView(
         ArchiveDistributionPresentationSession session,
-        Func<string> connectionStringProvider,
         ExportArchivedReportAsync exportExcelAsync,
         ExportArchivedReportAsync exportPdfAsync,
         IArchiveShareLauncher shareLauncher)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.exportExcelAsync = exportExcelAsync ?? throw new ArgumentNullException(nameof(exportExcelAsync));
         this.exportPdfAsync = exportPdfAsync ?? throw new ArgumentNullException(nameof(exportPdfAsync));
         this.shareLauncher = shareLauncher ?? throw new ArgumentNullException(nameof(shareLauncher));
@@ -88,7 +85,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             var date = ArchiveAllDatesInput.IsChecked == true || ArchiveDateInput.SelectedDate is null
                 ? (DateOnly?)null
                 : DateOnly.FromDateTime(ArchiveDateInput.SelectedDate.Value);
-            var rows = await session.SearchAsync(connectionStringProvider(), new ReportArchiveSearch(store, date));
+            var rows = await session.SearchAsync(new ReportArchiveSearch(store, date));
             if (revision != archiveRefreshRevision) return;
             archiveRows = rows; ApplyArchiveFilter();
             ReportArchiveDetailGrid.ItemsSource = null;
@@ -105,7 +102,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             RequireViewAccess();
             if (ReportGenerationGrid.SelectedItem is not ArchivedReportGenerationSummary generation)
                 throw new InvalidOperationException("Select one report generation.");
-            var opened = await session.OpenAsync(connectionStringProvider(), generation);
+            var opened = await session.OpenAsync(generation);
             ReportArchiveDetailGrid.ItemsSource = opened.Sections;
             SetStatus($"Generation {generation.GenerationNumber} passed its document SHA-256 check and is ready to re-export.");
             await auditRecorder("ReportArchive", "Succeeded", "Archived report opened");
@@ -120,7 +117,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         try
         {
             RequireViewAccess();
-            var document = (await session.OpenAsync(connectionStringProvider(), SelectedArchiveGeneration())).Document;
+            var document = (await session.OpenAsync(SelectedArchiveGeneration())).Document;
             var dialog = ExportSaveDialog.Create(ExportSaveDialog.ExcelFilter, $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.xlsx");
             if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
             exportInProgress = true;
@@ -139,7 +136,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         try
         {
             RequireViewAccess();
-            var document = (await session.OpenAsync(connectionStringProvider(), SelectedArchiveGeneration())).Document;
+            var document = (await session.OpenAsync(SelectedArchiveGeneration())).Document;
             var dialog = ExportSaveDialog.Create(ExportSaveDialog.PdfFilter, $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.pdf");
             if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
             exportInProgress = true;
@@ -160,8 +157,8 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             var generation = SelectedArchiveGeneration();
             var dialog = ExportSaveDialog.Create(ExportSaveDialog.ZipFilter, $"ETP_ReportPack_{generation.BusinessDate:yyyy-MM-dd}_Gen{generation.GenerationNumber:D2}.zip");
             if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
-            await session.OpenAsync(connectionStringProvider(), generation);
-            var result = await session.CreatePackageAsync(connectionStringProvider(), generation, dialog.FileName, accessProvider().DisplayName);
+            await session.OpenAsync(generation);
+            var result = await session.CreatePackageAsync(generation, dialog.FileName, accessProvider().DisplayName);
             SetStatus($"saved ZIP package created. SHA-256 {result.Sha256[..12]}…");
         }
         catch (Exception ex) { HandleFailure(ex, "ARCHIVED_ZIP_CREATE_FAILED", "Archived ZIP package was not created"); }
@@ -174,23 +171,23 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         {
             RequireViewAccess();
             var generation = SelectedArchiveGeneration();
-            var shareFile = await session.PreparePdfAsync(connectionStringProvider(), generation.Id);
+            var shareFile = await session.PreparePdfAsync(generation.Id);
             var attemptKey = Guid.NewGuid();
-            await session.RecordAttemptAsync(connectionStringProvider(), new RecordDistributionAttempt(generation.Id, null,
+            await session.RecordAttemptAsync(new RecordDistributionAttempt(generation.Id, null,
                 "WHATSAPP", "Configured phone", shareFile, "INITIATED", "Preparing the manual WhatsApp handoff; no delivery is claimed.", attemptKey));
             try
             {
                 // Decision 45 #4 (OUT-13): the message is for the reader (shop, day, verdict, sales); attaching is the sender's step and stays in the status line.
-                var message = ReportPackShareText.WhatsAppMessage((await session.OpenAsync(connectionStringProvider(), generation)).Document, generation.GenerationNumber);
+                var message = ReportPackShareText.WhatsAppMessage((await session.OpenAsync(generation)).Document, generation.GenerationNumber);
                 shareLauncher.OpenWhatsApp(shareFile, message, SharePhoneInput.Text);
             }
             catch
             {
-                await session.RecordAttemptAsync(connectionStringProvider(), new RecordDistributionAttempt(generation.Id, null,
+                await session.RecordAttemptAsync(new RecordDistributionAttempt(generation.Id, null,
                     "WHATSAPP", "Configured phone", shareFile, "FAILED", "WhatsApp handoff could not be completed. Install WhatsApp Desktop and retry; no delivery is claimed.", attemptKey));
                 throw;
             }
-            await session.RecordAttemptAsync(connectionStringProvider(), new RecordDistributionAttempt(generation.Id, null,
+            await session.RecordAttemptAsync(new RecordDistributionAttempt(generation.Id, null,
                 "WHATSAPP", "Configured phone", shareFile, "HANDOFF_READY", "PDF path copied and WhatsApp Desktop opened. Attach and send it manually; delivery is not confirmed.", attemptKey));
             SetStatus("WhatsApp Desktop opened and the PDF path was copied. Paste that path into the attachment chooser, then send the PDF yourself. Delivery is not confirmed.");
             await RefreshSharingHistoryAsync(generation.Id);
@@ -208,8 +205,8 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             if (string.IsNullOrWhiteSpace(ShareEmailToInput.Text)) throw new InvalidOperationException("Enter the email recipient.");
             if (!ConfirmationSheet.Show(this, "Send report email", $"Send generation {generation.GenerationNumber} as a PDF to {ShareEmailToInput.Text}" +
                 (string.IsNullOrWhiteSpace(ShareEmailCcInput.Text) ? "?" : $" (CC: {ShareEmailCcInput.Text})?"))) return;
-            var shareFile = await session.PreparePdfAsync(connectionStringProvider(), generation.Id);
-            var result = await session.SendEmailAsync(connectionStringProvider(), new(generation.Id, shareFile, ShareEmailToInput.Text, ShareEmailCcInput.Text));
+            var shareFile = await session.PreparePdfAsync(generation.Id);
+            var result = await session.SendEmailAsync(new(generation.Id, shareFile, ShareEmailToInput.Text, ShareEmailCcInput.Text));
             SetStatus(result.Message);
             await RefreshSharingHistoryAsync(generation.Id);
         }
@@ -224,7 +221,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             RequireOwnerAccess();
             if (string.IsNullOrWhiteSpace(ShareEmailToInput.Text)) throw new InvalidOperationException("Enter the test email recipient above.");
             if (!ConfirmationSheet.Show(this, "Send test email", $"Send one test email with no report attachment to {ShareEmailToInput.Text}?")) return;
-            SetStatus((await session.TestEmailAsync(connectionStringProvider(), ShareEmailToInput.Text)).Message);
+            SetStatus((await session.TestEmailAsync(ShareEmailToInput.Text)).Message);
         }
         catch (Exception ex) { HandleFailure(ex, "SMTP_TEST_FAILED", "SMTP test did not finish"); }
     }
@@ -237,7 +234,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         try
         {
             RequireViewAccess();
-            await session.SaveSmtpCredentialsAsync(connectionStringProvider(), clear ? "" : SmtpUserInput.Text, clear ? "" : SmtpPasswordInput.Password);
+            await session.SaveSmtpCredentialsAsync(clear ? "" : SmtpUserInput.Text, clear ? "" : SmtpPasswordInput.Password);
             SmtpPasswordInput.Clear();
             if (clear) SmtpUserInput.Clear();
             SetStatus(clear ? "This Windows user's saved SMTP credentials were cleared." : "SMTP credentials saved, protected for this Windows user. They apply to the current saved host, port and sender.");
@@ -254,7 +251,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
     {
         try
         {
-            var rows = await session.LoadHistoryAsync(connectionStringProvider(), generationId);
+            var rows = await session.LoadHistoryAsync(generationId);
             if (ReportGenerationGrid.SelectedItem is ArchivedReportGenerationSummary selected && selected.Id == generationId)
                 ShareHistoryGrid.ItemsSource = rows;
         }
@@ -305,7 +302,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
                 ApplyContacts([]);
                 return;
             }
-            ApplyContacts(await session.LoadContactsAsync(connectionStringProvider()));
+            ApplyContacts(await session.LoadContactsAsync());
         }
         catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACTS_LOAD_FAILED", "Sharing contacts could not be loaded"); }
     }
@@ -330,7 +327,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             RequireOwnerAccess();
             var row = new SharingContactDraft(editingContact, ContactNameInput.Text, ContactRoleInput.Text,
                 ContactEmailInput.Text, ContactPhoneInput.Text, ContactSubscriptionsInput.Text, ContactActiveInput.IsChecked == true);
-            var id = await session.SaveContactAsync(connectionStringProvider(), row, ContactReasonInput.Text);
+            var id = await session.SaveContactAsync(row, ContactReasonInput.Text);
             ContactReasonInput.Clear();
             contactDrafts.Remove(editingContact); editingContact = id; contactBaselines[id] = CaptureContact();
             SetStatus($"Sharing contact {id:N0} saved with audit history.");

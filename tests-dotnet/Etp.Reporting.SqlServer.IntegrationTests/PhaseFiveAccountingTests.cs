@@ -41,7 +41,7 @@ public sealed class PhaseFiveAccountingTests
 
             RunSta(() =>
             {
-                var view = new AccountingWorkspaceView(new AccountingPresentationSession(_ => service), () => database.ConnectionString);
+                var view = new AccountingWorkspaceView(new AccountingPresentationSession(() => service));
                 view.AttachHost(() => new AccessSession("synthetic", "Fixture Owner", AccessRole.Owner, true), exception => exception.Message);
                 ((TextBox)view.FindName("AccountingStoreInput")).Text = scope.StoreCode;
                 view.BusinessDate = scope.BusinessDate.ToDateTime(TimeOnly.MinValue);

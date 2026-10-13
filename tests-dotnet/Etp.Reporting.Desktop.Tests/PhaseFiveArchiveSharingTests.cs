@@ -17,9 +17,9 @@ public sealed class PhaseFiveArchiveSharingTests
             {
                 var access = new AccessSession("fixture", "Not loaded", AccessRole.None, false);
                 var view = new ArchiveWorkspaceView(new ArchiveDistributionPresentationSession(
-                    _ => throw new InvalidOperationException("No archive fixture"),
-                    _ => throw new InvalidOperationException("No contacts fixture"),
-                    _ => throw new InvalidOperationException("No distribution fixture")), () => "synthetic",
+                    () => throw new InvalidOperationException("No archive fixture"),
+                    () => throw new InvalidOperationException("No contacts fixture"),
+                    () => throw new InvalidOperationException("No distribution fixture")),
                     (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, new NoSharing());
                 view.AttachHost(() => access, (_, _, _) => Task.CompletedTask, exception => exception.Message);
                 var button = (Button)view.FindName("TestSmtpButton");
@@ -63,9 +63,9 @@ public sealed class PhaseFiveArchiveSharingTests
                 var contactLoads = 0;
                 var messages = new List<string>();
                 var view = new ArchiveWorkspaceView(new ArchiveDistributionPresentationSession(
-                    _ => throw new InvalidOperationException("No archive fixture"),
-                    _ => { contactLoads++; throw new InvalidOperationException("Denied like 0059"); },
-                    _ => throw new InvalidOperationException("No distribution fixture")), () => "synthetic",
+                    () => throw new InvalidOperationException("No archive fixture"),
+                    () => { contactLoads++; throw new InvalidOperationException("Denied like 0059"); },
+                    () => throw new InvalidOperationException("No distribution fixture")),
                     (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, new NoSharing());
                 view.NotificationRequested += (_, message) => messages.Add(message);
                 var access = new AccessSession("fixture", "Viewer", AccessRole.Viewer, true);

@@ -19,7 +19,7 @@ public sealed class EveningReportInteractionTests
         RunSta(async () =>
         {
             var calls = 0;
-            var view = CreateView((_, store, _, _) =>
+            var view = CreateView((store, _, _) =>
             {
                 calls++;
                 return Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store));
@@ -53,7 +53,7 @@ public sealed class EveningReportInteractionTests
     {
         RunSta(async () =>
         {
-            var view = CreateView((_, store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(
+            var view = CreateView((store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(
                 CashDays(store).Select(day => day with { Expenses = 1234567.125m }).ToArray()));
             FrameworkElement? preview = null;
             view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask,
@@ -101,7 +101,7 @@ public sealed class EveningReportInteractionTests
     {
         RunSta(async () =>
         {
-            var view = CreateView((_, _, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>([]));
+            var view = CreateView((_, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>([]));
             FrameworkElement? preview = null;
             view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask,
                 (snapshot, rows, _) => preview = (FrameworkElement)ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport!, rows),
@@ -196,7 +196,7 @@ public sealed class EveningReportInteractionTests
         RunSta(async () =>
         {
             string? loadedStore = null;
-            var view = CreateView((_, store, _, _) => { loadedStore = store; return Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store)); });
+            var view = CreateView((store, _, _) => { loadedStore = store; return Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store)); });
             view.SetStores(TestStoreCatalog.Create());
             view.ApplyScope(new(2026, 8, 24), new(2026, 8, 25), requested);
             await view.RunReportAsync("cash");
@@ -224,12 +224,12 @@ public sealed class EveningReportInteractionTests
         Assert.Contains(TaskNavigation.Search(label, ShellAccess.StoreManager), x => x.ReportCode == code);
     }
 
-    private static ReportsWorkspaceView CreateView(Func<string, string, DateOnly, DateOnly, Task<IReadOnlyList<CashBookDay>>>? cash = null)
+    private static ReportsWorkspaceView CreateView(Func<string, DateOnly, DateOnly, Task<IReadOnlyList<CashBookDay>>>? cash = null)
     {
         var query = new OperationalQuery();
-        var view = new ReportsWorkspaceView(() => "synthetic", _ => throw new NotSupportedException(), _ => query,
-            _ => throw new NotSupportedException(), new ReportExportCoordinator(), new UnusedDiagnostic(),
-            cash ?? ((_, store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store))));
+        var view = new ReportsWorkspaceView(() => throw new NotSupportedException(), () => query,
+            () => throw new NotSupportedException(), new ReportExportCoordinator(), new UnusedDiagnostic(),
+            cash ?? ((store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store))));
         view.SetStores(TestStoreCatalog.Create());
         view.ApplyScope(new(2026, 8, 24), new(2026, 8, 25), "Titan World");
         return view;

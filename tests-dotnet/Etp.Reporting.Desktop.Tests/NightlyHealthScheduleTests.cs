@@ -1,4 +1,5 @@
 using Etp.Reporting.Desktop.Modules.HealthCheck;
+using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 
 namespace Etp.Reporting.Desktop.Tests;
 

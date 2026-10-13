@@ -2,19 +2,33 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.Data.SqlClient;
-using Etp.Reporting.Desktop.Modules.Settings;
+using Etp.Reporting.Infrastructure.SqlServer.Connections;
 
 namespace Etp.Reporting.Desktop;
 
 internal sealed record PowerShellOperationResult(bool Succeeded, string Message);
+
+/// <summary>
+/// The database a maintenance script works on: the instance and the database name, nothing else (no credentials, no
+/// options). Built from the connection factory (1.12 A1), so the target has already passed the endpoint policy.
+/// The scripts keep their own local-only rule (<c>Assert-EtpLocalSqlTarget</c>): they run only on the database host.
+/// </summary>
+internal sealed record MaintenanceTarget(string ServerInstance, string Database)
+{
+    public static MaintenanceTarget For(IEtpConnectionFactory connections)
+    {
+        ArgumentNullException.ThrowIfNull(connections);
+        using var connection = connections.Create();
+        return new(connection.DataSource, connections.DatabaseName);
+    }
+}
 
 internal static class PowerShellOperationsService
 {
     private static readonly HashSet<string> AllowedScripts = new(StringComparer.OrdinalIgnoreCase)
         { "backup-etp-database.ps1", "invoke-etp-recovery-drill.ps1", "new-etp-support-package.ps1" };
 
-    public static async Task<PowerShellOperationResult> RunAsync(string scriptName, string connectionString, CancellationToken cancellationToken = default)
+    public static async Task<PowerShellOperationResult> RunAsync(string scriptName, MaintenanceTarget target, CancellationToken cancellationToken = default)
     {
         if (!AllowedScripts.Contains(scriptName)) throw new ArgumentException("This maintenance operation is not approved.", nameof(scriptName));
         var script = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "scripts", scriptName));
@@ -48,7 +62,7 @@ internal static class PowerShellOperationsService
         process.StartInfo.ArgumentList.Add("RemoteSigned");
         process.StartInfo.ArgumentList.Add("-File");
         process.StartInfo.ArgumentList.Add(script);
-        AddDatabaseArguments(process.StartInfo, connectionString);
+        AddDatabaseArguments(process.StartInfo, target);
         if (!process.Start()) throw new InvalidOperationException("The maintenance operation could not be started.");
         var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -66,15 +80,15 @@ internal static class PowerShellOperationsService
         return outcome.Result;
     }
 
-    internal static void AddDatabaseArguments(ProcessStartInfo startInfo, string connectionString)
+    internal static void AddDatabaseArguments(ProcessStartInfo startInfo, MaintenanceTarget target)
     {
-        var validation = ConnectionStringValidation.Validate(connectionString);
-        if (!validation.IsValid) throw new InvalidOperationException(validation.Error);
-        var target = new SqlConnectionStringBuilder(validation.ConnectionString);
-        if (!System.Text.RegularExpressions.Regex.IsMatch(target.InitialCatalog, "^[A-Za-z0-9_]+$"))
+        ArgumentNullException.ThrowIfNull(target);
+        if (string.IsNullOrWhiteSpace(target.ServerInstance))
+            throw new InvalidOperationException("Maintenance requires a SQL Server instance.");
+        if (target.Database is null || !System.Text.RegularExpressions.Regex.IsMatch(target.Database, "^[A-Za-z0-9_]+$"))
             throw new InvalidOperationException("Maintenance requires a database name containing letters, numbers or underscores.");
-        startInfo.ArgumentList.Add("-ServerInstance"); startInfo.ArgumentList.Add(target.DataSource);
-        startInfo.ArgumentList.Add("-Database"); startInfo.ArgumentList.Add(target.InitialCatalog);
+        startInfo.ArgumentList.Add("-ServerInstance"); startInfo.ArgumentList.Add(target.ServerInstance);
+        startInfo.ArgumentList.Add("-Database"); startInfo.ArgumentList.Add(target.Database);
     }
 
 }

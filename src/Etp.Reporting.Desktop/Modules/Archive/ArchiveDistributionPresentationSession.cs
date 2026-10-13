@@ -28,17 +28,17 @@ public sealed record OpenedArchivedGeneration(
 
 public sealed class ArchiveDistributionPresentationSession
 {
-    private readonly Func<string, ReportArchiveQuery> archiveFactory;
-    private readonly Func<string, SharingContactsService> contactsFactory;
-    private readonly Func<string, ReportDistributionService> distributionFactory;
+    private readonly Func<ReportArchiveQuery> archiveFactory;
+    private readonly Func<SharingContactsService> contactsFactory;
+    private readonly Func<ReportDistributionService> distributionFactory;
     private readonly Func<string, bool> fileExists;
     private long? openGenerationId;
     private long? shareGenerationId;
 
     public ArchiveDistributionPresentationSession(
-        Func<string, ReportArchiveQuery> archiveFactory,
-        Func<string, SharingContactsService> contactsFactory,
-        Func<string, ReportDistributionService> distributionFactory,
+        Func<ReportArchiveQuery> archiveFactory,
+        Func<SharingContactsService> contactsFactory,
+        Func<ReportDistributionService> distributionFactory,
         Func<string, bool>? fileExists = null)
     {
         this.archiveFactory = archiveFactory ?? throw new ArgumentNullException(nameof(archiveFactory));
@@ -51,23 +51,21 @@ public sealed class ArchiveDistributionPresentationSession
     public string? CurrentShareFile { get; private set; }
 
     public async Task<IReadOnlyList<ArchivedReportGenerationSummary>> SearchAsync(
-        string connectionString,
         ReportArchiveSearch search,
         CancellationToken cancellationToken = default)
     {
         ClearOpenedGeneration();
-        var rows = await archiveFactory(connectionString).SearchAsync(search, cancellationToken).ConfigureAwait(false);
+        var rows = await archiveFactory().SearchAsync(search, cancellationToken).ConfigureAwait(false);
         return rows;
     }
 
     public async Task<OpenedArchivedGeneration> OpenAsync(
-        string connectionString,
         ArchivedReportGenerationSummary generation,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(generation);
         ClearOpenedGeneration();
-        var document = await archiveFactory(connectionString).OpenAsync(generation.Id, cancellationToken).ConfigureAwait(false);
+        var document = await archiveFactory().OpenAsync(generation.Id, cancellationToken).ConfigureAwait(false);
         CurrentDocument = document;
         openGenerationId = generation.Id;
         ClearShareFile();
@@ -86,7 +84,6 @@ public sealed class ArchiveDistributionPresentationSession
     }
 
     public async Task<ReportPackageReceipt> CreatePackageAsync(
-        string connectionString,
         ArchivedReportGenerationSummary generation,
         string outputPath,
         string createdBy,
@@ -96,7 +93,7 @@ public sealed class ArchiveDistributionPresentationSession
         if (CurrentDocument is null || openGenerationId != generation.Id)
             throw new InvalidOperationException("Open the selected generation before packaging it.");
 
-        var receipt = await distributionFactory(connectionString).CreatePackageAsync(
+        var receipt = await distributionFactory().CreatePackageAsync(
             new CreateReportPackage(generation.Id, outputPath, CurrentDocument, generation.GenerationNumber,
                 generation.StoreCode, generation.IsFinal, createdBy), cancellationToken).ConfigureAwait(false);
         CurrentShareFile = receipt.Path;
@@ -113,42 +110,38 @@ public sealed class ArchiveDistributionPresentationSession
     }
 
     public async Task<EmailAttachmentPolicy> ValidateEmailAttachmentAsync(
-        string connectionString,
         ArchivedReportGenerationSummary generation,
         CancellationToken cancellationToken = default)
     {
         var shareFile = ShareFileFor(generation);
-        return await distributionFactory(connectionString).ValidateEmailAttachmentAsync(shareFile, cancellationToken).ConfigureAwait(false);
+        return await distributionFactory().ValidateEmailAttachmentAsync(shareFile, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<string> PreparePdfAsync(string connectionString, long generationId, CancellationToken token = default) =>
-        distributionFactory(connectionString).PreparePdfAsync(generationId, token);
-    public Task<EmailSendResult> SendEmailAsync(string connectionString, SendReportEmail command, CancellationToken token = default) =>
-        distributionFactory(connectionString).SendEmailAsync(command, token);
-    public Task<EmailSendResult> TestEmailAsync(string connectionString, string recipient, CancellationToken token = default) =>
-        distributionFactory(connectionString).TestEmailAsync(recipient, token);
-    public Task SaveSmtpCredentialsAsync(string connectionString, string userName, string password, CancellationToken token = default) =>
-        distributionFactory(connectionString).SaveSmtpCredentialsAsync(userName, password, token);
-    public Task<IReadOnlyList<ShareDeliveryHistory>> LoadHistoryAsync(string connectionString, long generationId, CancellationToken token = default) =>
-        distributionFactory(connectionString).LoadHistoryAsync(generationId, token);
+    public Task<string> PreparePdfAsync(long generationId, CancellationToken token = default) =>
+        distributionFactory().PreparePdfAsync(generationId, token);
+    public Task<EmailSendResult> SendEmailAsync(SendReportEmail command, CancellationToken token = default) =>
+        distributionFactory().SendEmailAsync(command, token);
+    public Task<EmailSendResult> TestEmailAsync(string recipient, CancellationToken token = default) =>
+        distributionFactory().TestEmailAsync(recipient, token);
+    public Task SaveSmtpCredentialsAsync(string userName, string password, CancellationToken token = default) =>
+        distributionFactory().SaveSmtpCredentialsAsync(userName, password, token);
+    public Task<IReadOnlyList<ShareDeliveryHistory>> LoadHistoryAsync(long generationId, CancellationToken token = default) =>
+        distributionFactory().LoadHistoryAsync(generationId, token);
 
     public Task RecordAttemptAsync(
-        string connectionString,
         RecordDistributionAttempt command,
         CancellationToken cancellationToken = default) =>
-        distributionFactory(connectionString).RecordAttemptAsync(command, cancellationToken);
+        distributionFactory().RecordAttemptAsync(command, cancellationToken);
 
     public Task<IReadOnlyList<SharingContact>> LoadContactsAsync(
-        string connectionString,
         CancellationToken cancellationToken = default) =>
-        contactsFactory(connectionString).LoadAsync(cancellationToken);
+        contactsFactory().LoadAsync(cancellationToken);
 
     public Task<int> SaveContactAsync(
-        string connectionString,
         SharingContactDraft contact,
         string reason,
         CancellationToken cancellationToken = default) =>
-        contactsFactory(connectionString).SaveAsync(contact, reason, cancellationToken);
+        contactsFactory().SaveAsync(contact, reason, cancellationToken);
 
     private void ClearOpenedGeneration()
     {

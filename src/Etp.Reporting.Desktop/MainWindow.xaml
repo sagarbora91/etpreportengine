@@ -34,11 +34,16 @@
      <ComboBoxItem Content="All stores" Tag=""/>
     </ComboBox>
    </Grid>
-   <!-- Match the header's 8 DIP inset. Without it the workspace ran flush into the
-        window edge, so right-docked buttons sat hard against the border. -->
-   <Border x:Name="FocusedWorkspaceLayer" Grid.Row="1" Background="{DynamicResource AppBackground}" Padding="8,0">
-    <ContentControl x:Name="FocusedWorkspaceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
-   </Border>
+   <DockPanel Grid.Row="1" LastChildFill="True">
+    <!-- 1.12 (A1 seam): one shell-wide notice above every screen (update ready, shop result waiting, ...). Empty and
+         collapsed until a wave-2 lane shows an IShellBanner through ShellBannerHost (Shell/IShellBanner.cs). -->
+    <ContentControl x:Name="ShellBannerHost" DockPanel.Dock="Top" Margin="8,4,8,0" Visibility="Collapsed" Focusable="False" HorizontalContentAlignment="Stretch" automation:AutomationProperties.Name="Notice"/>
+    <!-- Match the header's 8 DIP inset. Without it the workspace ran flush into the
+         window edge, so right-docked buttons sat hard against the border. -->
+    <Border x:Name="FocusedWorkspaceLayer" Background="{DynamicResource AppBackground}" Padding="8,0">
+     <ContentControl x:Name="FocusedWorkspaceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+    </Border>
+   </DockPanel>
    <Border x:Name="StatusFooter" Grid.Row="2" Background="{DynamicResource Surface}" Padding="8,0" Focusable="True" automation:AutomationProperties.Name="Application status">
     <DockPanel>
      <TextBlock x:Name="StatusOverflowSummary" DockPanel.Dock="Right" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" TextWrapping="NoWrap" automation:AutomationProperties.Name="Hidden status lines"/>
