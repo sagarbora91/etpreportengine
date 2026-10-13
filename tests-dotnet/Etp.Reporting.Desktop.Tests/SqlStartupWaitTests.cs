@@ -105,7 +105,7 @@ public sealed class SqlStartupWaitTests
         var fake = new Fake();
         fake.Script.Enqueue(Sql(number));
 
-        await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(fake.Wait);
+        await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => fake.Wait());
 
         Assert.Equal(1, fake.Probes);
         Assert.Empty(fake.Log);
@@ -118,7 +118,7 @@ public sealed class SqlStartupWaitTests
         var fake = new Fake();
         fake.Script.Enqueue(new InvalidOperationException("Configure the protected machine database target."));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(fake.Wait);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fake.Wait());
 
         Assert.Equal(1, fake.Probes);
     }
@@ -130,8 +130,7 @@ public sealed class SqlStartupWaitTests
 
         Assert.StartsWith("ETP-STARTUP-FAILED mode=automation-once kind=ServerUnreachable sql=-1: ", line);
         Assert.EndsWith("(waited 120 s)", line);
-        Assert.DoesNotContain('
-', line);
+        Assert.DoesNotContain('\n', line);
     }
 
     [Theory]

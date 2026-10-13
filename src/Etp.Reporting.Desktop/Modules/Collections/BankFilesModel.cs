@@ -1,4 +1,5 @@
 extern alias EtpApplication;
+using System.IO;
 
 using EtpApplication::Etp.Reporting.Application.Collections;
 

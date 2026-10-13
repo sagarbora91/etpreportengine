@@ -60,7 +60,7 @@ public sealed partial class SqlServerImportSourceLocationStore(IEtpConnectionFac
                      @ref,@name,@sha,@path,@route;
             END
             """;
-        await using var connection = await connections.OpenAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct: cancellationToken).ConfigureAwait(false);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         foreach (var row in rows)
         {
@@ -92,7 +92,7 @@ public sealed partial class SqlServerImportSourceLocationStore(IEtpConnectionFac
                 ORDER BY routed_utc DESC,import_source_location_id DESC;
             END
             """;
-        await using var connection = await connections.OpenAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct: cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.Add("@sha", SqlDbType.Char, 64).Value = NormalisedSha(sourceSha256) is { } sha ? sha : (object)DBNull.Value;
         command.Parameters.Add("@name", SqlDbType.NVarChar, FileNameLength).Value = Path.GetFileName((fileName ?? "").Trim());

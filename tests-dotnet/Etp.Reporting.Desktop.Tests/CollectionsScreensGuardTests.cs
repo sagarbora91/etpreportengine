@@ -43,7 +43,7 @@ public sealed class CollectionsScreensGuardTests
     {
         var folder = Path.Combine(RepositoryRoot(), "src", "Etp.Reporting.Desktop", "Modules", "Collections");
         var users = Directory.GetFiles(folder, "*.cs").Where(file => File.ReadAllText(file).Contains("LoadProposalsAsync", StringComparison.Ordinal))
-            .Select(Path.GetFileName).ToArray();
+            .Select(file => Path.GetFileName(file)).ToArray();
         Assert.Equal(["DepositsInTransitModel.cs"], users);
         Assert.Contains("CanAccept ? await service().LoadProposalsAsync", File.ReadAllText(Path.Combine(folder, "DepositsInTransitModel.cs")), StringComparison.Ordinal);
     }

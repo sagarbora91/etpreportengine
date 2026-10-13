@@ -209,7 +209,7 @@ public sealed class DailyReadinessQueryTests
         foreach (var verb in new[] { "INSERT", "UPDATE", "DELETE", "MERGE" })
             Assert.DoesNotContain(verb, sql, StringComparison.OrdinalIgnoreCase);
         // The only EXECUTE is the catalogue read through sp_executesql (a missing column cannot be compiled).
-        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(sql, @"\bEXEC(UTE)?\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(sql, @"\bEXEC(UTE)?\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
         Assert.Contains("EXECUTE sys.sp_executesql @catalogue;", sql, StringComparison.Ordinal);
     }
 

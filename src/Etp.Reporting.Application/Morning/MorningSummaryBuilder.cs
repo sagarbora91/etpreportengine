@@ -55,7 +55,7 @@ public static class MorningSummaryBuilder
 
     // ------------------------------------------------------------------ verdict
 
-    internal static (string Verdict, string Detail, MorningTone Tone) Verdict(DateOnly day, IReadOnlyList<MorningStoreCard> cards)
+    public static (string Verdict, string Detail, MorningTone Tone) Verdict(DateOnly day, IReadOnlyList<MorningStoreCard> cards)
     {
         var date = day.ToString("dddd dd MMM", English);
         if (cards.Count == 0) return ($"{date}: no active shop", "Add a shop in Settings > Stores to see it here.", MorningTone.Neutral);
@@ -79,7 +79,7 @@ public static class MorningSummaryBuilder
 
     // ------------------------------------------------------------------ store card
 
-    internal static MorningStoreCard Card(MorningStoreSource store, IReadOnlyList<MorningShopResult> results, TimeZoneInfo zone)
+    public static MorningStoreCard Card(MorningStoreSource store, IReadOnlyList<MorningShopResult> results, TimeZoneInfo zone)
     {
         ArgumentNullException.ThrowIfNull(store);
         var name = string.IsNullOrWhiteSpace(store.StoreName) ? store.StoreCode : store.StoreName.Trim();
@@ -126,7 +126,7 @@ public static class MorningSummaryBuilder
             : new(store.StoreCode, name, MorningStoreStatus.Blocked, "Blocked", MorningTone.Critical, lines, blockers, actions, null, canMark);
     }
 
-    internal static IReadOnlyList<string> Blockers(DailyWorkflowState workflow, IReadOnlyList<ImportHistoryEntry> refused)
+    public static IReadOnlyList<string> Blockers(DailyWorkflowState workflow, IReadOnlyList<ImportHistoryEntry> refused)
     {
         var result = new List<string>();
         var refusedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -176,7 +176,7 @@ public static class MorningSummaryBuilder
         _ => new("Checks", "Not run", MorningTone.Neutral, "Run when the files and entries are in")
     };
 
-    internal static MorningCardLine SentBack(MorningStoreSource store, IReadOnlyList<MorningShopResult> results, TimeZoneInfo zone)
+    public static MorningCardLine SentBack(MorningStoreSource store, IReadOnlyList<MorningShopResult> results, TimeZoneInfo zone)
     {
         var names = new HashSet<string>(store.Imports.Select(entry => entry.Result.FileName).Where(name => !string.IsNullOrWhiteSpace(name)), StringComparer.OrdinalIgnoreCase);
         var mine = results.Where(result => result.BusinessDate == store.Workflow?.BusinessDate || store.Workflow is null)
@@ -197,7 +197,7 @@ public static class MorningSummaryBuilder
 
     // ------------------------------------------------------------------ chips
 
-    internal static MorningChip SystemCheckChip(MorningSources sources, DateOnly today)
+    public static MorningChip SystemCheckChip(MorningSources sources, DateOnly today)
     {
         const string label = "System check";
         if (sources.NightlyUnreadable) return new(label, "Not read", MorningTone.Neutral, "The nightly check could not be read. Refresh to try again.", HealthCheckTask);
@@ -214,7 +214,7 @@ public static class MorningSummaryBuilder
         return new(label, "OK", MorningTone.Success, $"Last night's check passed ({total} checks).", HealthCheckTask);
     }
 
-    internal static MorningChip ShopFilesChip(MorningSources sources, TimeZoneInfo zone)
+    public static MorningChip ShopFilesChip(MorningSources sources, TimeZoneInfo zone)
     {
         const string label = "Shop files";
         if (sources.ImportsUnreadable) return new(label, "Not read", MorningTone.Neutral, "The import history could not be read. Refresh to try again.", ImportHistoryTask);
@@ -232,7 +232,7 @@ public static class MorningSummaryBuilder
         return new(label, "All in", MorningTone.Success, counts + sent, ImportHistoryTask);
     }
 
-    internal static MorningChip ServiceChip(IReadOnlyList<ServiceFreshnessChip>? freshness)
+    public static MorningChip ServiceChip(IReadOnlyList<ServiceFreshnessChip>? freshness)
     {
         const string label = "Service";
         if (freshness is null) return new(label, "Not read", MorningTone.Neutral, "Service freshness could not be read.", ServiceTodayTask);
@@ -252,7 +252,7 @@ public static class MorningSummaryBuilder
 
     // ------------------------------------------------------------------ month start and footer
 
-    internal static MorningMonthStartCard? MonthStartCard(MorningSources sources, DateOnly today)
+    public static MorningMonthStartCard? MonthStartCard(MorningSources sources, DateOnly today)
     {
         if (today.Day > MonthStartLastDay || sources.MonthStartMissing is not { Count: > 0 } missing) return null;
         var targets = missing.Where(item => item.Kind is DailyReadinessItemKind.MissingMonthlyTarget or DailyReadinessItemKind.MissingStaffTargets).ToArray();
@@ -265,7 +265,7 @@ public static class MorningSummaryBuilder
             codes, TargetsTask);
     }
 
-    internal static IReadOnlyList<MorningCardLine> Footer(MorningSources sources, DateTimeOffset nowUtc, TimeZoneInfo zone)
+    public static IReadOnlyList<MorningCardLine> Footer(MorningSources sources, DateTimeOffset nowUtc, TimeZoneInfo zone)
     {
         var lines = new List<MorningCardLine>();
         if (sources.OffPcBackupConfigured)
@@ -278,7 +278,7 @@ public static class MorningSummaryBuilder
         return lines;
     }
 
-    internal static MorningCardLine Age(string label, double hours)
+    public static MorningCardLine Age(string label, double hours)
     {
         var text = AgeText(hours);
         return hours > CopyAgeLimitHours
@@ -286,7 +286,7 @@ public static class MorningSummaryBuilder
             : new(label, "OK", MorningTone.Success, $"{text} old");
     }
 
-    internal static string AgeText(double hours) => hours switch
+    public static string AgeText(double hours) => hours switch
     {
         < 1 => "under an hour",
         < 1.5 => "1 hour",

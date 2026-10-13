@@ -52,7 +52,7 @@ public sealed class AccountingWorkspaceControlsTests
         RunSta(()=>
         {
             var service=DispatchProxy.Create<IAccountingService,AccountingProxy>(); var proxy=(AccountingProxy)(object)service;
-            var view=new TallyDestinationSettingsView(()=>"fixture",()=>true,_=>service);
+            var view=new TallyDestinationSettingsView(()=>true,()=>service);
             view.LoadAsync().GetAwaiter().GetResult();
             var inputs=view.Children.OfType<TextBox>().ToArray();
             Assert.Equal("TEST Fixture",inputs[0].Text);

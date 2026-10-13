@@ -270,7 +270,7 @@ public static class ImportDiagnosticCatalogue
     public static string ShopSentence(string? code) => $"{MessageForShop(code)} {WhatToDoForShop(code)}";
 
     /// <summary>First sentence = what happened; the rest = the office's instruction. A one-sentence text has no rest.</summary>
-    public static (string First, string Rest) FirstSentence(string template)
+    public static (string First, string Remainder) FirstSentence(string template)
     {
         ArgumentNullException.ThrowIfNull(template);
         var index = template.IndexOf(". ", StringComparison.Ordinal);

@@ -7,6 +7,7 @@ using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Application.Morning;
 using Etp.Reporting.Application.NoSaleDays;
 using Etp.Reporting.Desktop.Modules.Morning;
+using Etp.Reporting.TestSupport;
 
 namespace Etp.Reporting.Desktop.Tests;
 

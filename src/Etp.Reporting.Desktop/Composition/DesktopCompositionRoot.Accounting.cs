@@ -1,5 +1,6 @@
 extern alias EtpApplication;
 using System.Globalization;
+using System.IO;
 using Etp.Reporting.Desktop.Modules.Accounting;
 using Etp.Reporting.Infrastructure.Http;
 using Etp.Reporting.Infrastructure.SqlServer;

@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Collections;
+using Etp.Reporting.Desktop.Modules.Collections;
 
 namespace Etp.Reporting.Desktop.Tests;
 
