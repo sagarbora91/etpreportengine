@@ -157,6 +157,10 @@ public sealed class SqlServerCollectionsImportService : ICollectionsImportServic
         return layouts;
     }
 
+    internal const string NotAllowedToKeep =
+        "ETP could not save a copy of this statement file, so nothing was imported. Only an Owner or Store Manager can import statement files, " +
+        "and setup must have prepared the statement folder: ask the owner to run ETP setup again.";
+
     /// <summary>Keeps the file by its SHA-256 under the evidence root. The copy is hashed again; a file that changed after it
     /// was read is refused, so the database never records lines of bytes that were not kept.</summary>
     private async Task KeepFileAsync(string filePath, WorkbookSnapshot snapshot, ActiveLayout layout, CancellationToken cancellationToken)
@@ -168,7 +172,17 @@ public sealed class SqlServerCollectionsImportService : ICollectionsImportServic
         if (string.IsNullOrWhiteSpace(root)) throw new InvalidOperationException("The folder for statement files is not set. Ask the owner to set it in Collections setup.");
         // ScopeKey is an account or provider key (CHECK: A-Z, 0-9 and '_' only), so it is safe as a folder name.
         var folder = Path.Combine(root, layout.Kind == "BANK" ? "BankSources" : "SettlementSources", layout.ScopeKey);
-        var kept = await ManagedDocumentRepository.StoreAsync(filePath, folder, cancellationToken);
+        (string ManagedPath, string Sha256, long Size) kept;
+        try
+        {
+            kept = await ManagedDocumentRepository.StoreAsync(filePath, folder, cancellationToken);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            // Review B-2: setup gives the evidence folder Modify for active Owner and Store Manager accounts only. Anyone else
+            // (or a folder setup has not prepared) gets this sentence instead of a raw access-denied error.
+            throw new InvalidOperationException(NotAllowedToKeep, exception);
+        }
         if (!string.Equals(kept.Sha256, snapshot.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new IOException("The file changed while it was being read. Close it in Excel and import it again.");
     }

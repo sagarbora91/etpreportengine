@@ -732,6 +732,21 @@ function New-EtpActiveOwnersSql {
     return "SET NOCOUNT ON; SELECT windows_identity FROM dbo.application_users WHERE role_code='OWNER' AND is_active=1 ORDER BY windows_identity;"
 }
 
+# 1.12 integration (review B-2): the evidence folders ETP writes while an Owner or a Store Manager
+# imports, unelevated. %ProgramData%\EtpReporting is administrators-only, so setup creates them with
+# the HealthExports rule: SYSTEM and Administrators full control, every active Owner and Store Manager
+# account Modify, nobody else; only administrators can change the permissions.
+function Get-EtpEvidenceFolderNames {
+    # Pure. CollectionsEvidence: bank and settlement statement copies (0063 default root).
+    # TallyEvidence: Tally files and read-backs (0038 default root).
+    return @('CollectionsEvidence','TallyEvidence')
+}
+
+function New-EtpActiveEvidenceWritersSql {
+    # Read-only, in the ETP database: one active Owner's or Store Manager's Windows account per line.
+    return "SET NOCOUNT ON; SELECT windows_identity FROM dbo.application_users WHERE role_code IN ('OWNER','STORE_MANAGER') AND is_active=1 ORDER BY windows_identity;"
+}
+
 function Set-EtpHealthExportFolder {
     # Creates the folder when missing and replaces its access list with $Rules (not inherited).
     # Files already in it take the new rules by inheritance. Never follows a link.
@@ -1109,6 +1124,21 @@ try {
 }
 catch {
     Write-SetupLog "WARNING: setup could not prepare the software update folder ($($_.Exception.Message)). In-app updates stay unavailable until setup runs again."
+}
+# 1.12 integration (review B-2): CollectionsEvidence and TallyEvidence, written by an Owner or a
+# Store Manager from ETP unelevated. Best effort: without them a statement import or a Tally file
+# says plainly that setup must run again. Rebuilt on every setup run, like HealthExports.
+try {
+    $evidenceIdentities = @(& $sqlcmdPath -x -S $ServerInstance -E -b -h -1 -W -d $Database -Q (New-EtpActiveEvidenceWritersSql))
+    if ($LASTEXITCODE -ne 0) { throw 'the active Owners and Store Managers could not be read' }
+    $evidenceSids = @(Get-EtpActiveOwnerSids -Identities @($evidenceIdentities | ForEach-Object { "$_".Trim() } | Where-Object { $_ }))
+    foreach ($evidenceName in @(Get-EtpEvidenceFolderNames)) {
+        $evidenceFolder = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData "EtpReporting\$evidenceName") -Rules (Get-EtpHealthExportFolderRules -AutomationSid $null -OwnerSids $evidenceSids)
+        Write-SetupLog "Evidence folder ready at $evidenceFolder (SYSTEM and Administrators full control; $($evidenceSids.Count) active Owner and Store Manager account(s) read and write; nobody else)."
+    }
+}
+catch {
+    Write-SetupLog "WARNING: setup could not prepare the evidence folders ($($_.Exception.Message)). Bank and settlement imports and Tally files stay unavailable until setup runs again."
 }
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')
