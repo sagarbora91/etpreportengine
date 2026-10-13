@@ -18,7 +18,9 @@
 SET XACT_ABORT ON;
 
 -- >>> PRECHECK0062 begin
-IF OBJECT_ID(N'dbo.operational_audit',N'U') IS NOT NULL AND EXISTS(SELECT 1 FROM dbo.operational_audit WHERE event_type NOT IN
+-- Nested IF, not AND: SQL Server does not short-circuit AND, so on a new database the EXISTS would read a missing table.
+IF OBJECT_ID(N'dbo.operational_audit',N'U') IS NOT NULL
+ IF EXISTS(SELECT 1 FROM dbo.operational_audit WHERE event_type NOT IN
  ('ApplicationStart','SessionStart','ConnectionTest','ImportBatch','ImportFailed','ReportRun','ExportExcel','ExportPdf','DatabaseSetup','SupportPackage',
   'ManualInput','DayFinalised','DayReopened','ReportPack','Backup','RestoreDrill','ConfigurationChange','MappingProfileChange','Restatement','StockCount','StaffTarget',
   'UserAdministration','MasterDataChange','AutomationRun','ReportArchive','DocumentIntake','DocumentExtraction','DocumentExtractionReview','SharingContactChange',
