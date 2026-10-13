@@ -183,14 +183,15 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
             """);
         var layout = await IntAsync("SELECT layout_id FROM dbo.statement_layouts WHERE layout_key='SYN_PII_CSV'");
 
-        // The scan: every narration, payer, VPA or raw column of a collections table is denied to both roles.
+        // The scan: every narration, payer, VPA or raw column of a collections table is denied to both roles, by a column DENY
+        // or by a table-level DENY SELECT (the Viewer, review m-4: SQL Server does not store a column DENY under a table DENY).
         var unprotected = await IntAsync("""
             SELECT COUNT(*) FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id
             CROSS JOIN (VALUES(N'etp_store_manager'),(N'etp_viewer')) r(role_name)
             WHERE t.name IN(N'bank_statement_lines',N'provider_settlement_lines')
               AND (c.name LIKE N'%narration%' OR c.name LIKE N'%payer%' OR c.name LIKE N'%vpa%' OR c.name LIKE N'raw[_]%')
               AND NOT EXISTS(SELECT 1 FROM sys.database_permissions p
-                WHERE p.major_id=t.object_id AND p.minor_id=c.column_id AND p.state='D' AND p.permission_name='SELECT'
+                WHERE p.major_id=t.object_id AND p.minor_id IN(0,c.column_id) AND p.state='D' AND p.permission_name='SELECT'
                   AND p.grantee_principal_id=DATABASE_PRINCIPAL_ID(r.role_name))
             """);
         Assert.Equal(0, unprotected);

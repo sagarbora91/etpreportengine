@@ -27,7 +27,7 @@
 -- 10. Permissions. Store Manager and Viewer write none of these tables: the Owner (db_owner) edits the masters, and statement
 --     files go in only through dbo.collections_import_statement (an object file, EXECUTE to Store Manager and Owner).
 --     PII: a bank narration and a UPI payer name / VPA carry customer names, and raw_json carries every cell, so they are
---     DENY SELECT to Store Manager and Viewer. 0059's pattern scan does not match these names, hence explicit denies here and
+--     DENY SELECT to Store Manager (column) and Viewer (whole table, review m-4). 0059's pattern scan does not match these names, hence explicit denies here and
 --     CollectionsPermissionSqlTests' own scan.
 --
 -- THROW numbers: lane block 51950-51959 (this file: 51950, 51957).
@@ -382,7 +382,10 @@ DENY SELECT ON dbo.bank_statement_lines TO etp_viewer;
 DENY SELECT ON dbo.provider_settlement_lines TO etp_viewer;
 
 -- PII (customer names in UPI narrations and payer fields; raw_json holds every cell): Owner only.
-DENY SELECT ON dbo.bank_statement_lines(narration,raw_json) TO etp_store_manager,etp_viewer;
-DENY SELECT ON dbo.provider_settlement_lines(payer_name,payer_vpa,raw_json) TO etp_store_manager,etp_viewer;
+-- The Viewer is covered by the table-level DENY SELECT above. A column DENY for a principal that already holds the table
+-- DENY of the same permission is not stored by SQL Server (1.12.0 gate: sys.database_permissions had no Viewer column rows),
+-- so the column denies name the Store Manager only.
+DENY SELECT ON dbo.bank_statement_lines(narration,raw_json) TO etp_store_manager;
+DENY SELECT ON dbo.provider_settlement_lines(payer_name,payer_vpa,raw_json) TO etp_store_manager;
 -- The history keeps whole rows of the masters; mapping_json can carry sample header text. Owner only, like the setup screen's edits.
 DENY SELECT ON dbo.collections_setup_history TO etp_viewer;

@@ -37,8 +37,8 @@ public sealed class CollectionsMigrationTextTests
     {
         var sql = File.ReadAllText(Path.Combine(Repository("database", "migrations"), "0063_collections_contracts.sql"));
 
-        Assert.Contains("DENY SELECT ON dbo.bank_statement_lines(narration,raw_json) TO etp_store_manager,etp_viewer;", sql, StringComparison.Ordinal);
-        Assert.Contains("DENY SELECT ON dbo.provider_settlement_lines(payer_name,payer_vpa,raw_json) TO etp_store_manager,etp_viewer;", sql, StringComparison.Ordinal);
+        Assert.Contains("DENY SELECT ON dbo.bank_statement_lines(narration,raw_json) TO etp_store_manager;", sql, StringComparison.Ordinal);
+        Assert.Contains("DENY SELECT ON dbo.provider_settlement_lines(payer_name,payer_vpa,raw_json) TO etp_store_manager;", sql, StringComparison.Ordinal);
         foreach (var table in new[] { "bank_accounts", "collection_providers", "provider_merchant_ids", "collection_policies", "statement_layouts",
                      "bank_statement_lines", "provider_settlement_lines", "collections_setup_history" })
             Assert.Contains($"DENY INSERT,UPDATE,DELETE ON dbo.{table} TO etp_store_manager,etp_viewer;", sql, StringComparison.Ordinal);
