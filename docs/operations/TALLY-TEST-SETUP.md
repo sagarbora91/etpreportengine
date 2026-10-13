@@ -1,6 +1,6 @@
 # Tally test setup (Sagar and the accountant)
 
-Decisions 48, 49 and 53: all Tally work in 1.12 uses a **TEST company** in a **test copy of Tally inside the VM**. ETP never talks to the real Tally. Status: checked against the D1 code at the 1.12.0 wave-1 integration (13 Oct 2026). **1.12.0 ships the Tally engine only**; the buttons named below ("Write Tally masters", "Write Tally file" for vouchers, "Read back from Tally", "Send to the test Tally") come with the wave-2 screens (U3). The manual read-back and Compare already exist.
+Decisions 48, 49 and 53: all Tally work in 1.12 uses a **TEST company** in a **test copy of Tally inside the VM**. ETP never talks to the real Tally. Status: engine checked against the D1 code at the 1.12.0 wave-1 integration (13 Oct 2026). The screens and buttons named below are the wave-2 U3 lane, written here from the plan. CHECK AT INTEGRATION: compare every button name, field name and sentence with the merged U3 code and its NOTE. All Tally screens are Owner-only (approve, write, send and profile edits).
 
 ## Part 1: install Tally in the VM (Sagar)
 1. Start the ETP test VM. Do not do this on Workpc or any shop PC.
@@ -11,10 +11,16 @@ Decisions 48, 49 and 53: all Tally work in 1.12 uses a **TEST company** in a **t
 
 ## Part 2: set up in ETP (inside the VM)
 1. Settings > Tally companies: add a TEST profile with the company name, the address `http://127.0.0.1:9000/` and a build label containing **EDUCATIONAL** (then ETP keeps voucher dates to the allowed days).
-2. To let ETP send vouchers (not only read back), the profile also needs delivery **HTTP** and the **test PC name**: the VM's computer name exactly as `$env:COMPUTERNAME` shows it inside the VM (column `tally_profiles.test_machine_name`, migration 0066; the Settings field comes with wave 2). ETP sends only on that PC, and only after Tally itself reports Educational mode.
+2. To let ETP send vouchers (not only read back), the profile also needs delivery **HTTP** and the **test PC name**: the VM's computer name exactly as `$env:COMPUTERNAME` shows it inside the VM (column `tally_profiles.test_machine_name`, migration 0066; the Settings field is **Test PC name**, and the screen shows "This PC is <name>" beside it so you can compare). ETP sends only on that PC, and only after Tally itself reports Educational mode.
 3. **Write Tally masters**: ETP writes `tally-masters-<code>.xml` (ledger groups, one cost centre per store, sales, GST per rate, round-off, a tender ledger per payment mode and store, bank placeholders, the party ledger) and `tally-masters-<code>-review.txt`, the list for the accountant. Neither file is ever overwritten.
 4. In Tally: Import > Masters, and choose that file.
 5. Open the ledger list and compare it with the review list. Approve the proposed ledger names in ETP's mappings; fix names in ETP, not by hand in Tally.
+
+## What the screen shows
+- The profile card has the company name, the address (port 9000 is fixed and shown, not editable), delivery (file or HTTP), the build label with an "EDUCATIONAL" hint, and the Test PC name. A chip says **TEST** or **LIVE** in words.
+- Three plain buttons in order, the next one highlighted: **Prepare**, **Approve**, **Write Tally file** (no step numbers). Beside them: **Write Tally masters** (asks for a folder, then shows the mappings the accountant must approve and the path of the review list), **Read back from Tally**, **Send to the test Tally**, **Compare**, and **Open evidence folder**.
+- **Send to the test Tally is shown only on the PC named in the profile** (decision 57). On any other PC, including Workpc, there is no button; a sentence says "Sending is set up for <test PC name> only". That is on purpose.
+- A batch moves through PLANNED, APPROVED_READY, EXPORTED_AWAITING_IMPORT and RECONCILED; the buttons that make no sense for the state are not offered.
 
 ## Review list for the accountant
 Please check, in the VM copy:

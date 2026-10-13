@@ -109,6 +109,7 @@ Daily backup validates recorded custody and the current SQL certificate thumbpri
 | ETP Reporting Daily Backup | Daily at 22:00; configurable `-RunTime`. |
 | ETP Reporting Monthly Recovery Drill | Daily runner at 08:00; performs the drill only on day 1 by default. `-DayOfMonth` accepts 1–28. |
 | ETP Reporting Automated Operations | Every five minutes by default; imports approved sources and generates scheduled packs. |
+| ETP Copy Backup To Disk (1.12, after go-live) | Daily at 22:45, after the 22:00 backup; copies the verified backup to a second disk (see below). Registered by Sagar, elevated. |
 
 Daily Backup and Automated Operations run as the dedicated account at Limited run level. The recovery drill runs as the Owner at Highest run level: a UAC-filtered token loses `BUILTIN\Administrators`, so an Owner who is a SQL administrator only through that group would lose it inside the task. All use S4U logon, StartWhenAvailable, IgnoreNew for overlap, and a two-hour execution limit. The monthly runner's day check means a missed run caught up on another day does not perform the missed drill; run a manual drill and inspect its evidence. Task scheduling does not prove that a job succeeded.
 
@@ -133,6 +134,21 @@ The drill selects the file named by the latest verified receipt, validates its h
 **A4.4a: proving that the drill catches a wrong count.** `invoke-etp-recovery-drill.ps1 -ReceiptPath <file>` drills the backup another receipt names instead of `<database>-latest-verified.json`. The file must be a `.json` directly in the backup folder and is verified exactly like the latest receipt (backup path, size, SHA-256, custody). As administrator: copy `<database>-latest-verified.json` to a new name in the backup folder that does not end in `.bak.receipt.json` (for example `rowcount-check-copy.json`, so rotation never reads it), change `rowCounts.sales_lines` by one, and run the drill elevated with `-ReceiptPath` naming the copy. It must fail naming `sales_lines` and both numbers, `operational_audit` gets a `RestoreDrill` / `Failed` row, and System status shows the failure. Then run the drill again without `-ReceiptPath`: the original receipt passes and System status returns to passed. Delete the copy afterwards.
 
 Every drill that reaches the comparison writes `<database>-latest-drill.json`: `succeeded`, the backup hash, the time, and `rowCounts` as four `{table, receipt, restored}` pairs, or `rowCountsNotRecorded` with `rowCountsNote`. That file is in the protected backup folder, which the application, running unelevated, cannot read. So the drill also records its result in `dbo.recovery_drill_results` (migration 0045, append-only, written only through `dbo.record_recovery_drill_result` by the operations account or an Owner, like the verified-operation record), and System status and the dashboard read the latest row through `dbo.load_latest_recovery_drill_result`: "Latest recovery drill result" shows Passed or Failed with the four pairs (one line per table, Matched or Differs), or the reason there were none. A failed latest drill is a critical warning (`RECOVERY_DRILL_FAILED`) until a drill passes. The audit row cannot carry the numbers: audit details may not contain digits. A passed drill also writes the protected SQL status record. System status shows separate UTC times and fingerprints for the latest backup and latest successful drill; a newer backup can correctly have a different hash from the drill. Backup absence is critical; backup age over 36 hours, missing drill, or drill age over 45 days produces a warning. Generic audit events cannot publish trusted recovery health. Staff read safe status through a database procedure without `msdb` access.
+
+
+### Copy of the verified backup to a second disk (G:), 1.12
+
+CHECK AT INTEGRATION: written from the G1 plan (decisions 54 and 56); compare script name, parameters, folder names and the health check wording with the merged G1 code and its NOTE.
+
+Workpc has a 1.8 TB disk (G:) that is nearly empty. After go-live a nightly task copies the newest verified backup there, so a copy exists that does not depend on OneDrive or a USB stick.
+
+- **What it does.** `scripts\copy-etp-backup-to-disk.ps1` reads `<database>-latest-verified.json`, checks the `.bak` against its fingerprint, copies it to `<disk root>\<yyyy-MM>\<file>` under a temporary name, renames it, checks the copy by fingerprint again, and writes a receipt beside it and `<disk root>\latest-disk-copy.json`.
+- **Keeps** the newest 30 nightly copies plus the first copy of each of the newest 12 months (about 15 to 25 GB).
+- **Plain copy, not encrypted.** The disk is inside Workpc and covered by BitLocker (decision 51), so a restore is one file with no key to find.
+- **Refuses** (and says one plain line, no stack trace) when the root is on the system drive or inside OneDrive, when the disk is missing (exit code 2), or when free space is under three times the file size.
+- **Register it (Sagar, elevated, after go-live):** `install-daily-backup-task.ps1 -DiskCopyRoot G:\ETP-Backups` creates "ETP Copy Backup To Disk" (22:45, run as the caller like the other tasks; `-Times` for more than one run a day). `remove-etp-scheduled-tasks.ps1` removes it.
+- **Health check OPS-11 "Disk backup copy age"** needs no database. Skipped until the task is set up; OK when `latest-disk-copy.json` is under 36 hours old and matches the newest verified backup; Check (Warning) when older or the disk is not there; never Problem. With it the Health check runs 56 checks.
+- **Restore** from this copy exactly as from the original: the receipt names the file, size and fingerprint.
 
 ## Second-machine recovery exercise
 
@@ -274,6 +290,14 @@ The Monday audit's Part 0 reads the week's export files (read-only), and appends
 | A line stays Warning every night for something accepted | Mark it Known with a reason and an end date. |
 
 ## Troubleshooting
+
+### After a restart: SQL Server not ready, or "run setup again" (1.12)
+
+CHECK AT INTEGRATION: compare with the S1 NOTE and the merged messages.
+
+- The scheduled tasks (automation run, nightly health check, backups) now wait up to 2 minutes for SQL Server. The run log shows "SQL Server is not ready yet ... trying again" and then a normal run. Only if SQL Server is still down after 2 minutes does the run record STARTUP_FAILED (with the SQL error number and "waited 120 s"). Wrong password, missing permission and configuration mistakes are not waited for.
+- Opening ETP by hand does not wait. If it says SQL Server may still be starting, wait a minute and open ETP again.
+- If ETP stops with "Database objects are not up to date; run setup again", a view or procedure on this database differs from this release (setup was not run after a copy or restore, or an object was changed by hand). Run the installer's setup again; do not edit objects by hand. The Health check DB-07 shows which object differs.
 
 ### Phase 5 upgrade and operating checks
 
