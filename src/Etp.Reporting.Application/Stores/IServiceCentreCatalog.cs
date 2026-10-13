@@ -59,17 +59,17 @@ public static class ServiceCentreRules
     public const string StoreNotSetUpCode = "SERVICE_STORE_NOT_SET_UP";
 
     public const string StoreAmbiguousMessage =
-        "This Service Centre file names no store, and there is more than one Service Centre. Export the file again with its store, or keep it beside a file of the same Service Centre.";
+        "This Service file names no store, and there are several Service Centres. Keep it beside a file of its Service Centre, or export it with its store.";
 
     public const string StoreNotSetUpMessage =
-        "This Service Centre file names no store, and no Service Centre store is set up. Add the Service Centre in Settings > Stores, then import the file again.";
+        "This Service file names no store, and no Service Centre store is set up. Add it in Settings > Stores, then import the file again.";
 
-    /// <summary>The Information note when the only Service Centre was used.</summary>
-    public static string StoreDefaultedMessage(ServiceCentre centre)
-    {
-        ArgumentNullException.ThrowIfNull(centre);
-        return $"This Service Centre file names no store and no file beside it does, so it is imported under {DisplayName(centre)}.";
-    }
+    /// <summary>
+    /// The Information note when the only Service Centre was used (SERVICE_STORE_DEFAULTED). A fixed text, so the import
+    /// diagnostic catalogue can hold it exactly; the store code is on the file row itself.
+    /// </summary>
+    public const string StoreDefaultedMessage =
+        "This Service Centre file names no store and no file beside it does, so it is imported under the only Service Centre.";
 
     /// <summary>The only Service Centre, or a refusal (none, or two or more).</summary>
     public static ServiceCentreDefault DefaultFor(IReadOnlyList<ServiceCentre> centres)
@@ -142,4 +142,14 @@ public static class ServiceCentreRules
         { Count: 1 } => DisplayName(centres[0]),
         _ => "All Service Centres"
     };
+}
+
+/// <summary>
+/// Settings > Stores, Owner only (1.12 A4): adds a Service Centre store or changes its name and job-number prefix. The store
+/// is placed in the Service business unit and stays inactive (it is not a shop store). A refusal is an
+/// <see cref="InvalidOperationException"/> (or <see cref="UnauthorizedAccessException"/>) with a plain sentence.
+/// </summary>
+public interface IServiceCentreAdministration
+{
+    Task SaveServiceCentreAsync(string storeCode, string name, string jobNumberPrefix, string reason, CancellationToken ct = default);
 }

@@ -39,9 +39,6 @@ public sealed record ServicePendingList(string ReportCode, string ListKey, strin
 /// </summary>
 public static class ServiceInterimFamilies
 {
-    /// <summary>The Service Centre store. It is an inactive store of the SERVICE business unit (0048 section A).</summary>
-    public const string ServiceStoreCode = "AW330";
-
     /// <summary>Diagnostic codes of the Service interim (docs/service-centre/SERVICE-INTERIM-NUMBERS.md).</summary>
     public static class Codes
     {
@@ -60,7 +57,7 @@ public static class ServiceInterimFamilies
         /// <summary>Information: the folder date differs from the latest Snapshot_As_Of (S006, S009, S010). Never refuses.</summary>
         public const string ServiceSnapshotDateDiffersFromHistory = "SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY";
 
-        /// <summary>Information: no store column and no sibling store, so the Service store AW330 was used.</summary>
+        /// <summary>Information: no store column and no sibling store, so the only Service Centre of the catalogue was used (1.12 A4).</summary>
         public const string ServiceStoreDefaulted = "SERVICE_STORE_DEFAULTED";
     }
 

@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.DailyInputs;
 using Etp.Reporting.Import.Preflight;
@@ -41,7 +42,8 @@ public sealed class FolderImportService(
     IWorkbookReader? workbookReader = null,
     IReadOnlyList<string>? knownStores = null,
     Action<FolderImportFailure>? reportFailure = null,
-    IDailyInputsApplier? dailyInputs = null) : IFolderImportService
+    IDailyInputsApplier? dailyInputs = null,
+    IServiceCentreCatalog? serviceCentres = null) : IFolderImportService
 {
     // The Not-needed messages of the no-match branch (IF-027); ImportDiagnosticCatalogue holds the same texts.
     internal const string ControlWorkbookMessage = "Consolidation control workbook; report workbooks are imported separately.";
@@ -55,6 +57,14 @@ public sealed class FolderImportService(
     private readonly IDailyInputsApplier? dailyInputsApplier = dailyInputs ??
         (persistence is SqlServerImportPersistenceUseCase sqlPersistence ? new SqlServerDailyInputsApplier(sqlPersistence.ConnectionString) : null);
     private readonly Dictionary<string, (ImportScope Scope, bool Service)> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
+    // 1.12 A4: the Service Centres come from the store catalogue (business_units.unit_kind='SERVICE'), read once per service
+    // and only when a Service file names no store. A test or a non-SQL persistence without a catalogue has no centre, so such
+    // a file is refused with the "no Service Centre is set up" sentence.
+    private readonly IServiceCentreCatalog serviceCentreCatalog = serviceCentres ??
+        (persistence is SqlServerImportPersistenceUseCase sqlCatalogPersistence
+            ? new SqlServerServiceCentreCatalog(sqlCatalogPersistence.ConnectionString)
+            : new FixedServiceCentreCatalog([]));
+    private IReadOnlyList<ServiceCentre>? loadedServiceCentres;
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
 
     public async Task<FolderImportSummary> RunAsync(string sourcePath, FolderImportOptions options,
@@ -201,10 +211,15 @@ public sealed class FolderImportService(
                     throw new ImportSourceException("DATE_OVERRIDE_MISMATCH", "The date override does not match the file. Use a corrected source file to change its date.");
                 var store = scope?.StoreCode ?? options.OverrideStoreCode ?? siblings.Select(item => item!.StoreCode).FirstOrDefault(value => value is not null);
                 // Service interim: a Service file with no store of its own or beside it (S011, S013, a lone file) is the
-                // Service Centre's. Retail has no fallback and keeps SCOPE_NOT_DETECTED below.
-                if (string.IsNullOrWhiteSpace(store) && ImportScope.ServiceStoreFallback(accepted.ProfileIdentity.ReportCode) is { } serviceStore)
+                // only Service Centre's (1.12 A4: from the catalogue); with none or several it is refused in plain words.
+                // Retail has no fallback and keeps SCOPE_NOT_DETECTED below.
+                if (string.IsNullOrWhiteSpace(store) && ImportScope.TakesServiceStoreFallback(accepted.ProfileIdentity.ReportCode) &&
+                    ImportScope.ServiceStoreFallback(accepted.ProfileIdentity.ReportCode,
+                        await ServiceCentresAsync(cancellationToken).ConfigureAwait(false)) is { } fallback)
                 {
-                    store = serviceStore;
+                    if (fallback.IsRefused)
+                        throw new ImportSourceException(fallback.RefusalCode!, fallback.RefusalMessage!);
+                    store = fallback.StoreCode;
                     result = result with { Diagnostics = [.. result.Diagnostics ?? [], new ImportIssue(ImportIssueSeverity.Information,
                         ServiceInterimFamilies.Codes.ServiceStoreDefaulted, ServiceRouting.StoreDefaultedMessage)] };
                 }
@@ -592,6 +607,10 @@ public sealed class FolderImportService(
     private sealed record RestatementTarget(RestatementCandidate? Candidate, ImportSourceException? Refusal = null,
         IReadOnlyList<ImportIssue>? Issues = null);
 
+    /// <summary>The Service Centres of the catalogue, read once per service (1.12 A4).</summary>
+    private async Task<IReadOnlyList<ServiceCentre>> ServiceCentresAsync(CancellationToken cancellationToken) =>
+        loadedServiceCentres ??= await serviceCentreCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
+
     private static int DependencyOrder(string? code) => code switch
     {
         "R025" => 0, "R020" => 1, "R022" => 2, "R024" => 3, "R013" => 4, "R003" => 5,
@@ -610,8 +629,7 @@ internal static class ServiceRouting
     internal const string DateNeededMessage =
         "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026'. The Import screen's date is only for a restatement.";
 
-    internal const string StoreDefaultedMessage =
-        "This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre (AW330).";
+    internal const string StoreDefaultedMessage = ServiceCentreRules.StoreDefaultedMessage;
 
     internal const string DerivedMessage = "This Service report is built from the other Service reports, so it is not imported.";
     internal const string NotNeededMessage = "This Service report is not needed; the other files are processed.";
@@ -670,7 +688,7 @@ internal static class ServiceRouting
 
     /// <summary>
     /// The scopes detected beside <paramref name="path"/> (same folder or ZIP folder) that may lend it a store or a date:
-    /// only those of its own business unit. A Retail export never takes AW330 or a Service folder date, and an undated
+    /// only those of its own business unit. A Retail export never takes a Service Centre store or a Service folder date, and an undated
     /// Service snapshot never takes a Retail sibling's date (it fails SERVICE_SNAPSHOT_DATE_NEEDED instead).
     /// </summary>
     internal static ImportScope[] Siblings(IEnumerable<KeyValuePair<string, (ImportScope Scope, bool Service)>> detected, string path, bool service) =>
@@ -680,4 +698,21 @@ internal static class ServiceRouting
 
     private static EtpReportFamily? Family(string? reportCode, IEnumerable<EtpReportFamily>? families = null) => reportCode is null ? null :
         (families ?? EtpReportFamilyRegistry.Families).FirstOrDefault(family => family.ReportCode == reportCode || family.FamilyCode == reportCode);
+}
+
+/// <summary>
+/// The Service store fallback for a caller outside the folder import (1.12 A4; the automation run's single-workbook path):
+/// null for a Retail family, the only Service Centre's code for a Service family, and an <see cref="ImportSourceException"/>
+/// with the plain refusal when there is no Service Centre or more than one. The catalogue is read only for a Service family.
+/// </summary>
+public static class ServiceCentreFallback
+{
+    public static async Task<string?> StoreForAsync(IServiceCentreCatalog catalog, string? reportCode, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        if (!ImportScope.TakesServiceStoreFallback(reportCode)) return null;
+        var fallback = ImportScope.ServiceStoreFallback(reportCode, await catalog.LoadAsync(cancellationToken).ConfigureAwait(false));
+        if (fallback is null) return null;
+        return fallback.IsRefused ? throw new ImportSourceException(fallback.RefusalCode!, fallback.RefusalMessage!) : fallback.StoreCode;
+    }
 }
