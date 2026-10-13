@@ -5,7 +5,7 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public static class ManagedDocumentRepository
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-        { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".xlsx", ".zip" };
+        { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".xlsx", ".zip", ".csv" }; // .csv: bank and settlement statements (1.12, D2)
 
     public static async Task<(string ManagedPath, string Sha256, long Size)> StoreAsync(
         string sourcePath, string repositoryRoot, CancellationToken cancellationToken = default)
@@ -14,7 +14,7 @@ public static class ManagedDocumentRepository
         if (!File.Exists(source)) throw new FileNotFoundException("The selected document no longer exists.", source);
         if ((File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Linked document paths are not allowed.");
         var extension = Path.GetExtension(source);
-        if (!AllowedExtensions.Contains(extension)) throw new InvalidOperationException("Select a supported PDF or image document.");
+        if (!AllowedExtensions.Contains(extension)) throw new InvalidOperationException("Select a supported document, spreadsheet or CSV file.");
         var info = new FileInfo(source);
         if (info.Length is <= 0 or > 100 * 1024 * 1024) throw new InvalidOperationException("The document is empty or exceeds the 100 MB safety limit.");
         var root = Path.GetFullPath(repositoryRoot);

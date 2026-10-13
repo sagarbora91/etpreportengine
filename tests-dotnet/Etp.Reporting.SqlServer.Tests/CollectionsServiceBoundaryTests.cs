@@ -1,0 +1,103 @@
+using Etp.Reporting.Application.Access;
+using Etp.Reporting.Application.Collections;
+using Etp.Reporting.Infrastructure.SqlServer.Collections;
+using Microsoft.Data.SqlClient;
+
+namespace Etp.Reporting.SqlServer.Tests;
+
+/// <summary>
+/// 1.12 lane D2: role refusals of the collections services, with an injected role (a SQL test runs under one Windows login).
+/// A refused call writes its Blocked audit row first and never opens a connection for its own work.
+/// </summary>
+public sealed class CollectionsServiceBoundaryTests
+{
+    private sealed class FakeSession(AccessRole role) : ICollectionsSession
+    {
+        public List<string> Audits { get; } = [];
+
+        public Task<AccessRole> LoadRoleAsync(CancellationToken cancellationToken) => Task.FromResult(role);
+
+        public Task RecordAuditAsync(string eventType, string outcome, string? safeDetail, CancellationToken cancellationToken)
+        {
+            Audits.Add(eventType + "/" + outcome);
+            return Task.CompletedTask;
+        }
+
+        public Task<SqlConnection> OpenAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A refused call must not open a connection.");
+    }
+
+    private static readonly BankAccountDraft Account = new(null, "SYN_MAIN", "Synthetic main", "Synthetic Bank", "0001", null, true, true);
+
+    [Theory]
+    [InlineData(AccessRole.StoreManager)]
+    [InlineData(AccessRole.Viewer)]
+    [InlineData(AccessRole.None)]
+    public async Task Only_the_owner_changes_collections_setup(AccessRole role)
+    {
+        var session = new FakeSession(role);
+        var service = new SqlServerCollectionsSetupService(session);
+
+        var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveBankAccountAsync(Account, "Synthetic account"));
+
+        Assert.Equal("Owner permission is required.", error.Message);
+        Assert.Equal(new[] { "CollectionsSetup/Blocked" }, session.Audits);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.TestLayoutAsync("missing.csv",
+            new StatementLayoutDraft(null, "L", "L", "BANK", 1, null, new string('a', 64), null, 1, 0, "{}", true)));
+    }
+
+    [Theory]
+    [InlineData(AccessRole.StoreManager)]
+    [InlineData(AccessRole.Viewer)]
+    public async Task Only_the_owner_accepts_records_or_withdraws_a_bank_credit(AccessRole role)
+    {
+        var session = new FakeSession(role);
+        var service = new SqlServerCashDepositService(session);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.AcceptProposalAsync(new("COLA", new DateOnly(2026, 8, 1), 1, "Bank statement")));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ConfirmManuallyAsync(
+            new("COLA", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 2), 1, 100m, null, "Passbook")));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.WithdrawAsync(1, "Wrong line"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.LoadProposalsAsync(null));
+        Assert.Equal(4, session.Audits.Count);
+        Assert.All(session.Audits, audit => Assert.Equal("CashDepositConfirmed/Blocked", audit));
+    }
+
+    [Fact]
+    public async Task A_viewer_cannot_import_statements_or_list_deposits_in_transit()
+    {
+        var session = new FakeSession(AccessRole.Viewer);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SqlServerCollectionsImportService(session).PreviewAsync("statement.csv"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SqlServerCollectionsImportService(session).ImportAsync(new("statement.csv", 1)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SqlServerCollectionsStatementQuery(session).LoadDepositsInTransitAsync(null));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SqlServerCashDepositService(session).LoadInTransitAsync(null));
+        Assert.Equal(new[] { "CollectionsImport/Blocked", "CollectionsImport/Blocked", "CashDepositConfirmed/Blocked", "CashDepositConfirmed/Blocked" }, session.Audits);
+    }
+
+    [Fact]
+    public async Task Input_is_checked_before_the_role_so_a_bad_draft_never_reaches_sql()
+    {
+        var session = new FakeSession(AccessRole.Owner);
+        var service = new SqlServerCollectionsSetupService(session);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveBankAccountAsync(Account with { AccountLast4 = "123456" }, "Synthetic"));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveBankAccountAsync(Account, " "));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveLayoutAsync(
+            new StatementLayoutDraft(null, "SYN_LAYOUT", "Synthetic", "BANK", 1, null, new string('a', 64), null, 1, 0, """{"colour":"x"}""", true), "Synthetic"));
+        await Assert.ThrowsAsync<ArgumentException>(() => new SqlServerCollectionsImportService(session)
+            .ImportAsync(new("statement.csv", 1, CollectionsOverlapChoice.Restate, null)));
+        Assert.Empty(session.Audits);
+    }
+
+    [Fact]
+    public void Import_results_read_as_plain_sentences()
+    {
+        Assert.Equal("Imported 3 lines. 5 lines were imported before. It replaces an earlier export of the same statement.",
+            SqlServerCollectionsImportService.Describe(new(CollectionsImportOutcome.Imported, 7, 3, 5, 0, 0, 1, "")));
+        Assert.StartsWith("Possible duplicate lines: 1 line ",
+            SqlServerCollectionsImportService.Describe(new(CollectionsImportOutcome.PossibleDuplicates, null, 0, 0, 0, 1, 0, "")), StringComparison.Ordinal);
+        Assert.StartsWith("Duplicate content",
+            SqlServerCollectionsImportService.Describe(new(CollectionsImportOutcome.DuplicateContent, null, 0, 5, 0, 0, 0, "")), StringComparison.Ordinal);
+    }
+}
