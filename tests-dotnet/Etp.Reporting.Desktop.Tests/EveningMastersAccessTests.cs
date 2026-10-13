@@ -17,8 +17,7 @@ public sealed class EveningMastersAccessTests
     {
         RunSta(() =>
         {
-            var view = new EveningMastersView(() => throw new InvalidOperationException("No database call expected."),
-                () => owner, () => canEditBrands);
+            var view = new EveningMastersView(EveningMastersServices.Unavailable, () => owner, () => canEditBrands);
 
             Assert.Equal(canEditBrands, FindButton(view, "New row").IsEnabled);
             Assert.Equal(canEditBrands, FindButton(view, "Save brand row").IsEnabled);
@@ -62,8 +61,13 @@ public sealed class EveningMastersAccessTests
         {
             var permitted = true;
             var connectionRequests = 0;
-            var view = new EveningMastersView(() => { connectionRequests++; throw new InvalidOperationException("No database call expected."); },
-                () => false, () => permitted);
+            // 1.12 U2: the view takes services; every one of them counts a call, and none may be made.
+            Task<IReadOnlyList<T>> Refused<T>() { connectionRequests++; throw new InvalidOperationException("No database call expected."); }
+            var services = new EveningMastersServices(Refused<string>, Refused<Etp.Reporting.Infrastructure.SqlServer.BrandRowDefinition>,
+                Refused<Etp.Reporting.Infrastructure.SqlServer.MonthlyTargetRow>, Refused<Etp.Reporting.Infrastructure.SqlServer.SourceBrandEvidence>,
+                _ => { connectionRequests++; throw new InvalidOperationException("No database call expected."); },
+                _ => { connectionRequests++; throw new InvalidOperationException("No database call expected."); });
+            var view = new EveningMastersView(services, () => false, () => permitted);
             var save = FindButton(view, "Save brand row");
             Assert.True(save.IsEnabled);
 
@@ -77,8 +81,9 @@ public sealed class EveningMastersAccessTests
         });
     }
 
+    // 1.12 U2 (design system C): each section's button says "Save"; the automation name says which one.
     private static Button FindButton(DependencyObject root, string title) =>
-        Descendants(root).OfType<Button>().Single(button => Equals(button.Content, title));
+        Descendants(root).OfType<Button>().Single(button => Equals(button.Content, title) || System.Windows.Automation.AutomationProperties.GetName(button) == title);
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
