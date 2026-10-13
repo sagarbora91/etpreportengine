@@ -47,6 +47,8 @@
     <Resource Include="Assets\EtpReporting.ico" />
     <Resource Include="HelpScreenshots\*.png" />
     <Content Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 1.12 A3: views, procedures and functions as files (setup refuses without them), including retired\. -->
+    <Content Include="..\..\database\objects\**\*.sql" Link="database\objects\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Remove="Diagnostics\ErrorFixManifest.json" />
     <Content Include="Diagnostics\ErrorFixManifest.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

@@ -18,6 +18,8 @@
     <ProjectReference Include="../../src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj" />
     <ProjectReference Include="../../src/Etp.Reporting.Application/Etp.Reporting.Application.csproj" />
     <Content Include="../../database/migrations/*.sql" Link="database/migrations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 1.12 integration: every fixture database also runs the objects step, so tests see the shipped objects and grants. -->
+    <Content Include="../../database/objects/**/*.sql" Link="database/objects/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../fixtures/etp-sample/*.xlsx" Link="fixtures/etp-sample/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../fixtures/evening-reports/*.json" Link="fixtures/evening-reports/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/sql/etp-operations-broker.sql" Link="scripts/sql/etp-operations-broker.sql" CopyToOutputDirectory="PreserveNewest" />

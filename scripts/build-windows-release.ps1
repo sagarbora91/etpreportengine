@@ -93,7 +93,9 @@ foreach ($item in Get-ChildItem -LiteralPath $oneDriveSource -File) {
 # 1.11.2 integration: L2's final file list; each must reach the release folder.
 foreach ($required in 'OneDriveCommon.ps1','Send-ShopDailyFiles.ps1','Register-ShopDailyTask.ps1','Receive-ShopDailyFiles.ps1',
                       'Copy-EtpBackupToOneDrive.ps1','Register-WorkpcTasks.ps1','shop-daily-files.config.example.json',
-                      'workpc-receive.config.example.json','workpc-backup.config.example.json') {
+                      'workpc-receive.config.example.json','workpc-backup.config.example.json',
+                      # 1.12 C1 (review M-6): shop results.
+                      'ShopResultCommon.ps1','Publish-ShopResults.ps1','Show-ShopResults.ps1') {
     if (-not (Test-Path -LiteralPath (Join-Path $oneDriveTarget $required))) { throw "scripts\onedrive\$required did not reach the release folder." }
 }
 
@@ -105,6 +107,14 @@ Copy-Item -LiteralPath $notices -Destination $output -Force
 New-Item -ItemType Directory -Path (Join-Path $packagedScripts 'sql') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql') -Destination (Join-Path $packagedScripts 'sql')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-grants.sql') -Destination (Join-Path $packagedScripts 'sql')
+
+# 1.12 A3: setup refuses to run without database\objects (views, procedures and functions as files), so the release
+# folder must carry it beside database\migrations (Desktop csproj Content items).
+foreach ($databaseFolder in 'database\migrations','database\objects') {
+    if (@(Get-ChildItem -LiteralPath (Join-Path $output $databaseFolder) -Filter '*.sql' -File -ErrorAction SilentlyContinue).Count -eq 0) {
+        throw "$databaseFolder did not reach the release folder."
+    }
+}
 
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }

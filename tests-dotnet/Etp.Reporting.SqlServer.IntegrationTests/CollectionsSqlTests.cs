@@ -257,7 +257,11 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
         return evidence;
     }
 
-    /// <summary>Applies the collections object files when the objects runner (lane A3) has not, so this lane's tests stand alone.</summary>
+    /// <summary>
+    /// Review m-8 (1.12 integration): the fixture's bootstrap runs lane A3's objects step from the shipped database\objects folder, so
+    /// every collections object must already exist and be journaled. This asserts it, rather than applying the files itself and
+    /// hiding a runner failure.
+    /// </summary>
     private async Task EnsureObjectsAsync()
     {
         var folder = Repository("database", "objects");
@@ -265,11 +269,8 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
                      || Path.GetFileName(path).Contains("cash_deposit", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
         {
             var name = Path.GetFileNameWithoutExtension(file)[3..];
-            if (await IntAsync($"SELECT CASE WHEN OBJECT_ID(N'{name}') IS NULL THEN 0 ELSE 1 END") == 1) continue;
-            var text = await File.ReadAllTextAsync(file);
-            var split = text.IndexOf("-- >>> GRANTS", StringComparison.Ordinal);
-            await database.ExecuteAsync(text[..split]);
-            await database.ExecuteAsync(text[split..]);
+            Assert.True(await IntAsync($"SELECT CASE WHEN OBJECT_ID(N'{name}') IS NULL THEN 0 ELSE 1 END") == 1, $"{name} was not created by the objects step.");
+            Assert.True(await IntAsync($"SELECT COUNT(*) FROM dbo.schema_objects WHERE object_name=N'{name}'") == 1, $"{name} is not in dbo.schema_objects.");
         }
     }
 

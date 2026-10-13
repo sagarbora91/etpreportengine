@@ -9,7 +9,10 @@ $approvedTasks = @(
     # 1.11.2: the OneDrive tasks, when registered from this installation's scripts\onedrive folder.
     "ETP Send Shop Daily Files",
     "ETP Receive Shop Daily Files",
-    "ETP Copy Backup To OneDrive"
+    "ETP Copy Backup To OneDrive",
+    # 1.12 C1 (review M-6): the shop results tasks (Workpc publishes, a shop PC shows).
+    "ETP Publish Shop Results",
+    "ETP Show Shop Results"
 )
 foreach ($taskName in $approvedTasks) {
     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
