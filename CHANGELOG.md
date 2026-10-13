@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.11.4] - (date after the gate)
+## [1.11.4] - 2026-10-13
 
 Service view speed and one health-check rule. Migration 0061 (views only: no table, column, index or permission change; the grants are repeated unchanged).
 
@@ -23,6 +23,10 @@ The 1.11.3 VM acceptance run (a copy of live, SQL Server 2025 RTM, 4 GB) timed t
 **Health check OPS-05 (folder permissions)**
 
 - OPS-05 failed with ACL_RIGHTS on the backups folder on every PC set up by ETP setup: setup lets SQL Server's service account (it writes the backup files) and the automation account (receipts, recovery drill) change files in `Backups`, and the check allowed no one. The check now accepts exactly those two accounts there, with Modify and no more; anyone else, or permission/ownership rights, is still a failure. No setup change.
+
+**Gate**
+
+- Gate (13 Oct 2026, elevated, on e0fe674, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 4,978 tests, 0 failed, 3 skipped (Desktop 1,693, Domain 12, Import 1,194, Reporting 187, SQL integration 468, SQL 1,424); pre- and after-checks clean. First run on 641be78 (12 Oct) failed 1 test: the speed test's simulated Restate did not fill the superseded columns that `CK_import_files_superseded` requires - fixed in e0fe674 (test only). Installer SHA-256 D308D45980AE03EE747311A1D6BFFED3AF83DDD47B6C463870725D14CCDB95C8 (`Installers\ETP Reporting Engine 1.11.4\`).
 
 ## [1.11.3] - 2026-10-12
 
