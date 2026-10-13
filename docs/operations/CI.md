@@ -1,20 +1,20 @@
 # Test gates and continuous integration
 
-Two gates plus a nightly run. Status: 1.12 design; **CHECK AT INTEGRATION** against the A2 note for script names and times.
+Two gates plus a nightly run. Status: checked against the A2 scripts at the 1.12.0 wave-1 integration (13 Oct 2026). The scripts live in `E:\ETP\Migration 2026-10-04\` on Workpc, not in the repository.
 
 ## 1. Everyday check: GitHub CI
 Workflow `.github/workflows/ci.yml` (GitHub Actions, `windows-latest`). Runs on every push and pull request to `main` and `release/**`; a newer push cancels the older run.
 1. Restore and Release build of `Etp.Reporting.slnx` (.NET 10).
 2. PowerShell syntax check of every script under `scripts\`.
-3. Unit tests, one project at a time: Domain, Import, Reporting, SqlServer, Desktop (and the Http unit project from 1.12).
+3. Unit tests, one project at a time, with `--filter "Category!=Sql"`: Domain, Import, Reporting, SqlServer, Desktop and Infrastructure.Http.
 
 `Etp.Reporting.SqlServer.IntegrationTests` never runs on CI, and GitHub never runs code on the PC that holds the books. `ETP_DIAGNOSTICS_DIRECTORY` points at a temp folder; no secrets are used.
 
-## 2. Fast gate (everyday, on Workpc, from wave 2)
-`Start-FastGate.ps1 -Worktree <path>`: no elevation; waits for the heavy-job lock but does not pause other lanes' builds. Release build, the unit projects in parallel with `--logger trx`, the PowerShell parse check and the OneDrive script tests. Target: 6 minutes or less. Tests that open SQL are tagged `Category=Sql` and run only in the release gate. Lanes run this before writing their note.
+## 2. Fast gate (everyday, on Workpc)
+`Start-FastGate.ps1 -Worktree <path> [-Label <name>]`: no elevation; waits for the heavy-job lock but does not pause other lanes' builds. Release build, the unit projects in parallel with `--logger trx`, the PowerShell parse check and the OneDrive script tests (run in Windows PowerShell 5.1 with PowerShell 7's module path removed). Results and the last line `gate: fast <label> PASSED|FAILED ...` go to `E:\ETP\Reference\FastGate\<label>-<time>\`. The 1.12.0 integration runs took about 2-3 minutes. Tests that open SQL are tagged `Category=Sql` and run only in the release gate. Lanes run this before writing their note.
 
 ## 3. Release gate
-`Start-Gate.ps1 -Version <x.y.z>`: elevated; all six test projects one at a time, plus script tests. Run once per release candidate, then the VM install check. Never filter its output: keep the whole log or the trx.
+`Start-Gate.ps1 -Version <x.y.z> -Worktree <path> [-CleanLeftovers]`: elevated (Sagar approves UAC); pauses lane builds, takes the heavy-job lock, takes a fresh verified backup, runs the pre-checks, then all seven test projects one at a time with a timeout per step, and always writes `gate-<version>-exit.txt` with a `gate: <version> PASSED|FAILED|STOPPED|TIMED-OUT ...` line. More than two `ETP-FLAKE-RETRY` lines fail it. Run once per release candidate (a per-release `Chain-Gate-Then-Installer-<version>.ps1` wraps it), then the VM install check. Never filter its output: keep the whole log or the trx.
 
 ## 4. Nightly integration (Workpc, 00:30)
 - Runs the integration suite on the newest `release/*` in its own worktree, as Sagar, under the heavy-job lock.
@@ -22,8 +22,8 @@ Workflow `.github/workflows/ci.yml` (GitHub Actions, `windows-latest`). Runs on 
 - Results go to `E:\ETP\Reference\Nightly\<date>\` (whole trx and log, never filtered) with `SUMMARY.txt`: pass or fail, and the names of any retried tests.
 - More than two automatic retries in one run fails it.
 
-### Setting up `.\ETPTEST` (once, elevated, Sagar)
-1. Install SQL Server Express as a **named instance `ETPTEST`** (not the default instance, not the live one). Put it on C:, not E:.
+### Setting up `.\ETPTEST` (once, elevated, Sagar; not done yet on 13 Oct 2026)
+1. Run `Install-EtpTestInstance.ps1 -MediaPath <SQL media>`: it installs SQL Server Express as a **named instance `ETPTEST`** (not the default instance, not the live one) on C:, not E:, then apply the latest CU.
 2. Enable Shared Memory; enable TCP only if the transport experiments need it.
 3. Give the nightly account (Sagar) sysadmin on this instance only. Check with `sqlcmd -S .\ETPTEST -C -Q "select @@servername"`.
 4. Run `Register-NightlyIntegration.ps1` (elevated). Confirm the task with `schtasks /query`.

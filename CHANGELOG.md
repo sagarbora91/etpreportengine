@@ -1,5 +1,62 @@
 # Changelog
 
+## [1.12.0] - unreleased (wave 1 integrated 13 Oct 2026; not gated)
+
+Wave 1 of 1.12: seams and engines. Most new features have no screen yet (wave 2 adds them). Migrations 0062-0066.
+
+**Database objects as files (migration 0062)**
+
+- Views, procedures and functions now live one file each in `database/objects` and are applied by setup when their text changes, in one transaction that rolls back completely on failure (0062 adds the object journal and history).
+- Setup takes the verified pre-migration backup also when only database objects change, and checks afterwards that no migration or object is still pending (`Etp.Reporting.Desktop.exe --plan-database-changes`). Setup refuses to run without the `database\objects` folder, which the installer now ships.
+- Health check: new DB-07 "Database objects match this release" (Warning) finds objects changed by hand, missing or pending; DB-02 also counts the object files.
+- Audit: the 1.12 audit event types are allowed (collections, cash deposits, software update, shop results, Tally read-back, import fixes).
+
+**One database connection layer**
+
+- One database connection layer (`IEtpConnectionFactory` with a LocalOnly endpoint policy). A future approved-server policy is one class plus one setting. This build still connects only to this PC's SQL Server.
+- `settings.json` records `database.endpointPolicy` (LocalOnly). Any other value is refused at start.
+- Screens no longer hold connection strings. The health-check SQL moved into the SQL layer.
+- Seams for 1.12 screens: a screen registry, a shell notice slot, and the composition root split by area.
+
+**Shop results**
+
+- Shops now get an answer: ETP writes a verdict-only result (accepted / refused with the plain reason) for each file a shop sends, Workpc signs it with that shop's own key at 07:40 and puts it in the shop's OneDrive folder, and the shop PC shows it in a green, amber or red window at logon and before each send. A result that cannot be verified, or that belongs to another shop, day or send, is shown as "could not be checked", never as a verdict.
+- A daily-inputs sheet saved under a file name with the wrong date is no longer refused: it is imported under the sheet's own date with a warning. A wrong store or sheet type in the name is still refused.
+- Setup creates `Operations\ShopResults\{pending,published,rejected}` (the automation account may write `pending` only); a result ETP cannot write is named in that run's automation line. Uninstall also removes the two new tasks. Re-run `Register-WorkpcTasks.ps1` and `Register-ShopDailyTask.ps1` after installing.
+
+**Tally engine (no screens yet)**
+
+- "Write Tally masters" makes the ledger groups, cost centres, sales, GST, round-off, tender, cash and bank ledgers for a new Tally company as an import file plus a list for the accountant.
+- Approved days are written as one Sales voucher per invoice (GST-inclusive), checked by reading the file back. Bills cancelled the same day are left out (decision 41).
+- Read back from and send to the test Tally 'Saagar Traders Titan' over HTTP (off by default; this PC only, port 9000 only). A send also needs the test PC named in the Tally company (migration 0066) and Tally reporting Educational mode (decision 53). Every send reads back first and refuses duplicates; Tally's answer is kept as evidence.
+- Setup prepares the `TallyEvidence` folder for active Owners and Store Managers.
+
+**Collections, first slice (migrations 0063, 0064; no screens yet)**
+
+- Settings can hold bank accounts (last four digits only), payment providers, merchant ids and file layouts; bank and settlement files import without code for a new bank; re-importing a statement adds nothing. A long number in a statement's file name is stored with its last four digits only.
+- Cash deposits now have two states: sent (from the daily sheet) and credited by the bank; ETP proposes the bank line (same amount, 0-3 days), the Owner accepts, also on a finalised day.
+- New report "Collections: expected vs evidence", marked "totals only, not matched yet"; Deposits in transit list, oldest first.
+- Bank narrations, UPI payer names and VPAs are visible to the Owner only; the Viewer reads collections only through the report views (decision 53).
+- Setup prepares the `CollectionsEvidence` folder for active Owners and Store Managers; without it an import says plainly that setup must run again.
+
+**In-app updates (engine only, off by default; migration 0065)**
+
+- ETP can check a OneDrive update folder for a newer release. A release is offered only when its release.json carries a valid signature from Sagar's offline release key. This is not shown on screen yet, and it is off by default.
+- The installer accepts an in-app update. It waits for ETP to close, records the result for ETP to show at its next start, and starts ETP again (not as administrator) when the update succeeded. A failed update never restores anything.
+- `Publish-Release.ps1` can sign a release with the offline key and place it in the update folder in a safe order. A new script makes the release key once, onto two USB sticks (`-AllowFixedDrive`, with a typed confirmation, for sticks that Windows reports as fixed).
+- The backup script accepts `-Purpose PreUpdate`; setup creates the protected `Updates` folder for active Owners.
+
+**Gate and tests**
+
+- Gate: every step has a timeout and writes to files; a hung step can no longer leave the gate idle or the lane-build pause behind; a `gate:` result line is always written.
+- New fast gate (unit tests in parallel, about 3 minutes, no SQL, unelevated) and a nightly integration run on a separate `.\ETPTEST` instance (to be installed).
+- SQL integration tests retry once, and log it, for the known open-time transport error; more than 2 retries fail the gate.
+- New `Etp.Reporting.Infrastructure.Http` project and tests (the Tally HTTP gateway).
+
+**Docs**
+
+- Update flow, shop results, Tally test setup, collections statement, gate split (`docs/operations`).
+
 ## [1.11.4] - 2026-10-13
 
 Service view speed and one health-check rule. Migration 0061 (views only: no table, column, index or permission change; the grants are repeated unchanged).
