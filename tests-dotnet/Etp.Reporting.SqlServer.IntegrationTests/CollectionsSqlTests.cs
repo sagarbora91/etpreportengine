@@ -1,4 +1,6 @@
+using Etp.Reporting.Application.Access;
 using Etp.Reporting.Application.Collections;
+using Etp.Reporting.Desktop.Modules.Collections;
 using Etp.Reporting.Infrastructure.SqlServer.Collections;
 using Etp.Reporting.Infrastructure.SqlServer.Connections;
 using Microsoft.Data.SqlClient;
@@ -251,6 +253,109 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal(51957, history.Number);
     }
 
+    /// <summary>
+    /// 1.12 wave 2, lane U4, Appendix B test 7 (cross-layer): a synthetic bank CSV goes through the Bank and settlement files
+    /// view model into the REAL import service; the deposit the daily sheet says was sent appears on Deposits in transit with
+    /// the proposed bank line; the Owner accepts and the statement model says "Bank credited"; a Store Manager sees the other
+    /// deposit without any bank line or narration (the narration column is denied to the role in SQL, probed non-pooled with
+    /// REVERT in the same batch); a Viewer's statement has no bank references. Roles of the C# services are injected (a SQL
+    /// test runs under one Windows login, the Owner).
+    /// </summary>
+    [SqlFact]
+    public async Task U4_bank_files_screen_to_deposit_proposal_to_credited_statement_with_the_role_views()
+    {
+        var evidence = await PrepareAsync("COLU");
+        try
+        {
+            var connections = new TestConnections(database.ConnectionString);
+            var setup = new SqlServerCollectionsSetupService(connections);
+            var account = await setup.SaveBankAccountAsync(new(null, "SYN_COLU", "Synthetic COLU account", "Synthetic Bank", "0002", "COLU", true, true), "Synthetic test account");
+            var header = await setup.ReadSampleHeaderAsync(Fixture("bank-two-columns.csv"), null, 3);
+            await setup.SaveLayoutAsync(new(null, "SYN_COLU_CSV", "Synthetic COLU CSV", "BANK", account, null, header.HeaderSignatureSha256, null, 3, 1, TwoColumns, true), "Synthetic layout");
+
+            // The screen's model drives the real service: one layout matches, so the file is ready; Import gives the service's sentence.
+            var files = new BankFilesModel(() => new SqlServerCollectionsImportService(connections), Etp.Reporting.Desktop.ShellAccess.Owner);
+            await files.AddFilesAsync([Fixture("bank-two-columns.csv")]);
+            var item = Assert.Single(files.Items);
+            Assert.Equal(BankFileState.Ready, item.State);
+            Assert.Equal(1, await files.ImportReadyAsync());
+            Assert.Equal(BankFileState.Imported, item.State);
+            Assert.Equal("Imported 5 lines.", item.Message);
+            Assert.Equal(5, await IntAsync($"SELECT COUNT(*) FROM dbo.bank_statement_lines WHERE bank_account_id={account}"));
+
+            // The same file again is "already imported", with the service's own sentence; nothing is added.
+            var again = new BankFilesModel(() => new SqlServerCollectionsImportService(connections), Etp.Reporting.Desktop.ShellAccess.Owner);
+            await again.AddFilesAsync([Fixture("bank-two-columns.csv")]);
+            await again.ImportReadyAsync();
+            Assert.Equal(BankFileState.AlreadyImported, Assert.Single(again.Items).State);
+            Assert.Equal("Already imported: this exact file was imported before.", again.Items[0].Message);
+            Assert.Equal(5, await IntAsync($"SELECT COUNT(*) FROM dbo.bank_statement_lines WHERE bank_account_id={account}"));
+
+            // Two deposits on finalised days: 12,500 on 1 Aug (the bank has the credit) and 7,777 on 3 Aug (it does not).
+            await database.ExecuteAsync("""
+                INSERT dbo.manual_operational_inputs(store_code,business_date,field_code,numeric_value,entered_by,modified_by,change_reason)
+                VALUES('COLU','2026-08-01','CASH_DEPOSIT',12500,N'test',N'test',N'Synthetic deposit'),
+                      ('COLU','2026-08-03','CASH_DEPOSIT',7777,N'test',N'test',N'Synthetic deposit');
+                INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc)
+                VALUES('COLU','2026-08-01','LOCKED',N'test',SYSUTCDATETIME()),('COLU','2026-08-03','LOCKED',N'test',SYSUTCDATETIME());
+                """);
+
+            var owner = new DepositsInTransitModel(() => new SqlServerCashDepositService(connections), Etp.Reporting.Desktop.ShellAccess.Owner, "COLU");
+            await owner.LoadAsync();
+            Assert.Equal(["01 Aug 2026", "03 Aug 2026"], owner.Rows.Select(row => row.Date));
+            var proposed = owner.Rows[0];
+            Assert.Equal("One bank line fits", proposed.ProposalWord);
+            Assert.Contains("DEP0001", proposed.BankLine, StringComparison.Ordinal);
+            Assert.Equal("No bank line yet", owner.Rows[1].ProposalWord);
+            Assert.False(await owner.AcceptAsync(proposed, ""));
+            Assert.True(await owner.AcceptAsync(proposed, "Seen on the bank statement"));
+            Assert.Equal(["03 Aug 2026"], owner.Rows.Select(row => row.Date));
+            Assert.Equal(Etp.Reporting.Desktop.StatusTone.Success, owner.NoticeTone);
+
+            var statement = new CollectionsStatementModel(() => new SqlServerCollectionsStatementQuery(connections), Etp.Reporting.Desktop.ShellAccess.Owner, "COLU", new DateOnly(2026, 8, 5), () => new DateOnly(2026, 8, 6));
+            await statement.LoadAsync();
+            var credited = Assert.Single(statement.Rows, row => row.Mode == "Cash" && row.Date == "01 Aug 2026");
+            Assert.Equal("Bank credited", credited.StatusWord);
+            Assert.Equal("DEP0001", credited.BankReference);
+            Assert.Equal("0.00", credited.Difference);
+            Assert.Equal("In transit", Assert.Single(statement.Rows, row => row.Mode == "Cash" && row.Date == "03 Aug 2026").StatusWord);
+
+            // A Store Manager sees the remaining deposit, but no proposal and no narration: the C# service never reads them for the
+            // role, and SQL would refuse the column (230 column denied, 229 table denied) on a non-pooled impersonation.
+            var manager = new DepositsInTransitModel(() => new SqlServerCashDepositService(new RoleSession(connections, AccessRole.StoreManager)),
+                Etp.Reporting.Desktop.ShellAccess.StoreManager, "COLU");
+            await manager.LoadAsync();
+            var managerRow = Assert.Single(manager.Rows);
+            Assert.Null(managerRow.Proposal);
+            Assert.Equal("—", managerRow.Narration);
+            Assert.False(await manager.AcceptAsync(managerRow, "Seen on the bank statement"));
+
+            await database.ExecuteAsync("""
+                IF DATABASE_PRINCIPAL_ID(N'u4_manager') IS NULL BEGIN CREATE USER u4_manager WITHOUT LOGIN; ALTER ROLE etp_store_manager ADD MEMBER u4_manager; END;
+                IF DATABASE_PRINCIPAL_ID(N'u4_viewer') IS NULL BEGIN CREATE USER u4_viewer WITHOUT LOGIN; ALTER ROLE etp_viewer ADD MEMBER u4_viewer; END;
+                """);
+            Assert.Contains(await ProbeAsync("u4_manager", "SELECT TOP(1) narration FROM dbo.bank_statement_lines"), new[] { 229, 230 });
+            Assert.Equal(0, await ProbeAsync("u4_manager", "SELECT TOP(1) * FROM dbo.v_cash_deposits_in_transit"));
+            Assert.NotEqual(0, await ProbeAsync("u4_viewer", "SELECT TOP(1) * FROM dbo.v_cash_deposits_in_transit"));
+
+            // A Viewer's statement has no bank references, whatever the line holds; the deposits screen refuses the role in a sentence.
+            var viewer = new CollectionsStatementModel(() => new SqlServerCollectionsStatementQuery(new RoleSession(connections, AccessRole.Viewer)),
+                Etp.Reporting.Desktop.ShellAccess.Viewer, "COLU", new DateOnly(2026, 8, 5), () => new DateOnly(2026, 8, 6));
+            await viewer.LoadAsync();
+            Assert.True(viewer.WithoutBankReferences);
+            var viewerCash = Assert.Single(viewer.Rows, row => row.Mode == "Cash" && row.Date == "01 Aug 2026");
+            Assert.Equal("Bank credited", viewerCash.StatusWord);
+            Assert.Equal(string.Empty, viewerCash.BankReference);
+            Assert.All(viewer.Rows, row => Assert.Null(row.Line.BankReference));
+            var viewerDeposits = new DepositsInTransitModel(() => new SqlServerCashDepositService(new RoleSession(connections, AccessRole.Viewer)),
+                Etp.Reporting.Desktop.ShellAccess.Viewer, "COLU");
+            await viewerDeposits.LoadAsync();
+            Assert.Equal(CollectionsScreens.DepositsRefusedText, viewerDeposits.StatusText);
+            Assert.Empty(viewerDeposits.Rows);
+        }
+        finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); }
+    }
+
     private async Task<string> PrepareAsync(string store)
     {
         await EnsureObjectsAsync();
@@ -328,6 +433,19 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
             if (Directory.Exists(candidate) && File.Exists(Path.Combine(folder.FullName, "Etp.Reporting.slnx"))) return candidate;
         }
         throw new DirectoryNotFoundException(string.Join('/', parts));
+    }
+
+    /// <summary>The real SQL session with the caller's role injected (a SQL test runs under one Windows login, the Owner).</summary>
+    private sealed class RoleSession(IEtpConnectionFactory connections, AccessRole role) : ICollectionsSession
+    {
+        private readonly SqlCollectionsSession real = new(connections);
+
+        public Task<AccessRole> LoadRoleAsync(CancellationToken cancellationToken) => Task.FromResult(role);
+
+        public Task RecordAuditAsync(string eventType, string outcome, string? safeDetail, CancellationToken cancellationToken) =>
+            real.RecordAuditAsync(eventType, outcome, safeDetail, cancellationToken);
+
+        public Task<SqlConnection> OpenAsync(CancellationToken cancellationToken) => real.OpenAsync(cancellationToken);
     }
 
     /// <summary>The 1.12 connection factory contract (A1) over the test database.</summary>
