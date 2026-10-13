@@ -27,7 +27,11 @@ public sealed record DailyWorkflowSnapshot(
     IReadOnlyList<ManualInputValue> ManualInputs,
     IReadOnlyList<string> MissingRequiredInputs,
     bool CanFinalise,
-    string StatusMessage);
+    string StatusMessage)
+{
+    /// <summary>1.12 N1 (decision 52): the store-day is marked as a no-sale day (no source report or entry is needed).</summary>
+    public bool IsNoSaleDay { get; init; }
+}
 
 public sealed class DailyReportingWorkflowRepository(string connectionString)
 {
@@ -65,7 +69,7 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
             DailyReadinessStatus.ReadyWithWarnings => "Required sources and inputs are present; review reconciliation exceptions before finalising.",
             _ => "Required sources, inputs and controls are reconciled."
         };
-        return new(storeCode, businessDate, status, imported, missingReports, inputs, missingInputs, canFinalise, message);
+        return new(storeCode, businessDate, status, imported, missingReports, inputs, missingInputs, canFinalise, message) { IsNoSaleDay = noSaleDay };
     }
 
     /// <summary>The Close day line for a store-day marked as a no-sale day (lane N1).</summary>

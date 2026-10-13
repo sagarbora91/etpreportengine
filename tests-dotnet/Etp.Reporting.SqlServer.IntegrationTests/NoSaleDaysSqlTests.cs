@@ -59,10 +59,12 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
         Assert.Empty(snapshot.MissingReports);
         Assert.Empty(snapshot.MissingRequiredInputs);
         Assert.Equal(DailyReportingWorkflowRepository.NoSaleDayStatusMessage, snapshot.StatusMessage);
-        await database.ExecuteAsync("""
-            INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,is_final)
-            VALUES('ZN001','20260821',1,REPLICATE('a',64),N'{}','test',0);
-            """);
+        Assert.True(snapshot.IsNoSaleDay);
+        // The pack generates; a section that would be blocked by the missing sources is "not run" on a no-sale day, so Close
+        // day (which refuses only on Blocked sections) lets the day be finalised.
+        var pack = await new DailyReportingPackService(database.ConnectionString).GenerateAsync("ZN001", Day, "test");
+        Assert.DoesNotContain(pack.Sections, x => x.Status == Etp.Reporting.Reporting.ReconciliationStatus.Blocked);
+        Assert.Contains(pack.Sections, x => x.Message.StartsWith(DailyReportingPackService.NoSaleDaySectionPrefix, StringComparison.Ordinal));
         await workflow.FinaliseAsync("ZN001", Day, "test", hasBlockingReconciliationExceptions: false);
         Assert.Equal("LOCKED", await ScalarAsync("SELECT status FROM dbo.daily_reporting_days WHERE store_code='ZN001' AND business_date='20260821'"));
 
