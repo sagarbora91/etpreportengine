@@ -105,6 +105,47 @@ public sealed class CollectionsMigrationTextTests
         }
     }
 
+    [Fact]
+    public async Task A_copy_another_account_kept_and_this_account_cannot_read_is_accepted_only_for_collections()
+    {
+        // IR-2 (decision 59): a Store Manager reads only the CollectionsEvidence files they created. Simulated here with a
+        // deny-read entry for the current account on the kept copy (no second account, no elevation).
+        if (!OperatingSystem.IsWindows()) return;
+        var root = Path.Combine(Path.GetTempPath(), "EtpCollectionsUnreadable_" + Guid.NewGuid().ToString("N"));
+        var me = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+        var deny = new System.Security.AccessControl.FileSystemAccessRule(me, System.Security.AccessControl.FileSystemRights.ReadData,
+            System.Security.AccessControl.AccessControlType.Deny);
+        string? keptPath = null;
+        try
+        {
+            Directory.CreateDirectory(root);
+            var source = Path.Combine(root, "statement.csv");
+            await File.WriteAllTextAsync(source, "Date,Amount\n01/08/2026,2.00\n");
+            var first = await ManagedDocumentRepository.StoreAsync(source, Path.Combine(root, "kept"));
+            keptPath = first.ManagedPath;
+            var info = new FileInfo(keptPath);
+            var acl = info.GetAccessControl();
+            acl.AddAccessRule(deny);
+            info.SetAccessControl(acl);
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => ManagedDocumentRepository.StoreAsync(source, Path.Combine(root, "kept")));
+            var again = await ManagedDocumentRepository.StoreAsync(source, Path.Combine(root, "kept"), acceptUnreadableExistingCopy: true);
+            Assert.Equal(first.ManagedPath, again.ManagedPath);
+            Assert.Equal(first.Sha256, again.Sha256);
+        }
+        finally
+        {
+            if (keptPath is not null && File.Exists(keptPath))
+            {
+                var info = new FileInfo(keptPath);
+                var acl = info.GetAccessControl();
+                acl.RemoveAccessRuleSpecific(deny);
+                info.SetAccessControl(acl);
+            }
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     private static string Repository(params string[] parts)
     {
         for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)

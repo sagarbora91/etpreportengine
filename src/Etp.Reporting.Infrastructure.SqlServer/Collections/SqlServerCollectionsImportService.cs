@@ -182,12 +182,13 @@ public sealed class SqlServerCollectionsImportService : ICollectionsImportServic
         (string ManagedPath, string Sha256, long Size) kept;
         try
         {
-            kept = await ManagedDocumentRepository.StoreAsync(filePath, folder, cancellationToken);
+            kept = await ManagedDocumentRepository.StoreAsync(filePath, folder, acceptUnreadableExistingCopy: true, cancellationToken);
         }
         catch (UnauthorizedAccessException exception)
         {
-            // Review B-2: setup gives the evidence folder Modify for active Owner and Store Manager accounts only. Anyone else
-            // (or a folder setup has not prepared) gets this sentence instead of a raw access-denied error.
+            // Review B-2, IR-2 (decision 59): setup gives the evidence folder to active Owners (Modify) and Store Managers (add
+            // files, then read and write only their own). Anyone else (or a folder setup has not prepared) gets this sentence
+            // instead of a raw access-denied error.
             throw new InvalidOperationException(NotAllowedToKeep, exception);
         }
         if (!string.Equals(kept.Sha256, snapshot.Sha256, StringComparison.OrdinalIgnoreCase))

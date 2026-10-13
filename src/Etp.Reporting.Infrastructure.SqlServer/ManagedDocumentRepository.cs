@@ -7,8 +7,18 @@ public static class ManagedDocumentRepository
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".xlsx", ".zip", ".csv" }; // .csv: bank and settlement statements (1.12, D2)
 
+    public static Task<(string ManagedPath, string Sha256, long Size)> StoreAsync(
+        string sourcePath, string repositoryRoot, CancellationToken cancellationToken = default) =>
+        StoreAsync(sourcePath, repositoryRoot, acceptUnreadableExistingCopy: false, cancellationToken);
+
+    /// <param name="acceptUnreadableExistingCopy">
+    /// 1.12 IR-2 (decision 59): in CollectionsEvidence a Store Manager may read only the files they created. A copy named by
+    /// this content's SHA-256 that another account already kept is then visible (attributes) but not readable, and cannot be
+    /// overwritten. True accepts that copy as kept: the name is the content hash and the account that wrote it hashed it again.
+    /// The Owner's integrity check still reads it.
+    /// </param>
     public static async Task<(string ManagedPath, string Sha256, long Size)> StoreAsync(
-        string sourcePath, string repositoryRoot, CancellationToken cancellationToken = default)
+        string sourcePath, string repositoryRoot, bool acceptUnreadableExistingCopy, CancellationToken cancellationToken = default)
     {
         var source = Path.GetFullPath(sourcePath);
         if (!File.Exists(source)) throw new FileNotFoundException("The selected document no longer exists.", source);
@@ -24,13 +34,21 @@ public static class ManagedDocumentRepository
         var folder = Path.Combine(root, DateTime.Today.ToString("yyyy"), DateTime.Today.ToString("MM"));
         Directory.CreateDirectory(folder);
         var destination = Path.Combine(folder, hash + extension.ToLowerInvariant());
-        if (!File.Exists(destination))
+        var existed = File.Exists(destination);
+        if (!existed)
         {
             await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, true);
             await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 128 * 1024, true);
             await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
         }
-        if (!string.Equals(hash, await ComputeHashAsync(destination, cancellationToken).ConfigureAwait(false), StringComparison.Ordinal))
+        string kept;
+        try { kept = await ComputeHashAsync(destination, cancellationToken).ConfigureAwait(false); }
+        catch (UnauthorizedAccessException) when (existed && acceptUnreadableExistingCopy
+            && (File.GetAttributes(destination) & FileAttributes.ReparsePoint) == 0)
+        {
+            return (destination, hash, info.Length);
+        }
+        if (!string.Equals(hash, kept, StringComparison.Ordinal))
             throw new IOException("The managed document failed its integrity check.");
         return (destination, hash, info.Length);
     }
