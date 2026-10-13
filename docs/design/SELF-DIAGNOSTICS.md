@@ -1,5 +1,7 @@
 # Self-diagnostics (1.11.0): error register, health check and the fix loop
 
+> 1.12 changes (CHECK AT INTEGRATION: written from the plan; compare with the A4, N1 and G1 NOTEs): DB-06 judges the warm read (above), DB-07 is new (wave 1), OPS-11 is new (wave 2), and DATA-01 counts a store-day marked as a no-sale day as complete (its Pass text adds "(N store-days marked no-sale)"). The Health check screen says 56 checks.
+
 Approved design, condensed. Approved by Sagar on 11 Oct 2026 (decisions 33 and 36: all 16 open questions closed). The full working design with live evidence is kept outside the repository. Procedure and JSON contract: [SELF-DIAGNOSTICS-PROCEDURES.md](SELF-DIAGNOSTICS-PROCEDURES.md). User view: USER-GUIDE "Health check and Error register". Operations view: OPERATIONS "Health check and exports".
 
 Migrations: **0054_error_register.sql** and **0055_health_check.sql** (1.10.1 uses 0052 and 0053). New schema `diag`, owned by `dbo`, no schema grant; access only through `dbo`-owned `diag.*` procedures. THROW numbers 51800-51819 (register) and 51820-51839 (health check); each needs a curated message in `DesktopFriendlyError.ProductErrors`.
@@ -7,7 +9,7 @@ Migrations: **0054_error_register.sql** and **0055_health_check.sql** (1.10.1 us
 ## 1. What it is
 
 1. **Error register.** Every Error or Critical diagnostics entry is grouped by a fingerprint into one register entry with first and last seen, count, app versions, sample Refs and a status. It lives in the database so that the errors of every Windows account (Owner, Store Managers, automation) are in one place. No customer data, no message text.
-2. **Health check.** 51 read-only checks in 7 areas (54 from 1.11.2: DB-06, SEC-04, OPS-10), run by the Owner on demand and by the automation task nightly. Each line: Pass, Warning, Fail, Known or Skipped, a plain explanation and the screen that fixes it.
+2. **Health check.** 51 read-only checks in 7 areas (54 from 1.11.2: DB-06, SEC-04, OPS-10; 55 in 1.12.0 wave 1: DB-07; 56 in wave 2: OPS-11), run by the Owner on demand and by the automation task nightly. Each line: Pass, Warning, Fail, Known or Skipped, a plain explanation and the screen that fixes it.
 3. **Fix loop.** Each run writes a privacy-checked JSON export. The weekly audit turns Fails, New and Recurred entries into numbered fix tickets; Sagar approves; fixes go through code-only lanes and the gate; the release manifest marks the register entry Fixed; a repeat after the fix turns it Recurred. Claude never changes the software or the database unattended.
 
 Goals: one list of every distinct error and whether a fix held; one button and one nightly run that prove every function; every finding says what is wrong and where to fix it; a machine-readable export; strictly read-only towards business data; rare warnings (Known with reason and expiry).
@@ -40,12 +42,12 @@ Business date checked: yesterday, in manual and nightly runs. Rules against cryi
 
 | Area | Checks |
 |---|---|
-| Database (6) | DB-01 reachable; DB-02 migrations complete (checksums match); DB-03 quick integrity (suspect pages, page verify, last good CHECKDB within 35 days); DB-04 database options (AUTO_CLOSE, state, read-write); DB-05 size headroom (1.11.2: also warns from 6 GB on a 10 GB Express cap); DB-06 Service screen view timings (1.11.2, Warning over 1 s) |
+| Database (7) | DB-01 reachable; DB-02 migrations complete (checksums match); DB-03 quick integrity (suspect pages, page verify, last good CHECKDB within 35 days); DB-04 database options (AUTO_CLOSE, state, read-write); DB-05 size headroom (1.11.2: also warns from 6 GB on a 10 GB Express cap); DB-06 Service screen view timings (1.11.2; wave 2: each of six views is counted twice and only the second, warm, count is judged: Warning when the warm count is over 1 s; the first-read time is shown as a number, "first read after start took N ms (compile), repeat read M ms"); DB-07 database objects match this release (1.12, Warning: an object changed by hand, missing or pending) |
 | Security (4) | SEC-01 role permission matrix against the expected matrix; SEC-02 role membership; SEC-03 Owner grant option; SEC-04 another database on this SQL Server holds `etp_landing_*` tables (1.11.2, AUDIT-2 S-08) |
 | Reports (22) | RPT-01 to RPT-22, one per catalogue report, through the same query classes the Reports screen uses; rows are counted and dropped; Pass under 10 s, Warning 10 to 30 s or more than 3 times the 7-run median, Fail on exception or timeout |
 | Imports (3) | IMP-01 all 72 export families still recognised from built-in synthetic samples; IMP-02 recent import failures; IMP-03 automatic import state |
 | Data (5) | DATA-01 yesterday is complete; DATA-02 sales against tender; DATA-03 closing-stock snapshot freshness; DATA-04 Service freshness; DATA-05 open critical data-quality issues |
-| Operations (10) | OPS-01 last verified backup; OPS-02 recovery drill; OPS-03 scheduled tasks; OPS-04 disk space; OPS-05 protected folder permissions; OPS-06 SQL Server build; OPS-07 unattended runs; OPS-08 backup and drill failure logs; OPS-09 Windows event log; OPS-10 off-PC backup copy (1.11.2, DR G11: newest `ETP-Backups\*.bak.enc` under 36 h, key file outside OneDrive, OneDrive running; Skipped on a PC without OneDrive backups) |
+| Operations (11) | OPS-01 last verified backup; OPS-02 recovery drill; OPS-03 scheduled tasks; OPS-04 disk space; OPS-05 protected folder permissions; OPS-06 SQL Server build; OPS-07 unattended runs; OPS-08 backup and drill failure logs; OPS-09 Windows event log; OPS-10 off-PC backup copy (1.11.2, DR G11: newest `ETP-Backups\*.bak.enc` under 36 h, key file outside OneDrive, OneDrive running; Skipped on a PC without OneDrive backups); OPS-11 disk backup copy age (1.12 wave 2, decision 54: needs no database; `latest-disk-copy.json` under 36 h old and equal to the newest verified backup's receipt is Pass; older, or the disk not present, is Warning; Skipped until the copy task is set up; never Fail) |
 | Errors (4) | ERR-01 register ingest; ERR-02 new errors; ERR-03 recurred after fix; ERR-04 crash-like errors |
 
 **Known:** a Warning accepted by the Owner for a check id and finding code, with reason and end date of at most 90 days (decision 33). Greyed, not counted, not ticketed, never hides a Fail.

@@ -69,3 +69,21 @@ This upgrade chain is implemented in source, not yet operationally accepted. Ins
 - **Deferred:** signed offline device licensing enforcement and any non-authoritative AI-assistance seam.
 
 Source or documentation completion alone is not a final test pass or release decision.
+
+## 1.12 additions (wave 2)
+
+<!-- CHECK AT INTEGRATION: written from the wave-2 plan before the lanes were merged; confirm each paragraph against the merged code. -->
+
+**Database objects as files.** Views, procedures and functions live one file each in `database/objects` and are applied by setup when their text changes (migration 0062 holds the journal). Migrations hold tables, columns, constraints and grants for tables only; a migration never creates a view or procedure. Interactive start now calls the same planner (`DatabaseChangePlanner`) after the migration check; if any migration or object is pending, start stops with the existing configuration-rejected path and A3's message ("run setup again"). The cost is one journal read, not a text comparison.
+
+**Startup wait.** `SqlStartupWait` retries the first connection of the headless verbs (automation run, nightly health, plan verb, backups) for up to 120 seconds with backoff, for transient SQL errors only. Permission and login errors are never retried. Each wait writes one line to the run log; on giving up the existing `STARTUP_FAILED` line is written. The interactive start does not wait; its failure text gains one sentence when the cause is transient.
+
+**Stores and Service Centres as data (migration 0067).** `business_units.unit_kind` marks a Service business unit and `stores.service_job_prefix` holds its job-number prefix. Code asks `IServiceCentreCatalog` (an older database with neither column answers with the one legacy Service Centre) instead of naming a store. From 0067 on no migration inserts stores, brands or brand rows.
+
+**No-sale day is a fact with a lock (migration 0068).** `dbo.no_sale_days` holds one row per store and business date (reason code, reason, who and when), with an append-only `no_sale_day_history`. It is written only by `mark_no_sale_day` and `withdraw_no_sale_day`, in one transaction with its history and audit rows. Marking is refused when the day is locked, in the future, or already holds sales or non-zero entries. Readiness reads the marks: for a marked store-day the export and daily-entry items are dropped, targets are not, and the result lists `NoSaleStoreCodes`. Finalise locks the day as usual, and from then on the lock protects the mark like every other fact (withdrawing needs the day reopened first). The Daily Sales Report shows "No sales (marked by ...)". `INoSaleDayService` is the one service; screens place its buttons through `NoSaleDayActions` and never build the dialog themselves.
+
+**Import source locations (migration 0069).** `dbo.import_source_locations` remembers where each routed or hand-imported file came from, so a Fix button can re-apply a kept file after a reopen. Viewer has no access.
+
+**Shell.** A screen registry and shell banner slot (wave 1) now carry the Morning page, pins and recents (`UiPreferences`), the update banner and the new task rows. Screens receive services; connection strings stay in the SQL layer (`ConnectionStringAllowlist` only shrinks).
+
+**Disk copy.** `copy-etp-backup-to-disk.ps1` copies the verified backup to a second local disk; health check OPS-11 reads its receipt (`latest-disk-copy.json`) without SQL, like OPS-10.
