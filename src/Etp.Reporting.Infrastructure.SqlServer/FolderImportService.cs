@@ -62,7 +62,7 @@ public sealed class FolderImportService(
     // a file is refused with the "no Service Centre is set up" sentence.
     private readonly IServiceCentreCatalog serviceCentreCatalog = serviceCentres ??
         (persistence is SqlServerImportPersistenceUseCase sqlCatalogPersistence
-            ? new SqlServerServiceCentreCatalog(sqlCatalogPersistence.ConnectionString)
+            ? (IServiceCentreCatalog)new SqlServerServiceCentreCatalog(sqlCatalogPersistence.ConnectionString)
             : new FixedServiceCentreCatalog([]));
     private IReadOnlyList<ServiceCentre>? loadedServiceCentres;
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];

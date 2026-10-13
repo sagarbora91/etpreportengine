@@ -149,7 +149,7 @@ public sealed class ServiceCentreCatalogTests
     [Fact]
     public async Task The_fixed_catalogue_returns_its_list()
     {
-        Assert.Equal([Fixture, Second], await new FixedServiceCentreCatalog([Fixture, Second]).LoadAsync());
+        Assert.Equal(new[] { Fixture, Second }, await new FixedServiceCentreCatalog([Fixture, Second]).LoadAsync());
         Assert.Empty(await new FixedServiceCentreCatalog([]).LoadAsync());
     }
 
