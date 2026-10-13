@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "role": "TITAN",
+  "businessDate": "2026-10-11",
+  "etpVersion": "1.12.0.0",
+  "producedUtc": "2026-10-12T02:10:00Z",
+  "sequence": 1,
+  "overall": "Accepted",
+  "files": [
+    { "name": "ETP-Daily-Inputs-HEMW-RETAIL-2026-10-11.xlsx", "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "verdict": "Accepted", "code": "", "message": "", "whatToDo": "" },
+    { "name": "sales.xlsx", "sha256": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "verdict": "Duplicate", "code": "", "message": "ETP already has this exact file.", "whatToDo": "" }
+  ]
+}

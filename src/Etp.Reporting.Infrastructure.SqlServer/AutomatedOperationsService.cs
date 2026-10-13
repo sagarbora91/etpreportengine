@@ -5,6 +5,7 @@ using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
+using Etp.Reporting.Infrastructure.SqlServer.ShopResults;
 using Etp.Reporting.Reporting;
 using Microsoft.Data.SqlClient;
 
@@ -22,8 +23,10 @@ internal enum AutomationSourceRoute { Processed, Duplicate, Failed, Inbound }
 public sealed record AutomatedReportPackFailure(string RunType, DateOnly BusinessDate, int? SqlErrorNumber, Exception Exception);
 
 public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null,
-    Action<AutomatedReportPackFailure>? reportPackFailure = null)
+    Action<AutomatedReportPackFailure>? reportPackFailure = null, ShopResultWriter? shopResultWriter = null)
 {
+    private readonly ShopResultWriter shopResults = shopResultWriter ?? new ShopResultWriter();
+
     public async Task<AutomatedOperationsSummary> RunOnceAsync(CancellationToken cancellationToken = default)
     {
         await using var lease = await AutomationSessionLease.TryAcquireAsync(connectionString, cancellationToken);
@@ -60,6 +63,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 duplicates+=batch.Duplicates;
                 foreach(var date in ImportedDates(batch)) importedDates.Add(date);
                 var route=RouteOf(batch);
+                if(route!=AutomationSourceRoute.Inbound) WriteShopResult(source,batch.Files);
                 if(route==AutomationSourceRoute.Inbound)
                 {
                     // Files the cancel left unhandled are imported by the next run; the source stays in Inbound.
@@ -90,6 +94,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
             catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
             {
                 failed++;
+                WriteShopResult(source, null);
                 var safe = new SqlImportFailureClassifier().Describe(ex).SafeMessage;
                 try { MoveCompletedSource(source, paths.FailedPath); }
                 catch (Exception moveException) when (moveException is IOException or UnauthorizedAccessException)
@@ -119,6 +124,20 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
             }
         }
         return new(processed, failed, duplicates, packs, $"Unattended run completed: {processed} source(s) processed, {failed} failed, {packs} report pack(s) generated.");
+    }
+
+    /// <summary>
+    /// Item C: a verdict file for the shop whose zip this is (<c>ROLE-yyyy-MM-dd[-rN].zip</c>); any other source is not a shop's.
+    /// Files is null when the import threw before any file result existed. Never changes the import outcome.
+    /// </summary>
+    private void WriteShopResult(string source, IReadOnlyList<FolderImportFileResult>? files)
+    {
+        if (!ShopResultBuilder.TryParseShopZip(source, out var role, out var day, out var sequence)) return;
+        var version = typeof(AutomatedOperationsService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+        var result = files is null
+            ? ShopResultBuilder.BuildNotCompleted(role, day, sequence, version, DateTime.UtcNow, Path.GetFileName(source))
+            : ShopResultBuilder.Build(role, day, sequence, version, DateTime.UtcNow, files);
+        if (result.Files.Count > 0) shopResults.TryWrite(result);
     }
 
     /// <summary>

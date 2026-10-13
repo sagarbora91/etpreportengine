@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "role": "HELIOS",
+  "businessDate": "2026-10-11",
+  "etpVersion": "1.12.0.0",
+  "producedUtc": "2026-10-12T02:10:00Z",
+  "sequence": 1,
+  "overall": "Refused",
+  "files": [
+    { "name": "ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx", "sha256": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", "verdict": "Refused", "code": "DAILY_INPUTS_DAY_FINALISED", "message": "This business day is finalised, so its manual entries cannot change.", "whatToDo": "Reopen the day, then put the file in the watch folder again." },
+    { "name": "stock.csv", "sha256": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "verdict": "Accepted", "code": "", "message": "", "whatToDo": "" }
+  ]
+}

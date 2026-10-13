@@ -10,6 +10,7 @@
   - Safe to run any number of times for the same day: identical files are not copied again.
   - The manifest carries an HMAC-SHA256 made with this PC's own signing key, so Workpc can tell the files really came
     from this PC (AUDIT-2 S-02). The key stays on this PC, outside OneDrive; a copy goes to Workpc by USB only.
+  - Each run first shows ETP's verdict on the previous files (Update-EtpShopResult; also in <logFolder>\last-result.txt).
   - Each run says how many files were sent and how many were skipped, on screen and in
     <logFolder>\last-send.txt (the task runs hidden, so that file is where staff can look).
   - Config: shop-daily-files.config.json next to this script (copy shop-daily-files.config.example.json).
@@ -33,6 +34,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'OneDriveCommon.ps1')
+. (Join-Path $PSScriptRoot 'ShopResultCommon.ps1')
 
 function Get-EtpShopRole {
     param($Config)
@@ -99,6 +101,12 @@ function Send-EtpShopDailyFiles {
     if ($checkClient -and -not (Test-EtpOneDriveClientRunning)) {
         $warnings += 'OneDrive is NOT running on this PC: the files are in the OneDrive folder but will not reach Workpc until OneDrive is started and signed in.'
         Write-EtpLogLine -LogFile $logFile -Event 'OneDriveNotRunning' -Data @{ role = $role }
+    }
+
+    # Before sending today's files, show what ETP made of the last ones (item C). Never allowed to stop the send.
+    if (-not $DryRun) {
+        try { [void](Update-EtpShopResult -Context (Get-EtpShopResultsContext -ConfigPath $ConfigPath)) }
+        catch { Write-EtpLogLine -LogFile $logFile -Event 'ResultCheckFailed' -Data @{ role = $role; reason = $_.Exception.Message } }
     }
 
     $day = $Date.ToString('yyyy-MM-dd')

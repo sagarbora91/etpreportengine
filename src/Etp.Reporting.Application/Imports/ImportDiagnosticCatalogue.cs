@@ -154,7 +154,10 @@ public static class ImportDiagnosticCatalogue
         ["DAILY_INPUTS_VALUE_NEGATIVE"] = ["A value is negative. Only the cash adjustment may be negative."],
         ["DAILY_INPUTS_TEXT_TOO_LONG"] = ["A text value is longer than the sheet allows."],
         ["DAILY_INPUTS_NAME_MISMATCH"] =
-            ["The file name's store, sheet type or date differs from the sheet. Check the business date, save the file under the matching name and send it again."],
+            ["The file name's store or sheet type differs from the sheet. Check the store and the sheet type, save the file under the matching name and send it again."],
+        // Decision 44 #4: a warning, not a refusal. Two sentences: what happened, then what to do (the shop result splits at the first).
+        ["DAILY_INPUTS_NAME_DATE_DIFFERS"] =
+            ["The date in the file name differs from the date on the sheet, so the sheet was imported under its own date. Next time save the file under a name with the sheet's date."],
         ["DAILY_INPUTS_NAME_UNUSUAL"] = ["The file name does not follow the daily-inputs naming. The sheet was imported under its own store and date."],
         ["DAILY_INPUTS_NO_VALUES"] = ["The sheet has no values. Fill in the figures, save it and send it again."],
         // Decision 43 (1.11.2): the sheet's own zeros prove nothing, so the person who filled it must give a name.

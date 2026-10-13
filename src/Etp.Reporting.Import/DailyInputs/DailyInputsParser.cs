@@ -132,9 +132,11 @@ public static partial class DailyInputsParser
                 notes.Add(Issue(null, null, DailyInputsCodes.NameUnusual));
             else if (!string.Equals(match.Groups[1].Value, store, StringComparison.OrdinalIgnoreCase)
                 || DailyInputsTemplate.ParseKind(match.Groups[2].Value) != k
-                || !DateOnly.TryParseExact(match.Groups[3].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var nameDate)
-                || nameDate != d)
+                || !DateOnly.TryParseExact(match.Groups[3].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var nameDate))
                 errors.Add(Issue(null, null, DailyInputsCodes.NameMismatch));
+            else if (nameDate != d)
+                // Decision 44 #4: a file saved under yesterday's name is still the sheet it says it is. The sheet's own date is used.
+                notes.Add(Issue(null, null, DailyInputsCodes.NameDateDiffers));
         }
 
         // 7. Nothing to apply: the sheet was probably saved empty. Reported only when the rows themselves are fine.
