@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -68,6 +68,16 @@ public partial class App : Application
             // validation text, never the connection string itself.
             if (headless) WriteHeadlessFailure(StartupFailureText.HeadlessLine(StartupFailureText.ConfigurationModeToken, configuration));
             else MessageBox.Show("ETP Reporting Engine could not start with the connection it was given. " + configuration.Message,
+                "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(2);
+            return;
+        }
+        // Interactive start only: the headless verbs and setup have their own refusal (--plan-database-changes).
+        // Same path as a rejected configuration: recorded, one message, exit 2, no window and no mutex left behind.
+        if (!headless && await compositionRoot.CheckObjectsUpToDateAsync() is { } objectsRefusal)
+        {
+            DesktopDiagnostics.Record(new InvalidOperationException(objectsRefusal), "Startup", "STARTUP_CONFIGURATION_REJECTED", DesktopDiagnosticSeverity.Critical);
+            MessageBox.Show("ETP Reporting Engine cannot start yet. " + objectsRefusal,
                 "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
             return;

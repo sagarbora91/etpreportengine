@@ -10,6 +10,9 @@ namespace Etp.Reporting.Desktop.Composition;
 /// </summary>
 public static class SqlStartupWait
 {
+    /// <summary>The line written when the wait gave up, e.g. "waited 120 s".</summary>
+    public static string WaitedText(TimeSpan waited) => "waited " + ((int)waited.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture) + " s";
+
     /// <summary>Total time the unattended task waits for SQL Server before giving up.</summary>
     public static readonly TimeSpan DefaultBudget = TimeSpan.FromSeconds(120);
     public static readonly TimeSpan FirstDelay = TimeSpan.FromSeconds(2);
@@ -82,4 +85,14 @@ public static class SqlStartupWait
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
     }
+}
+
+/// <summary>
+/// The unattended wait ran out of budget. Wraps the last transient SQL error so the STARTUP_FAILED line can say how long
+/// ETP waited; <see cref="StartupFailureText.HeadlessLine"/> classifies by the inner exception.
+/// </summary>
+public sealed class SqlStartupWaitExpiredException(Exception lastError, TimeSpan waited)
+    : InvalidOperationException("SQL Server did not become ready: " + SqlStartupWait.WaitedText(waited) + ".", lastError)
+{
+    public TimeSpan Waited { get; } = waited;
 }

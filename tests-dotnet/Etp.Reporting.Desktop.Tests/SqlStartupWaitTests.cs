@@ -122,4 +122,29 @@ public sealed class SqlStartupWaitTests
 
         Assert.Equal(1, fake.Probes);
     }
+
+    [Fact]
+    public void Give_up_line_keeps_the_sql_number_and_says_how_long_ETP_waited()
+    {
+        var line = StartupFailureText.HeadlessLine("automation-once", new SqlStartupWaitExpiredException(Sql(-1), SqlStartupWait.DefaultBudget));
+
+        Assert.StartsWith("ETP-STARTUP-FAILED mode=automation-once kind=ServerUnreachable sql=-1: ", line);
+        Assert.EndsWith("(waited 120 s)", line);
+        Assert.DoesNotContain('
+', line);
+    }
+
+    [Theory]
+    [InlineData(53, true)]
+    [InlineData(-2, true)]
+    [InlineData(4060, true)]
+    [InlineData(18456, false)]
+    [InlineData(262, false)]
+    public void Welcome_overlay_adds_the_still_starting_sentence_only_for_transient_failures(int number, bool expected)
+    {
+        var presentation = StartupFailureText.Welcome(Sql(number), "checking your access");
+
+        Assert.Equal(expected, presentation.Message.Contains("SQL Server may still be starting. Wait a minute and open ETP again.", StringComparison.Ordinal));
+        Assert.EndsWith($"(SQL error {number})", presentation.Message);
+    }
 }

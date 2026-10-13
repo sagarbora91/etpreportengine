@@ -32,6 +32,9 @@ public static class StartupFailureText
         _ => "interactive"
     };
 
+    /// <summary>Added to the welcome overlay when the failure means "the server is not ready yet" (1.12 startup wait).</summary>
+    public const string StillStartingSentence = " SQL Server may still be starting. Wait a minute and open ETP again.";
+
     public const string ConfigurationModeToken = "configuration";
     public const string UnhandledModeToken = "unhandled";
 
@@ -45,11 +48,18 @@ public static class StartupFailureText
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modeToken);
         ArgumentNullException.ThrowIfNull(exception);
+        // The unattended wait ran out of budget: classify by the last SQL error and say how long ETP waited.
+        string? waited = null;
+        if (exception is SqlStartupWaitExpiredException expired)
+        {
+            waited = SqlStartupWait.WaitedText(expired.Waited);
+            exception = expired.InnerException ?? expired;
+        }
         var kind = DatabaseConnectionFailure.Classify(exception);
         if (kind == DatabaseFailureKind.Other && modeToken == ConfigurationModeToken) kind = DatabaseFailureKind.InvalidConfiguration;
         var numbers = DatabaseConnectionFailure.SqlNumbers(exception);
         var sql = numbers.Count == 0 ? "none" : string.Join(",", numbers.Select(number => number.ToString(CultureInfo.InvariantCulture)));
-        return $"{HeadlessPrefix} mode={modeToken} kind={kind} sql={sql}: {SingleLine(HeadlessReason(exception, kind))}";
+        return $"{HeadlessPrefix} mode={modeToken} kind={kind} sql={sql}: {SingleLine(HeadlessReason(exception, kind) + (waited is null ? "" : " (" + waited + ")"))}";
     }
 
     private static string HeadlessReason(Exception exception, DatabaseFailureKind kind)
@@ -101,7 +111,7 @@ public static class StartupFailureText
             _ => "ETP could not open"
         };
         if (DatabaseConnectionFailure.IsConnectionClass(kind))
-            return new(title, DatabaseConnectionFailure.Describe(kind)! + NumberSuffix(exception, kind), kind);
+            return new(title, DatabaseConnectionFailure.Describe(kind)! + (SqlStartupWait.IsTransient(exception) ? StillStartingSentence : "") + NumberSuffix(exception, kind), kind);
         var reason = DesktopFriendlyError.Describe(exception);
         var where = string.IsNullOrWhiteSpace(step) ? "" : $" while {step}";
         return new(title, $"ETP could not open{where}: {reason}", kind);
