@@ -318,6 +318,29 @@ public static class DesktopFriendlyError
         // 1.12 A3 database objects (51960-51969).
         (51960, null, "The database holds an audit entry type this version does not know. " + UpgradeStopped),
         (51961, null, HistoryKept),
+        // 1.12 wave 2 A4 Service Centres as data (51970-51979; 0067 triggers and the store editor).
+        (51970, null, "A job-number prefix is for a Service Centre store only. Nothing was changed."),
+        (51971, null, "Each Service Centre needs its own job-number prefix, and one prefix cannot begin with another. Nothing was changed."),
+        (51972, null, "A Service Centre store is not a shop store and cannot be made active. Nothing was changed."),
+        (51973, null, "A business unit that has stores cannot change between Retail and Service. Nothing was changed."),
+        (51974, null, "The Service Centre business unit is missing from this database. Run setup again, then add the Service Centre."),
+        (51975, null, "This store code belongs to a shop store. Choose another code for the Service Centre. Nothing was changed."),
+        // 1.12 wave 2 N1 no-sale days (51980-51989; decision 52).
+        (51980, null, "Only the Owner or a Store Manager can mark or withdraw a no-sale day."),
+        (51981, "Write a short reason for withdrawing", "Write a short reason for withdrawing the no-sale day."),
+        (51981, null, "Choose why there were no sales and write a short reason."),
+        (51982, null, "A no-sale day cannot be marked for a date after today."),
+        (51983, null, "This business day is finalised. Reopen it before marking or withdrawing a no-sale day."),
+        (51984, null, "ETP already holds sales for this shop on this day, so it cannot be marked as a no-sale day."),
+        (51985, null, "A daily entry other than zero is already saved for this shop on this day, so it cannot be marked as a no-sale day."),
+        (51986, null, "Choose a shop that ETP knows and a business date."),
+        (51987, null, "This day is already marked as a no-sale day."),
+        (51988, null, "This day is not marked as a no-sale day, so there is nothing to withdraw."),
+        (51989, "Migration 0068 refused", "The database holds an audit entry type this version does not know. " + UpgradeStopped),
+        (51989, "No-sale day history", HistoryKept),
+        (51989, null, "A no-sale day mark cannot be deleted or rewritten. Withdraw it with a reason instead."),
+        // 1.12 wave 2 U2 import source locations (51990-51999).
+        (51990, null, "ETP keeps where each imported file went and never changes it. Nothing was changed."),
     ];
 
     /// <summary>

@@ -18,7 +18,9 @@ public sealed class ProductSqlErrorMessageTests
     public void Every_product_error_number_in_the_migrations_and_repositories_has_a_curated_message()
     {
         var root = RepositoryRoot();
+        // 1.12 wave 2 (integration): views and procedures live in database/objects since A3, so their THROWs count too.
         var sources = Directory.GetFiles(Path.Combine(root, "database", "migrations"), "*.sql")
+            .Concat(Directory.GetFiles(Path.Combine(root, "database", "objects"), "*.sql", SearchOption.AllDirectories))
             .Concat(Directory.GetFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
                 .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)));
         var numbers = sources
@@ -34,6 +36,18 @@ public sealed class ProductSqlErrorMessageTests
             Assert.DoesNotContain(RawSqlText, described, StringComparison.Ordinal);
         }
     }
+
+    // 1.12 wave 2: N1's two-wording and three-wording numbers read by their SQL text.
+    [Theory]
+    [InlineData(51981, "Choose why there were no sales and write a short reason.", "Choose why there were no sales")]
+    [InlineData(51981, "Write a short reason for withdrawing the no-sale day.", "Write a short reason for withdrawing")]
+    [InlineData(51989, "A no-sale day mark cannot be deleted or rewritten. Withdraw it with a reason instead.", "A no-sale day mark cannot be deleted")]
+    [InlineData(51989, "No-sale day history cannot be changed.", "This history is kept for audit")]
+    [InlineData(51989, "Migration 0068 refused: dbo.operational_audit holds an event type that is not in the 1.12 list. Nothing was changed.", "The database holds an audit entry type")]
+    [InlineData(51971, "Each Service Centre needs its own job-number prefix, and one prefix cannot begin with another.", "Each Service Centre needs its own job-number prefix")]
+    [InlineData(51990, "An import source location cannot be changed or deleted. A re-apply records a new location.", "ETP keeps where each imported file went")]
+    public void Wave_two_refusals_read_by_their_sql_text(int number, string sqlText, string expectedStart) =>
+        Assert.StartsWith(expectedStart, Describe(number, sqlText), StringComparison.Ordinal);
 
     [Fact]
     public void Tally_day_journal_or_vouchers_refusal_51571_reads_by_its_two_wordings()
