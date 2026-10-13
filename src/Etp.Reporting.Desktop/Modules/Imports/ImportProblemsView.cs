@@ -1,14 +1,22 @@
 extern alias EtpApplication;
 
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using Etp.Reporting.Desktop.Modules.Settings;
+using Etp.Reporting.Desktop.Themes;
 using FolderImportFileResult = EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult;
+using ImportFixAdvisor = EtpApplication::Etp.Reporting.Application.Imports.ImportFixAdvisor;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
 
-public sealed record ImportProblem(string File, string Status, string Store, string Period, string Detail, string NextStep = "");
+public sealed record ImportProblem(string File, string Status, string Store, string Period, string Detail, string NextStep = "")
+{
+    /// <summary>The attempt the row was built from (null for a Received-files problem); the Fix buttons need its code and hash.</summary>
+    public FolderImportFileResult? Source { get; init; }
+}
 
 /// <summary>
 /// What counts as a problem, defined once. The Problems tab reads persisted outcomes
@@ -35,23 +43,28 @@ public static class ImportProblems
             result.StoreCode ?? "",
             result.Period,
             $"{result.NewRows} new rows; {result.AlreadyPresentRows} present; {result.ConflictRows} conflicts",
-            NextStep(result));
+            NextStep(result)) { Source = result };
     }
 
-    /// <summary>The one thing to do about a problem row (a fix hint; the Retry failed button above does the retry).</summary>
+    /// <summary>
+    /// The one thing to do about a problem row. 1.12 U2: the Fix buttons beside it do the work (Reopen day and re-apply, Retry,
+    /// Tell the shop, Open folder); this line says which one, or what to do when no button can.
+    /// </summary>
     public static string NextStep(FolderImportFileResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         var code = result.Failure?.Code ?? "";
-        if (code.Contains("DAY_FINALISED", StringComparison.OrdinalIgnoreCase))
-            return "Reopen the day (Today > Close day), then press Retry failed.";
+        if (ImportFixAdvisor.IsDayFinalised(code, result.Failure?.SqlNumber))
+            return "The day is finalised. The Owner presses Reopen day and re-apply.";
         if (result.ConflictRows > 0)
             return "Compare with the saved figures in History, then decide which file is right.";
         if (result.Status.Contains("Duplicate", StringComparison.OrdinalIgnoreCase))
             return "Nothing to do - this file was imported before.";
         if (result.Status == "Unknown layout")
             return "Check this is the right report and re-export it; the file stays in the folder.";
-        return "Press Retry failed. If it fails again, open the import folder and check the file.";
+        if (ImportFixAdvisor.IsRetryable(code, result.Failure?.SqlNumber))
+            return "Press Retry. If it fails again, open the folder and check the file.";
+        return "Correct the file and import it again. Tell the shop when the shop sent it.";
     }
 
     public static IReadOnlyList<ImportProblem> From(IEnumerable<FolderImportFileResult>? results) =>
@@ -103,17 +116,61 @@ public static class ImportProblems
     private static bool SameOrUnknown(string? first, string? second) =>
         string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second)
         || string.Equals(first.Trim(), second.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>ST2: the word a problem status is shown with, and its tone (the same word has the same tone on every screen).</summary>
+    public static (string Word, StatusTone Tone) VerdictOf(string status) => status switch
+    {
+        "Failed" => ("Refused", StatusTone.Critical),
+        "Conflict" => ("Conflict", StatusTone.Critical),
+        "Unknown layout" => ("Unknown layout", StatusTone.Warning),
+        "Quarantined" => ("Quarantined", StatusTone.Warning),
+        _ when status.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) || status == "Already present" => ("Already imported", StatusTone.Neutral),
+        _ => (status, StatusTone.Neutral)
+    };
 }
 
+/// <summary>One grid row of Problems: the problem, its verdict chip and its Fix buttons (filled in after the location lookup).</summary>
+public sealed class ImportProblemRow(ImportProblem problem) : INotifyPropertyChanged
+{
+    private IReadOnlyList<ImportFixButtonModel> fixes = [];
+
+    public ImportProblem Problem { get; } = problem;
+    public string Verdict { get; } = ImportProblems.VerdictOf(problem.Status).Word;
+    public string VerdictTone { get; } = ImportProblems.VerdictOf(problem.Status).Tone.ToString();
+    public string File => Problem.File;
+    public string StoreLabel => TablePresentation.StoreLabel(Problem.Store);
+    public string Period => Problem.Period;
+    public string NextStep => Problem.NextStep;
+    public string Detail => Problem.Detail;
+
+    public IReadOnlyList<ImportFixButtonModel> Fixes
+    {
+        get => fixes;
+        set { fixes = value ?? []; PropertyChanged?.Invoke(this, new(nameof(Fixes))); }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
+/// Imports > Problems. Template A (List) of the design system: toolbar (Refresh, Retry failed, status filter, the Owner's evidence
+/// action), one caption line, the grid as the body. 1.12 U2 (wave plan C-c, DS-12): Verdict first as a tone chip, then the file,
+/// what to do and one QuietButton per Fix action.
+/// </summary>
 public sealed class ImportProblemsView : UserControl
 {
-    private readonly ComboBox status = new() { ItemsSource = new[] { "All problems", "Quarantined", "Conflict", "Duplicate", "Failed", "Unknown layout" }, SelectedIndex = 0, MinWidth = 180 };
-    private readonly DataGrid rows = new() { AutoGenerateColumns = true, IsReadOnly = true };
-    private readonly TextBlock message = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8) };
+    private readonly ComboBox status = new() { ItemsSource = new[] { "All problems", "Quarantined", "Conflict", "Duplicate", "Failed", "Unknown layout" }, SelectedIndex = 0 };
+    private readonly DataGrid rows = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
+    private readonly TextBlock message = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly ImportWorkspaceView? imports;
     private IReadOnlyList<ImportProblem> problems = [];
+    private IReadOnlyList<ImportProblemRow> problemRows = [];
+    private int revision;
 
     /// <summary>The problems currently held, so a restart test can assert what survived.</summary>
     public IReadOnlyList<ImportProblem> Rows => problems;
+    /// <summary>The grid rows with their Fix buttons (1.12 U2).</summary>
+    public IReadOnlyList<ImportProblemRow> GridRows => problemRows;
     public string MessageText => message.Text;
     public bool HasLoaded { get; private set; }
 
@@ -127,29 +184,50 @@ public sealed class ImportProblemsView : UserControl
     /// <summary>Whether the Owner's "Keep source files for earlier imports…" button is on screen.</summary>
     public bool KeepEarlierSourcesVisible => keepEarlierSources?.Visibility == Visibility.Visible;
 
-    public ImportProblemsView(ImportWorkspaceView imports, Func<Task<IReadOnlyList<ImportProblem>>> load,
+    /// <summary>The Fix buttons' services; <see cref="ImportFixServices.Current"/> unless a test sets its own.</summary>
+    internal ImportFixServices? FixServices { get; set; } = ImportFixServices.Current;
+    internal ImportFixHandlers FixHandlers { get; }
+
+    /// <summary>Reloads the problems (the same as Refresh).</summary>
+    public Task RefreshAsync() => RefreshCoreAsync();
+
+    private readonly Func<Task<IReadOnlyList<ImportProblem>>> load;
+    private readonly Button refresh;
+    private readonly Button retry;
+
+    /// <param name="imports">The import workspace for "Retry failed" of this session's batch; null (the "import-problems" screen a Fix
+    /// link opens) hides that button: the rows' own Retry buttons remain.</param>
+    public ImportProblemsView(ImportWorkspaceView? imports, Func<Task<IReadOnlyList<ImportProblem>>> load,
         ImportEvidenceView? evidence = null, bool revealEvidence = false)
     {
-        var root = new DockPanel { Margin = new Thickness(8) };
+        this.imports = imports;
+        this.load = load ?? throw new ArgumentNullException(nameof(load));
+        FixHandlers = new ImportFixHandlers(this, text => message.Text = text, RefreshCoreAsync);
+        var root = new DockPanel();
         var actions = new WrapPanel();
-        var refresh = new Button { Content = "Refresh problems", Margin = new Thickness(8,0,0,0) };
-        var retry = new Button { Content = "Retry failed", MinHeight = 44, MinWidth = 112, Margin = new Thickness(8,0,0,0), IsEnabled = imports.CanRetry };
+        refresh = new Button { Content = "Refresh", Margin = DesignTokens.Gap(null, null, "Space8", null) };
+        retry = new Button { Content = "Retry failed", Margin = DesignTokens.Gap(null, null, "Space8", null), IsEnabled = imports?.CanRetry == true,
+            Visibility = imports is null ? Visibility.Collapsed : Visibility.Visible };
+        status.SetResourceReference(WidthProperty, "InputMedium");
+        status.Margin = DesignTokens.Gap(null, null, "Space8", null);
         // R3. A Viewer sees the button disabled; without this they see a dead control
         // and no reason for it.
         var retryDenied = new TextBlock
         {
             Text = "Owner or store manager can retry",
-            Margin = new Thickness(8, 12, 0, 0),
+            Margin = DesignTokens.Gap(null, null, "Space8", null),
+            VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
-            Visibility = imports.CanRetryByRole ? Visibility.Collapsed : Visibility.Visible
+            Visibility = imports is null || imports.CanRetryByRole ? Visibility.Collapsed : Visibility.Visible
         };
+        retryDenied.SetResourceReference(StyleProperty, "CaptionText");
         AutomationProperties.SetName(retryDenied, "Owner or store manager can retry");
-        actions.Children.Add(status); actions.Children.Add(retry); actions.Children.Add(retryDenied); actions.Children.Add(refresh);
+        actions.Children.Add(refresh); actions.Children.Add(retry); actions.Children.Add(retryDenied); actions.Children.Add(status);
         Evidence = evidence;
         if (evidence is not null)
         {
             // Spec 12: the Owner keeps the source files of earlier imports from here as well as from Settings.
-            var keep = new Button { Content = ImportEvidenceView.KeepEarlierSourcesText, MinHeight = 44, Margin = new Thickness(8,0,0,0) };
+            var keep = new Button { Content = ImportEvidenceView.KeepEarlierSourcesText };
             AutomationProperties.SetName(keep, ImportEvidenceView.KeepEarlierSourcesText);
             AutomationProperties.SetHelpText(keep, "Owner only. Keeps the source files of earlier imports from the folders you choose. Nothing is imported.");
             keep.Click += async (_,_) => { evidence.Reveal(); await evidence.KeepEarlierSourcesAsync(); };
@@ -157,44 +235,150 @@ public sealed class ImportProblemsView : UserControl
             keepEarlierSources = keep;
             UpdateEvidenceAccess();
         }
+        message.SetResourceReference(StyleProperty, "CaptionText");
+        message.Margin = DesignTokens.Gap(null, "Space8", null, "Space8");
         DockPanel.SetDock(actions,Dock.Top);root.Children.Add(actions);
         DockPanel.SetDock(message,Dock.Top);root.Children.Add(message);
         if (evidence is not null) { DockPanel.SetDock(evidence,Dock.Top);root.Children.Add(evidence); }
+        BuildColumns();
+        TablePresentation.Configure(rows);
         root.Children.Add(rows);Content=root;
         AutomationProperties.SetName(status,"Problem status filter");
         AutomationProperties.SetName(rows,"Import problems");
+        AutomationProperties.SetName(refresh,"Refresh import problems");
         AutomationProperties.SetName(retry,"Retry failed imports");
         AutomationProperties.SetHelpText(retry,"Retry only failed files from the latest import. Keyboard shortcut: Ctrl+R.");
         void UpdateRetry(object? sender, EventArgs args)
         {
+            if (imports is null) return;
             retry.IsEnabled = imports.CanRetry;
             retryDenied.Visibility = imports.CanRetryByRole ? Visibility.Collapsed : Visibility.Visible;
         }
         retryDeniedText = retryDenied;
         status.SelectionChanged += (_,_) => ApplyFilter();
-        async Task Refresh()
-        {
-            refresh.IsEnabled=false;
-            try { problems=await load(); ApplyFilter(); message.Text=$"{problems.Count} problems. Select a status to filter."; }
-            catch(Exception ex) { message.Text=DesktopFriendlyError.Describe(ex); }
-            finally { refresh.IsEnabled=true; retry.IsEnabled=imports.CanRetry; HasLoaded=true; }
-        }
-        refresh.Click += async (_,_) => await Refresh();
+        refresh.Click += async (_,_) => await RefreshCoreAsync();
         retry.Click += async (_,_) =>
         {
-            if (!imports.CanRetry) return;
+            if (imports is null || !imports.CanRetry) return;
             await imports.RetryFailedBatchAsync();
-            await Refresh();
+            await RefreshCoreAsync();
         };
         Loaded += async (_,_) =>
         {
-            imports.RetryAvailabilityChanged += UpdateRetry;
+            if (imports is not null) imports.RetryAvailabilityChanged += UpdateRetry;
             UpdateEvidenceAccess();
             if (revealEvidence && evidence is { IsOwner: true }) evidence.Reveal();
-            await Refresh();
+            await RefreshCoreAsync();
         };
-        Unloaded += (_,_) => imports.RetryAvailabilityChanged -= UpdateRetry;
+        Unloaded += (_,_) => { if (imports is not null) imports.RetryAvailabilityChanged -= UpdateRetry; };
     }
+
+    private async Task RefreshCoreAsync()
+    {
+        var current = ++revision;
+        refresh.IsEnabled=false;
+        try
+        {
+            var loaded = await load();
+            if (current != revision) return;
+            problems = loaded;
+            problemRows = loaded.Select(problem => new ImportProblemRow(problem)).ToArray();
+            ApplyFilter();
+            message.Text = $"{problems.Count} problems. Select a status to filter.";
+            await LoadFixesAsync(current);
+        }
+        catch(Exception ex) { if (current == revision) message.Text=DesktopFriendlyError.Describe(ex); }
+        finally { refresh.IsEnabled=true; retry.IsEnabled=imports?.CanRetry == true; HasLoaded=true; }
+    }
+
+    /// <summary>The Fix buttons of each row with an attempt behind it (one location lookup per row, the first 60 rows).</summary>
+    private async Task LoadFixesAsync(int current)
+    {
+        if (FixServices is not { } services) return;
+        ImportWorkspaceAccess access;
+        try { access = imports?.Access ?? await services.LoadAccess(CancellationToken.None); }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Imports.Problems", "IMPORT_FIX_LOOKUP_FAILED", DesktopDiagnosticSeverity.Warning);
+            return;
+        }
+        foreach (var row in problemRows.Where(row => row.Problem.Source is not null).Take(ImportFixServices.MaximumLookups))
+        {
+            if (current != revision) return;
+            try { row.Fixes = await ImportFixRows.ForAsync(row.Problem.Source!, access, services, FixHandlers); }
+            catch (Exception exception)
+            {
+                // A lookup that fails leaves the row with its text only; the reason goes to diagnostics once.
+                DesktopDiagnostics.Record(exception, "Imports.Problems", "IMPORT_FIX_LOOKUP_FAILED", DesktopDiagnosticSeverity.Warning);
+                return;
+            }
+        }
+    }
+
+    private void BuildColumns()
+    {
+        rows.Columns.Add(new DataGridTextColumn { Header = "Verdict", Binding = new Binding(nameof(ImportProblemRow.Verdict)), Width = 140, ElementStyle = VerdictChipStyle() });
+        rows.Columns.Add(new DataGridTextColumn { Header = "File", Binding = new Binding(nameof(ImportProblemRow.File)), Width = 230, ElementStyle = WrapStyle() });
+        rows.Columns.Add(new DataGridTextColumn { Header = "What to do", Binding = new Binding(nameof(ImportProblemRow.NextStep)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 260, ElementStyle = WrapStyle() });
+        rows.Columns.Add(FixColumn("Fix"));
+        rows.Columns.Add(new DataGridTextColumn { Header = "Store", Binding = new Binding(nameof(ImportProblemRow.StoreLabel)), Width = 120 });
+        rows.Columns.Add(new DataGridTextColumn { Header = "Period", Binding = new Binding(nameof(ImportProblemRow.Period)), Width = 200 });
+        rows.Columns.Add(new DataGridTextColumn { Header = "Rows", Binding = new Binding(nameof(ImportProblemRow.Detail)), Width = 220, ElementStyle = WrapStyle() });
+    }
+
+    /// <summary>DS-12: the verdict as a tone chip with its word (Refused red, Unknown layout amber, Already imported grey).</summary>
+    internal static Style VerdictChipStyle(string toneProperty = nameof(ImportProblemRow.VerdictTone))
+    {
+        var style = new Style(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(8, 3, 8, 3)));
+        style.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left));
+        style.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center));
+        style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
+        style.Setters.Add(new Setter(TextBlock.BackgroundProperty, ThemeBrushes.Get("SurfaceSecondary")));
+        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, ThemeBrushes.Get("SecondaryText")));
+        foreach (var tone in new[] { StatusTone.Critical, StatusTone.Warning, StatusTone.Success, StatusTone.Information })
+        {
+            var (fill, _, text) = StatusTones.BrushesFor(tone);
+            var trigger = new DataTrigger { Binding = new Binding(toneProperty), Value = tone.ToString() };
+            trigger.Setters.Add(new Setter(TextBlock.BackgroundProperty, ThemeBrushes.Get(fill)));
+            trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty, ThemeBrushes.Get(text)));
+            style.Triggers.Add(trigger);
+        }
+        return style;
+    }
+
+    private static Style WrapStyle()
+    {
+        var style = new Style(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
+        return style;
+    }
+
+    /// <summary>One QuietButton per Fix action of the row (the row's <c>Fixes</c>), in the advisor's order.</summary>
+    internal static DataGridTemplateColumn FixColumn(string header)
+    {
+        var button = new FrameworkElementFactory(typeof(Button));
+        button.SetResourceReference(FrameworkElement.StyleProperty, "QuietButton");
+        button.SetBinding(ContentControl.ContentProperty, new Binding(nameof(ImportFixButtonModel.Label)));
+        button.SetBinding(FrameworkElement.ToolTipProperty, new Binding(nameof(ImportFixButtonModel.Explanation)));
+        button.SetBinding(AutomationProperties.NameProperty, new Binding(nameof(ImportFixButtonModel.AutomationName)));
+        button.SetBinding(AutomationProperties.HelpTextProperty, new Binding(nameof(ImportFixButtonModel.Explanation)));
+        button.AddHandler(Button.ClickEvent, new RoutedEventHandler(async (sender, _) =>
+        {
+            if (sender is not Button { DataContext: ImportFixButtonModel fix } pressed) return;
+            pressed.IsEnabled = false;
+            try { await fix.Run(); }
+            finally { pressed.IsEnabled = true; }
+        }));
+        var panel = new FrameworkElementFactory(typeof(WrapPanel));
+        var list = new FrameworkElementFactory(typeof(ItemsControl));
+        list.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(ImportProblemRow.Fixes)));
+        list.SetValue(ItemsControl.ItemTemplateProperty, new DataTemplate { VisualTree = button });
+        list.SetValue(ItemsControl.ItemsPanelProperty, new ItemsPanelTemplate(panel));
+        list.SetValue(UIElement.FocusableProperty, false);
+        return new DataGridTemplateColumn { Header = header, Width = 300, CellTemplate = new DataTemplate { VisualTree = list } };
+    }
+
     // Only the Owner sees the evidence action and section here; Settings still shows the size to every role.
     private void UpdateEvidenceAccess()
     {
@@ -204,5 +388,5 @@ public sealed class ImportProblemsView : UserControl
         keepEarlierSources.IsEnabled = owner;
         Evidence.RefreshAccessState();
     }
-    private void ApplyFilter() => rows.ItemsSource = problems.Where(p => status.SelectedIndex == 0 || p.Status.Contains(status.SelectedItem?.ToString() ?? "", StringComparison.OrdinalIgnoreCase)).ToArray();
+    private void ApplyFilter() => rows.ItemsSource = problemRows.Where(p => status.SelectedIndex == 0 || p.Problem.Status.Contains(status.SelectedItem?.ToString() ?? "", StringComparison.OrdinalIgnoreCase)).ToArray();
 }

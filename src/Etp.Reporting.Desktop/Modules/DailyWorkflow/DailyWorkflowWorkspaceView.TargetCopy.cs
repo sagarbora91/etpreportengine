@@ -13,43 +13,47 @@ using SaveDailyStaffTarget = EtpApplication::Etp.Reporting.Application.DailyWork
 /// 1.9.9 targets-copy: "Copy from previous month" for staff (CRO) targets. It loads the previous month's targets for the
 /// selected store into an editable list; nothing is saved until the Owner presses "Save copied targets", and a target
 /// already saved for the month is replaced only after the Owner confirms. Targets are Owner-only (decision D22, 16 Sep 2026).
+/// 1.12 U2 (wave plan C-d): "Copy all stores from last month" does the same for every store at once; the staff name shows
+/// beside each CRO number; the Replace / Keep / Cancel dialog replaces the Windows Yes / No / Cancel box; the month comes
+/// from the header date (From = its first day).
 /// </summary>
 public partial class DailyWorkflowWorkspaceView
 {
     private DataGrid staffTargetCopyGrid = null!;
     private TextBlock staffTargetCopyNote = null!;
     private Button copyStaffTargetsButton = null!;
+    private Button copyAllStoresStaffTargetsButton = null!;
     private Button saveCopiedStaffTargetsButton = null!;
+    public const string CopyAllStoresStaffTargetsText = "Copy all stores from last month";
     private IReadOnlyList<CopiedTargetRow> pendingStaffTargetCopy = [];
     private DateOnly pendingStaffTargetMonth;
     private string pendingStaffTargetStore = "";
 
     internal Func<string, TargetOverwriteChoice> ConfirmStaffTargetOverwrite { get; set; } = question =>
-        MessageBox.Show(question, "Replace saved targets?", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning) switch
-        {
-            MessageBoxResult.Yes => TargetOverwriteChoice.ReplaceExisting,
-            MessageBoxResult.No => TargetOverwriteChoice.KeepExisting,
-            _ => TargetOverwriteChoice.Cancel,
-        };
+        TargetCopy.FromDialog(ReplaceKeepCancelDialog.Ask(Application.Current?.MainWindow, "Replace saved targets?", question));
 
     internal Func<string, bool> ConfirmDiscardStaffTargetCopy { get; set; } = message =>
-        MessageBox.Show(message, "Copy from previous month", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        Application.Current?.MainWindow is { } window && ConfirmationSheet.Show(window, "Copy again", message);
 
     internal IReadOnlyList<CopiedTargetRow> PendingStaffTargetCopy => pendingStaffTargetCopy;
 
     private void InitializeStaffTargetCopy()
     {
-        copyStaffTargetsButton = new Button { Content = "Copy from previous month", Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(6, 0, 0, 0) };
+        copyStaffTargetsButton = new Button { Content = "Copy from previous month", Margin = DesignTokens.Gap("Space8", null, null, null) };
         System.Windows.Automation.AutomationProperties.SetName(copyStaffTargetsButton, "Copy staff targets from previous month");
         copyStaffTargetsButton.Click += async (_, _) => await CopyStaffTargetsFromPreviousMonthAsync();
+        copyAllStoresStaffTargetsButton = new Button { Content = CopyAllStoresStaffTargetsText, Margin = DesignTokens.Gap("Space8", null, null, null) };
+        System.Windows.Automation.AutomationProperties.SetName(copyAllStoresStaffTargetsButton, "Copy staff targets of all stores from last month");
+        copyAllStoresStaffTargetsButton.Click += async (_, _) => await CopyStaffTargetsFromPreviousMonthAsync(allStores: true);
         var staffTargetRow = (Panel)SaveStaffTargetButton.Parent;
         staffTargetRow.Children.Insert(staffTargetRow.Children.IndexOf(SaveStaffTargetButton) + 1, copyStaffTargetsButton);
+        staffTargetRow.Children.Insert(staffTargetRow.Children.IndexOf(copyStaffTargetsButton) + 1, copyAllStoresStaffTargetsButton);
 
-        staffTargetCopyNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
+        staffTargetCopyNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = DesignTokens.Gap(null, "Space4", null, null) };
         staffTargetCopyGrid = CopiedTargetGrid.Create("Staff targets copied from the previous month (not saved)", withCro: true);
         saveCopiedStaffTargetsButton = new Button
         {
-            Content = "Save copied targets", Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(0, 4, 0, 0),
+            Content = "Save copied targets", Margin = DesignTokens.Gap(null, "Space4", null, null),
             HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed,
         };
         saveCopiedStaffTargetsButton.SetResourceReference(StyleProperty, "PrimaryButton");
@@ -68,16 +72,22 @@ public partial class DailyWorkflowWorkspaceView
         foreach (var input in new Control[] { StaffTargetCroInput, StaffTargetFromInput, StaffTargetToInput, StaffTargetValueInput, StaffTargetReasonInput })
             input.IsEnabled = current.CanAdminister;
         copyStaffTargetsButton.IsEnabled = current.CanAdminister;
+        copyAllStoresStaffTargetsButton.IsEnabled = current.CanAdminister;
         saveCopiedStaffTargetsButton.IsEnabled = current.CanAdminister;
         var reason = current.CanAdminister ? null : StaffTargetsNeedOwnerMessage;
         copyStaffTargetsButton.ToolTip = reason;
+        copyAllStoresStaffTargetsButton.ToolTip = reason;
         saveCopiedStaffTargetsButton.ToolTip = reason;
+        ToolTipService.SetShowOnDisabled(copyStaffTargetsButton, true);
+        ToolTipService.SetShowOnDisabled(copyAllStoresStaffTargetsButton, true);
+        ToolTipService.SetShowOnDisabled(saveCopiedStaffTargetsButton, true);
     }
 
-    public async Task CopyStaffTargetsFromPreviousMonthAsync()
+    public async Task CopyStaffTargetsFromPreviousMonthAsync(bool allStores = false)
     {
-        if (string.IsNullOrWhiteSpace(StoreCode)) { Publish("Choose one store in the header."); return; }
-        var target = TargetCopy.MonthStart(DateOnly.FromDateTime(StaffTargetFromInput.SelectedDate ?? DateTime.Today));
+        if (!allStores && string.IsNullOrWhiteSpace(StoreCode)) { Publish("Choose one store in the header."); return; }
+        // C-d: the month comes from the header date (the From box follows it); an Owner who changed From copies into that month.
+        var target = TargetCopy.MonthStart(DateOnly.FromDateTime(StaffTargetFromInput.SelectedDate ?? BusinessDateInput.SelectedDate ?? DateTime.Today));
         var previous = TargetCopy.PreviousMonth(target);
         try { RequireOwnerAccess(); }
         catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_FAILED", "Staff targets were not copied", StaffTargetsNeedOwnerMessage); return; }
@@ -87,17 +97,19 @@ public partial class DailyWorkflowWorkspaceView
         if (!BeginOperation()) return;
         try
         {
-            var store = SelectedScope().StoreCode;
+            string? store = allStores ? null : SelectedScope().StoreCode;
             var saved = await queryFactory().LoadStaffTargetsAsync(
-                new DailyStaffTargetSearch(previous, TargetCopy.MonthEnd(target), [store]));
+                new DailyStaffTargetSearch(previous, TargetCopy.MonthEnd(target), store is null ? null : [store]));
             var plan = TargetCopy.Plan(
-                saved.Where(row => string.Equals(row.StoreCode, store, StringComparison.OrdinalIgnoreCase))
+                saved.Where(row => store is null || string.Equals(row.StoreCode, store, StringComparison.OrdinalIgnoreCase))
                     .Select(row => new TargetCopySource(row.StoreCode, row.CroNumber, row.PeriodStart, row.TargetSales)),
                 target);
-            ShowStaffTargetCopy(plan, store, target);
+            if (plan.Count > 0) plan = TargetCopy.WithStaffNames(plan, await StaffNameDirectory.TryLoadAsync());
+            var scopeText = store ?? "all stores";
+            ShowStaffTargetCopy(plan, scopeText, target);
             Publish(plan.Count == 0
-                ? $"No staff targets are saved for {store} in {TargetCopy.MonthLabel(previous)}. Nothing was copied."
-                : $"Copied {plan.Count} staff target(s) for {store} from {TargetCopy.MonthLabel(previous)} into {TargetCopy.MonthLabel(target)}. Nothing is saved yet: check the values, then press Save copied targets.");
+                ? $"No staff targets are saved for {scopeText} in {TargetCopy.MonthLabel(previous)}. Nothing was copied."
+                : $"Copied {plan.Count} staff target(s) for {scopeText} from {TargetCopy.MonthLabel(previous)} into {TargetCopy.MonthLabel(target)}. Nothing is saved yet: check the values, then press Save copied targets.");
         }
         catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_FAILED", "Staff targets were not copied", StaffTargetsNeedOwnerMessage); }
         finally { EndOperation(); }
@@ -126,8 +138,9 @@ public partial class DailyWorkflowWorkspaceView
             var saved = 0;
             foreach (var row in resolved)
             {
+                // Each row keeps its own store ("all stores" copies several).
                 await commands.SaveStaffTargetAsync(new SaveDailyStaffTarget(
-                    pendingStaffTargetStore, row.CroNumber!, pendingStaffTargetMonth, TargetCopy.MonthEnd(pendingStaffTargetMonth),
+                    row.StoreCode, row.CroNumber!, pendingStaffTargetMonth, TargetCopy.MonthEnd(pendingStaffTargetMonth),
                     row.TargetSales, Environment.UserName, reason));
                 saved++;
             }

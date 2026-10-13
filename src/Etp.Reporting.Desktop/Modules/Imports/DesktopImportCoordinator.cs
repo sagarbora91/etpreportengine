@@ -6,6 +6,8 @@ using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Workbooks;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.Infrastructure.SqlServer.ImportSourceLocations;
+using Etp.Reporting.Infrastructure.SqlServer.ShopResults;
 using FailureStage = EtpApplication::Etp.Reporting.Application.Imports.FailureStage;
 using FolderImportOptions = EtpApplication::Etp.Reporting.Application.Imports.FolderImportOptions;
 using FolderImportProgress = EtpApplication::Etp.Reporting.Application.Imports.FolderImportProgress;
@@ -65,14 +67,22 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     // 1.11.0: a daily-inputs sheet (family D001) picked on the single-file route; it has no envelope, so it is kept apart.
     private ValidatedDailyInputs? validatedDaily;
     private readonly IDailyInputsApplier? dailyInputs;
+    // 1.12 U2: a hand import records where each file came from (0069, route Hand) for the Fix buttons, and a hand import of a
+    // shop zip writes the shop's result file like the unattended run does (review m-3). Both are best effort: never the outcome.
+    private readonly IImportSourceLocationStore? sourceLocations;
+    private readonly ShopResultWriter? shopResults;
 
     public DesktopImportCoordinator(
         Func<ImportPersistenceUseCase> persistenceFactory,
         IWorkbookReader? workbookReader = null,
         Action<FolderImportFailure>? reportImportFailure = null,
-        IDailyInputsApplier? dailyInputs = null)
+        IDailyInputsApplier? dailyInputs = null,
+        IImportSourceLocationStore? sourceLocations = null,
+        ShopResultWriter? shopResults = null)
     {
         this.dailyInputs = dailyInputs;
+        this.sourceLocations = sourceLocations;
+        this.shopResults = shopResults;
         this.persistenceFactory = persistenceFactory ?? throw new ArgumentNullException(nameof(persistenceFactory));
         this.workbookReader = workbookReader ?? new SourceFileReader();
         this.reportImportFailure = reportImportFailure;
@@ -113,8 +123,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var parsed = DailyInputsParser.Parse(snapshot, DateOnly.FromDateTime(DateTime.Today));
         if (parsed.Succeeded) validatedDaily = new(workbookPath, snapshot);
+        // Review m-3 (decision 44 #4): a file-name date that differs from the sheet is a Warning here too, as in the folder import.
         var diagnostics = parsed.Errors.Select(issue => DailyDiagnostic(ImportDiagnosticSeverity.Blocker, issue))
-            .Concat(parsed.Notes.Select(issue => DailyDiagnostic(ImportDiagnosticSeverity.Information, issue))).ToArray();
+            .Concat(parsed.Notes.Select(issue => DailyDiagnostic(NoteSeverity(issue.Code), issue))).ToArray();
         return new(parsed.Succeeded, DailyInputsTemplate.FamilyCode, parsed.Document?.Values.Count ?? 0, diagnostics)
         {
             StoreCode = parsed.Document?.StoreCode,
@@ -122,6 +133,10 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             PeriodEnd = parsed.Document?.BusinessDate
         };
     }
+
+    /// <summary>The severity a daily-inputs note is shown with: Warning for <see cref="DailyInputsCodes.IsWarning"/>, else Information.</summary>
+    internal static ImportDiagnosticSeverity NoteSeverity(string code) =>
+        DailyInputsCodes.IsWarning(code) ? ImportDiagnosticSeverity.Warning : ImportDiagnosticSeverity.Information;
 
     private static ImportDiagnostic DailyDiagnostic(ImportDiagnosticSeverity severity, DailyInputsIssue issue) =>
         new(issue.Code, severity, issue.Message, null, issue.RowNumber, "Value") { DocumentRef = issue.FieldCode };
@@ -213,6 +228,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         // As in the folder import, a failed write is reported once the import itself has finished.
         if (persistence is ImportAttemptRecorder recorder)
             await recorder.RecordAttemptAsync(recorded, CancellationToken.None).ConfigureAwait(false);
+        await RecordHandLocationsAsync([new(recorded.FileName, recorded.SourceSha256, current.WorkbookPath, ImportSourceRoute.Hand)]).ConfigureAwait(false);
         return outcome;
     }
 
@@ -280,7 +296,64 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         folderImportService = new FolderImportService(persistenceFactory(), workbookReader, knownStores, reportImportFailure, dailyInputs);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
+        await RecordHandLocationsAsync(HandLocations(sourcePath, result.Files)).ConfigureAwait(false);
+        LastShopResultNote = WriteShopResult(sourcePath, result.Files);
         return result;
+    }
+
+    /// <summary>
+    /// The sentence for the import screen when the shop's result file of the last hand-imported shop zip could not be written
+    /// (review B-1 wording); empty when it was written or the source was not a shop zip.
+    /// </summary>
+    public string LastShopResultNote { get; private set; } = "";
+
+    /// <summary>
+    /// Hand rows for a folder, zip or file import: a zip or a single file is the place itself; a folder's file is its own path
+    /// (a zip's files are extracted to a temporary folder, so they point at the zip).
+    /// </summary>
+    internal static IReadOnlyList<NewImportSourceLocation> HandLocations(string sourcePath, IReadOnlyList<FolderImportFileResult> files)
+    {
+        var sourceIsFile = System.IO.File.Exists(sourcePath);
+        return files.Where(file => file.Status != "Cancelled" && !string.IsNullOrWhiteSpace(file.FileName))
+            .Select(file => new NewImportSourceLocation(System.IO.Path.GetFileName(file.FileName), file.SourceSha256,
+                sourceIsFile || string.IsNullOrWhiteSpace(file.SourcePath) || !IsInside(file.SourcePath, sourcePath) ? sourcePath : file.SourcePath,
+                ImportSourceRoute.Hand))
+            .ToArray();
+    }
+
+    private static bool IsInside(string path, string folder)
+    {
+        try
+        {
+            var root = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(folder)) + System.IO.Path.DirectorySeparatorChar;
+            return System.IO.Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or System.IO.PathTooLongException) { return false; }
+    }
+
+    private async Task RecordHandLocationsAsync(IReadOnlyList<NewImportSourceLocation> rows)
+    {
+        // The composition root's ImportFixServices (1.12 U2) supply the store when the constructor was given none.
+        var store = sourceLocations ?? ImportFixServices.Current?.Locations();
+        if (store is null || rows.Count == 0) return;
+        try { await store.RecordAsync(rows, CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The import stands; only the Fix buttons lose this row's place. Diagnostics keep the reason.
+            DesktopDiagnostics.Record(exception, "Imports.Coordinator", "IMPORT_SOURCE_LOCATION_NOT_SAVED", DesktopDiagnosticSeverity.Warning);
+        }
+    }
+
+    /// <summary>Review m-3: a hand import of <c>ROLE-yyyy-MM-dd[-rN].zip</c> writes the shop's result file as the unattended run does.</summary>
+    private string WriteShopResult(string sourcePath, IReadOnlyList<FolderImportFileResult> files)
+    {
+        var writer = shopResults ?? ImportFixServices.Current?.ShopResults();
+        if (writer is null || !ShopResultBuilder.TryParseShopZip(sourcePath, out var role, out var day, out var sequence)) return "";
+        var version = typeof(DesktopImportCoordinator).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+        var result = ShopResultBuilder.Build(role, day, sequence, version, DateTime.UtcNow, files);
+        if (result.Files.Count == 0) return "";
+        writer.TryWrite(result, out var failure);
+        return ShopResultWriter.FailureSentence(failure).Trim();
     }
 
     public async Task<FolderImportSummary> RetryFailedFolderAsync(IProgress<FolderImportProgress>? progress = null,
@@ -340,6 +413,10 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             .Where(pair => pair.Second.Status == BatchImportFileStatus.Failed)
             .Select(pair => pair.First)
             .ToArray();
+        await RecordHandLocationsAsync(recording.Recorded
+            .Where(result => result.Status != "Cancelled" && !string.IsNullOrWhiteSpace(result.SourcePath))
+            .Select(result => new NewImportSourceLocation(result.FileName, result.SourceSha256, result.SourcePath!, ImportSourceRoute.Hand))
+            .ToArray()).ConfigureAwait(false);
         recording.ThrowIfFailed();
         return summary;
     }
@@ -351,9 +428,14 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private sealed class BatchAttemptRecording(ImportAttemptRecorder? recorder)
     {
         private ExceptionDispatchInfo? failure;
+        private readonly List<FolderImportFileResult> recorded = [];
+
+        /// <summary>Every attempt the batch finished (for the hand location rows), whether or not its history write worked.</summary>
+        public IReadOnlyList<FolderImportFileResult> Recorded => recorded;
 
         public async Task RecordAsync(FolderImportFileResult result)
         {
+            recorded.Add(result);
             if (recorder is null) return;
             try { await recorder.RecordAttemptAsync(result, CancellationToken.None).ConfigureAwait(false); }
             catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }

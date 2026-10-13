@@ -5,6 +5,8 @@ using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
+using Etp.Reporting.Infrastructure.SqlServer.Connections;
+using Etp.Reporting.Infrastructure.SqlServer.ImportSourceLocations;
 using Etp.Reporting.Infrastructure.SqlServer.ShopResults;
 using Etp.Reporting.Reporting;
 using Microsoft.Data.SqlClient;
@@ -23,9 +25,13 @@ internal enum AutomationSourceRoute { Processed, Duplicate, Failed, Inbound }
 public sealed record AutomatedReportPackFailure(string RunType, DateOnly BusinessDate, int? SqlErrorNumber, Exception Exception);
 
 public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null,
-    Action<AutomatedReportPackFailure>? reportPackFailure = null, ShopResultWriter? shopResultWriter = null)
+    Action<AutomatedReportPackFailure>? reportPackFailure = null, ShopResultWriter? shopResultWriter = null,
+    IImportSourceLocationStore? sourceLocationStore = null)
 {
     private readonly ShopResultWriter shopResults = shopResultWriter ?? new ShopResultWriter();
+    // 1.12 U2 (0069): where each routed file went, for the Problems and History Fix buttons. Built on first use, so a
+    // connection string the factory refuses fails here (as a note on the run line), never the import.
+    private IImportSourceLocationStore? sourceLocations = sourceLocationStore;
 
     public async Task<AutomatedOperationsSummary> RunOnceAsync(CancellationToken cancellationToken = default)
     {
@@ -74,12 +80,15 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 if(route==AutomationSourceRoute.Failed)
                 {
                     failed++;
-                    MoveCompletedSource(source,paths.FailedPath);
+                    var failedAt=MoveCompletedSource(source,paths.FailedPath);
+                    var failedNote=shopResultNote+await RecordLocationsAsync(source,failedAt,ImportSourceRoute.Failed,batch.Files,cancellationToken);
                     await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),null,null,"Failed",
-                        WithNote($"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed.",shopResultNote),started,cancellationToken);
+                        WithNote($"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed.",failedNote),started,cancellationToken);
                     continue;
                 }
-                MoveCompletedSource(source,route==AutomationSourceRoute.Duplicate ? duplicatePath : paths.ProcessedPath);
+                var routedAt=MoveCompletedSource(source,route==AutomationSourceRoute.Duplicate ? duplicatePath : paths.ProcessedPath);
+                shopResultNote+=await RecordLocationsAsync(source,routedAt,
+                    route==AutomationSourceRoute.Duplicate ? ImportSourceRoute.Duplicate : ImportSourceRoute.Processed,batch.Files,cancellationToken);
                 processed++;
                 var stores=batch.Files.Select(x=>x.StoreCode).Where(x=>x is not null).Distinct().ToArray();
                 var dates=batch.Files.Select(x=>x.PeriodEnd).Where(x=>x is not null).Distinct().ToArray();
@@ -96,7 +105,11 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 failed++;
                 var shopResultNote = WriteShopResult(source, null);
                 var safe = new SqlImportFailureClassifier().Describe(ex).SafeMessage;
-                try { MoveCompletedSource(source, paths.FailedPath); }
+                try
+                {
+                    var failedAt = MoveCompletedSource(source, paths.FailedPath);
+                    shopResultNote += await RecordLocationsAsync(source, failedAt, ImportSourceRoute.Failed, null, cancellationToken);
+                }
                 catch (Exception moveException) when (moveException is IOException or UnauthorizedAccessException)
                 { safe = $"{safe} The source could not be moved to Failed and remains available for the next run."; }
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null, "Failed", WithNote(safe, shopResultNote), started, cancellationToken);
@@ -274,11 +287,46 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
         catch (Exception sinkFailure) when (sinkFailure is not OutOfMemoryException) { }
     }
 
-    private static void MoveCompletedSource(string source, string destinationRoot)
+    /// <summary>Moves the source into the route's folder and returns where it now is.</summary>
+    private static string MoveCompletedSource(string source, string destinationRoot)
     {
         var destination = Path.Combine(destinationRoot, $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Path.GetFileName(source)}");
         if (File.Exists(destination)) destination = Path.Combine(destinationRoot, $"{Guid.NewGuid():N}-{Path.GetFileName(source)}");
         File.Move(source, destination);
+        return destination;
+    }
+
+    /// <summary>The sentence the run line gets when the locations could not be saved; empty when they were.</summary>
+    internal const string LocationNotSavedNote = " Where the file went could not be saved, so its Fix buttons cannot re-apply it; it is in the folder named above.";
+
+    /// <summary>
+    /// 1.12 U2 (0069): one location row per file the source held (the source itself when the run threw before any file
+    /// result existed), all pointing at the routed source. Never changes the run's outcome: a failure returns
+    /// <see cref="LocationNotSavedNote"/> for the automation line. A cancelled run does not record (the source stays in Inbound).
+    /// </summary>
+    private async Task<string> RecordLocationsAsync(string source, string routedPath, ImportSourceRoute route,
+        IReadOnlyList<FolderImportFileResult>? files, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var store = sourceLocations ??= new SqlServerImportSourceLocationStore(new EtpConnectionFactory(connectionString));
+            await store.RecordAsync(LocationsFor(source, routedPath, route, files), CancellationToken.None).ConfigureAwait(false);
+            return "";
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException && !(exception is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        {
+            return LocationNotSavedNote;
+        }
+    }
+
+    /// <summary>The rows <see cref="RecordLocationsAsync"/> writes: one per decided file, or one for the source itself.</summary>
+    internal static IReadOnlyList<NewImportSourceLocation> LocationsFor(string source, string routedPath, ImportSourceRoute route,
+        IReadOnlyList<FolderImportFileResult>? files)
+    {
+        var decided = (files ?? []).Where(file => file.Status != "Cancelled" && !string.IsNullOrWhiteSpace(file.FileName)).ToArray();
+        return decided.Length == 0
+            ? [new NewImportSourceLocation(Path.GetFileName(source), null, routedPath, route)]
+            : decided.Select(file => new NewImportSourceLocation(Path.GetFileName(file.FileName), file.SourceSha256, routedPath, route)).ToArray();
     }
 
     private static bool IsStableAndReadable(string path)

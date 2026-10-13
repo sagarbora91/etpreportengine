@@ -35,6 +35,15 @@
                                automation:AutomationProperties.Name="Daily workflow source readiness"/>
                     <TextBlock x:Name="InputStatus" Style="{DynamicResource BodyText}" Margin="0,4,0,0"
                                automation:AutomationProperties.Name="Daily workflow manual-input readiness"/>
+                    <!-- 1.12 U2 (1.11.3 leftover): Finalise sits in the verdict band, under the verdict it acts on. A day with no
+                         sales file also offers N1's "Mark as no-sale day" (or "Withdraw") here, for the Owner and the Store Manager. -->
+                    <WrapPanel x:Name="VerdictActions" Margin="0,12,0,0">
+                        <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" IsEnabled="False"
+                                ToolTipService.ShowOnDisabled="True" Margin="0,0,8,0"
+                                automation:AutomationProperties.Name="Finalise business day"/>
+                        <ContentControl x:Name="NoSaleDayHost" Focusable="False" IsTabStop="False" Visibility="Collapsed"
+                                        automation:AutomationProperties.Name="No-sale day"/>
+                    </WrapPanel>
                 </StackPanel>
             </Border>
 
@@ -91,13 +100,12 @@
                 <StackPanel x:Name="StaffTargetCopyHost" MinWidth="640" Margin="0,4,0,0"/>
             </WrapPanel>
 
-            <WrapPanel Margin="0,14,0,0">
-                <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" IsEnabled="False"
-                        automation:AutomationProperties.Name="Finalise business day"/>
-                <!-- DS-10: Reopen sits in a quiet "More" fold so the undo is not 8 px from the Finalise button. -->
-                <Expander Header="More" Margin="16,0,0,0" VerticalAlignment="Center" automation:AutomationProperties.Name="More daily actions">
+            <!-- Root child 15 stays here (TaskNavigator still picks this panel's children by index until U1's by-name selection):
+                 it now holds only the quiet "More" fold. DS-10: Reopen is not 8 px from Finalise. -->
+            <WrapPanel x:Name="DayActionsRow" Margin="0,14,0,0">
+                <Expander Header="More" VerticalAlignment="Center" automation:AutomationProperties.Name="More daily actions">
                     <WrapPanel Margin="0,8,0,0">
-                        <StackPanel Margin="0,0,8,0"><TextBlock Text="Reopen reason" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="ReopenReasonInput" Width="280"
+                        <StackPanel Margin="0,0,8,0"><TextBlock Text="Reopen reason" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="ReopenReasonInput" Width="{DynamicResource InputWide}"
                                  ToolTip="Owner reason required to reopen"
                                  automation:AutomationProperties.Name="Reopen reason"/></StackPanel>
                         <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" VerticalAlignment="Bottom"

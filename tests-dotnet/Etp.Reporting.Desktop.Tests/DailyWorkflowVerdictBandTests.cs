@@ -1,0 +1,87 @@
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using Etp.Reporting.Application.DailyWorkflow;
+using Etp.Reporting.Desktop.Modules.DailyWorkflow;
+
+namespace Etp.Reporting.Desktop.Tests;
+
+/// <summary>
+/// 1.12 U2 (Close day): Finalise sits in the verdict band (the 1.11.3 leftover), the root children TaskNavigator counts are
+/// unchanged, and a day with no sales file offers N1's "Mark as no-sale day" there to the Owner and the Store Manager only, never
+/// on a finalised day (decision 52).
+/// </summary>
+[Collection(WpfViewCollection.Name)]
+public sealed class DailyWorkflowVerdictBandTests
+{
+    private static readonly DateOnly Day = new(2026, 10, 11);
+
+    private static DailyWorkflowState State(DailyWorkflowStatus status, params string[] missing) =>
+        new("TST01", Day, status, ["R022"], missing, [], [], status == DailyWorkflowStatus.Reconciled, "Synthetic");
+
+    [Fact]
+    public void The_presentation_says_when_the_sales_file_is_missing_and_when_the_day_is_locked()
+    {
+        var session = new DailyWorkflowPresentationSession();
+        var open = session.Show(State(DailyWorkflowStatus.NotReady, "R025", "R011"), []);
+        Assert.True(open.NoSalesFile);
+        Assert.False(open.IsLocked);
+        var locked = session.Show(State(DailyWorkflowStatus.Locked), []);
+        Assert.False(locked.NoSalesFile);
+        Assert.True(locked.IsLocked);
+        Assert.False(session.Show(State(DailyWorkflowStatus.NotReady, "R011"), []).NoSalesFile);
+    }
+
+    [Theory]
+    [InlineData(true, false, true, true)]    // Store Manager, open day without sales: shown
+    [InlineData(true, true, true, true)]     // Owner: shown
+    [InlineData(false, false, true, false)]  // Viewer: never
+    [InlineData(true, true, false, false)]   // sales file present: nothing to mark
+    public void The_no_sale_day_button_is_for_the_owner_and_store_manager_on_an_open_day_without_sales(bool canImport, bool owner, bool noSales, bool shown)
+    {
+        var state = new DailyWorkflowPresentationSession().Show(State(DailyWorkflowStatus.NotReady, noSales ? new[] { "R025" } : new[] { "R011" }), []);
+        Assert.Equal(shown, DailyWorkflowWorkspaceView.ShowsNoSaleDayButton(state, new(true, canImport, owner)));
+        var locked = new DailyWorkflowPresentationSession().Show(State(DailyWorkflowStatus.Locked, "R025"), []);
+        Assert.False(DailyWorkflowWorkspaceView.ShowsNoSaleDayButton(locked, new(true, true, true)));
+    }
+
+    [Fact]
+    public void Finalise_is_in_the_verdict_band_and_the_root_still_has_nineteen_children()
+    {
+        RunSta(() =>
+        {
+            var view = new DailyWorkflowWorkspaceView(new DailyWorkflowPresentationSession(),
+                () => throw new InvalidOperationException(), () => throw new InvalidOperationException(), () => throw new InvalidOperationException(),
+                () => new(true, true, true), (_, _, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask);
+            var root = (StackPanel)((Border)view.Content).Child;
+            // TaskNavigator picks this panel's children by index until U1's by-name selection lands.
+            Assert.Equal(19, root.Children.Count);
+            var band = (Border)root.Children[3];
+            var finalise = (Button)view.FindName("FinaliseDayButton");
+            Assert.True(IsInside(finalise, band));
+            Assert.False(finalise.IsEnabled);
+            Assert.NotNull(finalise.ToolTip); // B6: a disabled Finalise says why
+            Assert.True(IsInside((FrameworkElement)view.FindName("ReopenDayButton"), (FrameworkElement)root.Children[15]));
+            Assert.False(view.NoSaleDayButtonVisible);
+            return Task.CompletedTask;
+        });
+    }
+
+    private static bool IsInside(FrameworkElement element, FrameworkElement container)
+    {
+        for (DependencyObject? current = element; current is not null; current = LogicalTreeHelper.GetParent(current))
+            if (ReferenceEquals(current, container)) return true;
+        return false;
+    }
+
+    private static void RunSta(Func<Task> action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() => { try { action().GetAwaiter().GetResult(); } catch (Exception exception) { failure = exception; } });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "STA test did not complete.");
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+}

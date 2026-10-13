@@ -13,8 +13,14 @@ public sealed class OperationalAuditRepository(string connectionString)
         "ApplicationStart", "SessionStart", "ConnectionTest", "ImportBatch", "ImportFailed", "ReportRun", "ExportExcel", "ExportPdf", "DatabaseSetup", "SupportPackage",
         "ManualInput", "DayFinalised", "DayReopened", "ReportPack", "Backup", "RestoreDrill", "ConfigurationChange", "MappingProfileChange", "Restatement", "StockCount", "StaffTarget",
         "UserAdministration", "MasterDataChange", "AutomationRun", "ReportArchive", "DocumentIntake", "DocumentExtraction", "DocumentExtractionReview", "SharingContactChange",
-        "RegisterEntry", "ShareInitiated", "ReportPackage", "Approval", "Adjustment", "AccountingBatch", "AccountingExport", "ImportConflict", "IssueWorkflow", "VisualRender"
+        "RegisterEntry", "ShareInitiated", "ReportPackage", "Approval", "Adjustment", "AccountingBatch", "AccountingExport", "ImportConflict", "IssueWorkflow", "VisualRender",
+        // 1.12: the seven types 0062 pre-allocated in CK_operational_audit_type, then lane N1's two (0068).
+        "CollectionsSetup", "CollectionsImport", "CashDepositConfirmed", "SoftwareUpdate", "ShopResultPublished", "TallyReadback", "ImportFixAction",
+        "NoSaleDayMarked", "NoSaleDayWithdrawn"
     }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>The audit type of a Fix button pressed on Imports > Problems or History (1.12 U2, wave plan C-c).</summary>
+    public const string ImportFixActionType = "ImportFixAction";
     private static readonly FrozenSet<string> Outcomes = new[]
         { "Succeeded", "Failed", "Blocked", "Cancelled" }.ToFrozenSet(StringComparer.Ordinal);
 

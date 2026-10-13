@@ -94,8 +94,8 @@ public sealed class TargetCopyTests
     {
         RunSta(() =>
         {
-            var view = new EveningMastersView(() => throw new InvalidOperationException("No database call expected."), () => owner, () => true);
-            Assert.Equal(owner, FindButton(view, "Copy from previous month").IsEnabled);
+            var view = new EveningMastersView(EveningMastersServices.Unavailable, () => owner, () => true);
+            Assert.Equal(owner, FindButton(view, EveningMastersView.CopyAllStoresText).IsEnabled);
             Assert.Equal(owner, FindButton(view, "Save copied targets").IsEnabled);
             return Task.CompletedTask;
         });
@@ -107,9 +107,9 @@ public sealed class TargetCopyTests
         RunSta(() =>
         {
             var loads = 0;
-            var view = new EveningMastersView(() => throw new InvalidOperationException("No database call expected."), () => false, () => true)
+            var view = new EveningMastersView(EveningMastersServices.Unavailable, () => false, () => true)
             { TargetLoader = () => { loads++; return Task.FromResult<IReadOnlyList<MonthlyTargetRow>>([]); } };
-            Click(FindButton(view, "Copy from previous month"));
+            Click(FindButton(view, EveningMastersView.CopyAllStoresText));
             Assert.Equal(0, loads);
             Assert.Contains("permission", view.StatusText);
             return Task.CompletedTask;
@@ -130,7 +130,7 @@ public sealed class TargetCopyTests
             };
             var writes = new List<MonthlyTargetRow>();
             var questions = new List<string>();
-            var view = new EveningMastersView(() => throw new InvalidOperationException("No database call expected."), () => true, () => true)
+            var view = new EveningMastersView(EveningMastersServices.Unavailable, () => true, () => true)
             {
                 TargetLoader = () => Task.FromResult<IReadOnlyList<MonthlyTargetRow>>(saved.ToArray()),
                 TargetSaver = row => { writes.Add(row); return Task.CompletedTask; },
@@ -138,7 +138,7 @@ public sealed class TargetCopyTests
             };
             Find<DatePicker>(view, "Target month").SelectedDate = new DateTime(2026, 10, 12);
 
-            Click(FindButton(view, "Copy from previous month"));
+            Click(FindButton(view, EveningMastersView.CopyAllStoresText));
 
             Assert.Empty(writes);
             Assert.Contains("Nothing is saved yet", view.StatusText);
@@ -164,10 +164,10 @@ public sealed class TargetCopyTests
     {
         RunSta(() =>
         {
-            var view = new EveningMastersView(() => throw new InvalidOperationException("No database call expected."), () => true, () => true)
+            var view = new EveningMastersView(EveningMastersServices.Unavailable, () => true, () => true)
             { TargetLoader = () => Task.FromResult<IReadOnlyList<MonthlyTargetRow>>([new("TST01", October, 10m)]) };
             Find<DatePicker>(view, "Target month").SelectedDate = new DateTime(2026, 10, 1);
-            Click(FindButton(view, "Copy from previous month"));
+            Click(FindButton(view, EveningMastersView.CopyAllStoresText));
             Assert.Contains("No monthly targets are saved for Sept 2026", view.StatusText);
             return Task.CompletedTask;
         });

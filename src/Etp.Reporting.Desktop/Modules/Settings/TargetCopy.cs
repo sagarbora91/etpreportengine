@@ -10,6 +10,8 @@ public sealed class CopiedTargetRow(string storeCode, string? croNumber, decimal
 
     public string StoreCode { get; } = storeCode;
     public string? CroNumber { get; } = croNumber;
+    /// <summary>1.12 U2 (C-d): the staff member's name beside the CRO number (Owner-only screen, decision 27); null when not in the staff master.</summary>
+    public string? StaffName { get; init; }
     public decimal PreviousTarget { get; } = previousTarget;
     /// <summary>The target already saved for the month being filled, if any. It is replaced only after the Owner confirms.</summary>
     public decimal? CurrentTarget { get; } = currentTarget;
@@ -25,6 +27,30 @@ public sealed class CopiedTargetRow(string storeCode, string? croNumber, decimal
 }
 
 public sealed record TargetCopySource(string StoreCode, string? CroNumber, DateOnly Month, decimal TargetSales);
+
+/// <summary>One staff master row as the copy needs it: the store, the CRO number (staff code) and the name.</summary>
+public sealed record StaffNameEntry(string StoreCode, string CroNumber, string Name);
+
+/// <summary>
+/// Where the staff names come from (the staff master, <c>dbo.staff</c>). Set by the composition root
+/// (<c>DesktopCompositionRoot.ImportFixes.cs</c>); null shows the numbers alone. Read only by Owner-only copy actions.
+/// </summary>
+public static class StaffNameDirectory
+{
+    public static Func<CancellationToken, Task<IReadOnlyList<StaffNameEntry>>>? Load { get; set; }
+
+    /// <summary>The names, or none when no source is set or it fails (the copy works without names).</summary>
+    public static async Task<IReadOnlyList<StaffNameEntry>> TryLoadAsync(CancellationToken cancellationToken = default)
+    {
+        if (Load is not { } load) return [];
+        try { return await load(cancellationToken).ConfigureAwait(true); }
+        catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
+        {
+            DesktopDiagnostics.Record(exception, "Settings.TargetCopy", "STAFF_NAMES_NOT_LOADED", DesktopDiagnosticSeverity.Warning);
+            return [];
+        }
+    }
+}
 
 public sealed record ResolvedTargetCopy(string StoreCode, string? CroNumber, decimal TargetSales, bool ReplacesExisting);
 
@@ -43,6 +69,32 @@ public static class TargetCopy
     public static DateOnly MonthEnd(DateOnly date) => MonthStart(date).AddMonths(1).AddDays(-1);
 
     public static DateOnly PreviousMonth(DateOnly month) => MonthStart(month).AddMonths(-1);
+
+    /// <summary>
+    /// 1.12 U2 (wave plan C-d): the staff-target period a header date opens with: From = the first day of the header date's
+    /// month, To = its last day (so 1 Nov opens November, 31 Oct opens October, 29 Feb 2028 opens February 2028).
+    /// </summary>
+    public static (DateOnly From, DateOnly To) DefaultPeriod(DateOnly headerDate) => (MonthStart(headerDate), MonthEnd(headerDate));
+
+    /// <summary>The Owner's dialog answer as a <see cref="TargetOverwriteChoice"/>.</summary>
+    public static TargetOverwriteChoice FromDialog(ReplaceKeepCancelChoice choice) => choice switch
+    {
+        ReplaceKeepCancelChoice.Replace => TargetOverwriteChoice.ReplaceExisting,
+        ReplaceKeepCancelChoice.Keep => TargetOverwriteChoice.KeepExisting,
+        _ => TargetOverwriteChoice.Cancel,
+    };
+
+    /// <summary>The rows with the staff name of each CRO (matched by store and CRO number, case-insensitive); others unchanged.</summary>
+    public static IReadOnlyList<CopiedTargetRow> WithStaffNames(IReadOnlyList<CopiedTargetRow> rows, IEnumerable<StaffNameEntry> staff)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(staff);
+        var names = staff.Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
+            .GroupBy(entry => $"{entry.StoreCode.Trim()}|{entry.CroNumber.Trim()}", StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last().Name.Trim(), StringComparer.OrdinalIgnoreCase);
+        return rows.Select(row => row.CroNumber is null || !names.TryGetValue($"{row.StoreCode.Trim()}|{row.CroNumber.Trim()}", out var name) ? row
+            : new CopiedTargetRow(row.StoreCode, row.CroNumber, row.PreviousTarget, row.CurrentTarget, row.NewTarget) { StaffName = name }).ToArray();
+    }
 
     public static string MonthLabel(DateOnly month) => Etp.Reporting.Reporting.IndianFormat.Month(month);
 
@@ -100,8 +152,9 @@ public static class TargetCopy
         var replaced = resolved.Where(row => row.ReplacesExisting).ToArray();
         var names = string.Join(", ", replaced.Take(8).Select(row => Describe(row.StoreCode, row.CroNumber)));
         if (replaced.Length > 8) names += $" and {replaced.Length - 8} more";
-        return $"{replaced.Length} target(s) for {MonthLabel(month)} are already saved with a different value ({names}).\n\n" +
-               "Yes: replace them with the copied values.\nNo: keep the saved values and save only the new rows.\nCancel: save nothing.";
+        // 1.12 U2 (C-d): the buttons say what they do (Replace saved targets / Keep existing / Cancel); the body names the rows.
+        return $"{replaced.Length} target(s) for {MonthLabel(month)} are already saved with a different value ({names}). " +
+               "Replace them with the copied values, keep the saved values and save only the new rows, or cancel and save nothing.";
     }
 
     public static string Describe(string storeCode, string? croNumber) =>
@@ -118,12 +171,17 @@ public static class CopiedTargetGrid
         var grid = new System.Windows.Controls.DataGrid
         {
             AutoGenerateColumns = false, CanUserAddRows = false, CanUserDeleteRows = false, IsReadOnly = false,
-            MaxHeight = 260, MinHeight = 88, RowHeight = 44, Margin = new(0, 6, 0, 6),
+            Margin = DesignTokens.Gap(null, "Space8", null, "Space8"),
             Visibility = System.Windows.Visibility.Collapsed,
         };
         System.Windows.Automation.AutomationProperties.SetName(grid, automationName);
         grid.Columns.Add(ReadOnly("Store", nameof(CopiedTargetRow.StoreCode)));
-        if (withCro) grid.Columns.Add(ReadOnly("CRO", nameof(CopiedTargetRow.CroNumber)));
+        if (withCro)
+        {
+            grid.Columns.Add(ReadOnly("CRO", nameof(CopiedTargetRow.CroNumber)));
+            // 1.12 U2 (C-d): the name beside the number, so the Owner knows whose target it is (staff targets are Owner-only).
+            grid.Columns.Add(ReadOnly("Staff", nameof(CopiedTargetRow.StaffName)));
+        }
         grid.Columns.Add(ReadOnly("Previous month", nameof(CopiedTargetRow.PreviousTarget)));
         grid.Columns.Add(ReadOnly("Already saved", nameof(CopiedTargetRow.CurrentTarget)));
         grid.Columns.Add(new System.Windows.Controls.DataGridTextColumn

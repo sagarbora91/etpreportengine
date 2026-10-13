@@ -10,7 +10,10 @@ namespace Etp.Reporting.Infrastructure.SqlServer.ShopResults;
 /// <summary>What ETP decided about one file a shop sent (decision 44 #3). A verdict only: never an amount or a name.</summary>
 public enum ShopResultVerdict { Accepted, AcceptedWithWarning, Refused, Duplicate }
 
-/// <summary>One file's verdict. <c>Code</c> is a catalogue code or empty; <c>Message</c> and <c>WhatToDo</c> are catalogue text.</summary>
+/// <summary>
+/// One file's verdict. <c>Code</c> is a catalogue code or empty; <c>Message</c> is the first sentence of the code's template and
+/// <c>WhatToDo</c> the catalogue's shop text (1.12 U2, review m-2: never an office instruction, "Tell the office." by default).
+/// </summary>
 public sealed record ShopResultFile(string Name, string Sha256, ShopResultVerdict Verdict, string Code, string Message, string WhatToDo);
 
 /// <summary>
@@ -78,8 +81,7 @@ public static partial class ShopResultBuilder
             var code = file.Failure?.Code
                 ?? file.Diagnostics?.FirstOrDefault(i => i.Severity == ImportIssueSeverity.Blocker)?.Code
                 ?? string.Empty;
-            var (message, whatToDo) = Split(ImportDiagnosticCatalogue.Template(code));
-            return new(name, sha, ShopResultVerdict.Refused, code, message, whatToDo);
+            return new(name, sha, ShopResultVerdict.Refused, code, ImportDiagnosticCatalogue.MessageForShop(code), ImportDiagnosticCatalogue.WhatToDoForShop(code));
         }
         if (file.Status == "Already present" || file.Status.StartsWith("Duplicate", StringComparison.Ordinal))
             return new(name, sha, ShopResultVerdict.Duplicate, string.Empty, "ETP already has this exact file.", string.Empty);
@@ -89,18 +91,14 @@ public static partial class ShopResultBuilder
             && i.Code.StartsWith("DAILY_INPUTS_", StringComparison.Ordinal));
         if (warning is not null)
         {
-            var (message, whatToDo) = Split(ImportDiagnosticCatalogue.Template(warning.Code));
-            return new(name, sha, ShopResultVerdict.AcceptedWithWarning, warning.Code, message, whatToDo);
+            return new(name, sha, ShopResultVerdict.AcceptedWithWarning, warning.Code,
+                ImportDiagnosticCatalogue.MessageForShop(warning.Code), ImportDiagnosticCatalogue.WhatToDoForShop(warning.Code));
         }
         return new(name, sha, ShopResultVerdict.Accepted, string.Empty, string.Empty, string.Empty);
     }
 
-    /// <summary>First sentence = what happened; the rest = what to do. A one-sentence template has no "what to do".</summary>
-    internal static (string Message, string WhatToDo) Split(string template)
-    {
-        var index = template.IndexOf(". ", StringComparison.Ordinal);
-        return index < 0 ? (template, string.Empty) : (template[..(index + 1)], template[(index + 2)..]);
-    }
+    /// <summary>First sentence = what happened; the rest = the office's text (1.12: the shop is shown the catalogue's shop text instead).</summary>
+    internal static (string Message, string WhatToDo) Split(string template) => ImportDiagnosticCatalogue.FirstSentence(template);
 
     /// <summary>A file name reduced to letters, digits and . _ - ( ) space, at most 120 characters: no path, nothing odd.</summary>
     internal static string SafeName(string? name)

@@ -34,7 +34,17 @@ public sealed record DailyWorkflowPresentationState(
     string InputStatus,
     IReadOnlyList<DailyManualInput> ManualInputs,
     IReadOnlyList<DailyManualStockCount> StockCounts,
-    bool CanFinalise);
+    bool CanFinalise)
+{
+    /// <summary>The day is finalised (LOCKED): nothing on it changes until the Owner reopens it.</summary>
+    public bool IsLocked { get; init; }
+
+    /// <summary>
+    /// 1.12 U2 (decision 52): the sales export (<see cref="DailyWorkflowPresentationSession.SalesReportCode"/>) is missing for the
+    /// day, so the verdict band offers "Mark as no-sale day" (N1) to the Owner and the Store Manager.
+    /// </summary>
+    public bool NoSalesFile { get; init; }
+}
 
 /// <summary>
 /// Owns the current daily-workflow snapshot and all presentation-level parsing and transitions.
@@ -42,6 +52,9 @@ public sealed record DailyWorkflowPresentationState(
 /// </summary>
 public sealed class DailyWorkflowPresentationSession
 {
+    /// <summary>The day's sales export (the report whose absence makes a day a candidate for "no-sale day").</summary>
+    public const string SalesReportCode = "R025";
+
     private DailyWorkflowState? snapshot;
 
     public bool HasSnapshot => snapshot is not null;
@@ -73,7 +86,11 @@ public sealed class DailyWorkflowPresentationSession
                 : $"Missing manual inputs: {string.Join(", ", state.MissingRequiredInputs)}",
             state.ManualInputs,
             stockCounts,
-            state.CanFinalise);
+            state.CanFinalise)
+        {
+            IsLocked = state.Status == DailyWorkflowStatus.Locked,
+            NoSalesFile = state.MissingReports.Contains(SalesReportCode, StringComparer.OrdinalIgnoreCase)
+        };
     }
 
     public DailyWorkflowPresentationState ShowUnavailable(string message)
