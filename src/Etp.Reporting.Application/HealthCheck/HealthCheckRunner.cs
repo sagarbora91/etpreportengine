@@ -44,7 +44,7 @@ public sealed class HealthCheckRunnerOptions
 /// <summary>
 /// Runs the health check (design 5.1-5.3): probes in area order Database, Errors, Operations, Security, Data, Imports,
 /// Reports; a hard time budget for the run and per area, after which the remaining checks are Skipped (time budget);
-/// every other SQL check Skipped when DB-01 fails; exactly one line per check id (54); Known applied per line and per
+/// every other SQL check Skipped when DB-01 fails; exactly one line per check id (56); Known applied per line and per
 /// sub-finding, never over a Fail; "unchanged since" from the earlier Nightly runs. The runner records nothing: the
 /// caller (nightly schedule or screen) writes the export, then calls <see cref="IHealthCheckStore.RecordRunAsync"/>.
 /// <para>
@@ -67,7 +67,7 @@ public sealed class HealthCheckRunner
     /// <summary>Checks that need no SQL (memory, files, Windows APIs); they still run when DB-01 fails.</summary>
     public static IReadOnlySet<string> RunsWithoutDatabase { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        HealthCheckId.Imp01, HealthCheckId.Ops03, HealthCheckId.Ops05, HealthCheckId.Ops08, HealthCheckId.Ops09, HealthCheckId.Ops10
+        HealthCheckId.Imp01, HealthCheckId.Ops03, HealthCheckId.Ops05, HealthCheckId.Ops08, HealthCheckId.Ops09, HealthCheckId.Ops10, HealthCheckId.Ops11
     };
 
     /// <summary><see cref="HealthCheckContext.Items"/> key, value <c>true</c>: DB-01 failed, do not open a connection.</summary>
