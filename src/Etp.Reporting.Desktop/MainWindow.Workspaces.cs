@@ -117,6 +117,7 @@ public partial class MainWindow
         FocusedWorkspaceHost.Content = helpCentre;
         FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         PageTitle.Text = "Help Centre";
+        UpdatePinButton(null);
         helpCentre.Focus();
     }
 

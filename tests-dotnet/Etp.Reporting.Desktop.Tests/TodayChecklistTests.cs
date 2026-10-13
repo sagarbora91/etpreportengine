@@ -243,6 +243,88 @@ public sealed class TodayChecklistTests
         });
     }
 
+    // ------------------------------------------------------------------ 1.12 U1: no-sale day lines (decision 52)
+
+    [Fact]
+    public void A_shop_without_its_sales_lines_file_can_be_marked_by_an_Owner_or_Store_Manager_only()
+    {
+        var waiting = TodayChecklist.Lines(Result(Item(DailyReadinessItemKind.MissingExport, "R025", DailyReadinessDestination.ImportIntake)), ShellAccess.Owner);
+        var otherFile = TodayChecklist.Lines(Result(Item(DailyReadinessItemKind.MissingExport, "R022", DailyReadinessDestination.ImportIntake)), ShellAccess.Owner);
+
+        Assert.Equal("R025", waiting[0].Code);
+        Assert.True(TodayChecklist.CanMarkNoSale(waiting, ShellAccess.Owner));
+        Assert.True(TodayChecklist.CanMarkNoSale(waiting, ShellAccess.StoreManager));
+        Assert.False(TodayChecklist.CanMarkNoSale(waiting, ShellAccess.Viewer));
+        Assert.False(TodayChecklist.CanMarkNoSale(otherFile, ShellAccess.Owner));
+    }
+
+    [Fact]
+    public void The_panel_places_N1s_mark_button_in_the_shop_group_and_names_a_marked_day_with_its_withdraw_button()
+    {
+        RunSta(() =>
+        {
+            var calls = new List<string>();
+            var query = new FakeReadinessQuery(Result(Item(DailyReadinessItemKind.MissingExport, "R025", DailyReadinessDestination.ImportIntake)));
+            var mark = new Etp.Reporting.Application.NoSaleDays.NoSaleDay("SC906", Day, "CLOSED_HOLIDAY", "Synthetic", "SYNTH\\manager", new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero));
+            var panel = new TodayChecklistPanel(() => query, _ => { }, () => ShellAccess.StoreManager, code => code == "SC906" ? "Shop Six" : "Shop One")
+            {
+                LoadNoSaleDays = (_, _) => Task.FromResult<IReadOnlyList<Etp.Reporting.Application.NoSaleDays.NoSaleDay>>([mark]),
+                NoSaleButtons = () => new Etp.Reporting.Desktop.Modules.Morning.NoSaleDayButtons(
+                    (store, date, _) => { calls.Add($"mark {store} {date:yyyy-MM-dd}"); return new Button { Content = "Mark as no-sale day" }; },
+                    (store, date, _) => { calls.Add($"withdraw {store} {date:yyyy-MM-dd}"); return new Button { Content = "Withdraw" }; })
+            };
+
+            panel.RefreshAsync(new DateTime(2026, 10, 9), "").GetAwaiter().GetResult();
+
+            Assert.Equal(["mark AX123 2026-10-09", "withdraw SC906 2026-10-09"], calls);
+            Assert.Contains("Shop Six", Texts(panel));
+            Assert.Contains(Texts(panel), text => text.StartsWith("No-sale day (marked by SYNTH\\manager on ", StringComparison.Ordinal));
+            Assert.Single(panel.NoSaleDays);
+        });
+    }
+
+    [Fact]
+    public void A_day_with_only_no_sale_marks_shows_them_as_information_and_a_viewer_gets_no_buttons()
+    {
+        RunSta(() =>
+        {
+            var calls = 0;
+            var mark = new Etp.Reporting.Application.NoSaleDays.NoSaleDay("SC906", Day, "OPEN_NO_SALE", "Synthetic", "SYNTH\\owner", DateTimeOffset.UnixEpoch);
+            var panel = new TodayChecklistPanel(() => new FakeReadinessQuery(Result()), _ => { }, () => ShellAccess.Viewer)
+            {
+                LoadNoSaleDays = (_, _) => Task.FromResult<IReadOnlyList<Etp.Reporting.Application.NoSaleDays.NoSaleDay>>([mark]),
+                NoSaleButtons = () => new Etp.Reporting.Desktop.Modules.Morning.NoSaleDayButtons(
+                    (_, _, _) => { calls++; return new Button(); }, (_, _, _) => { calls++; return new Button(); })
+            };
+
+            panel.RefreshAsync(new DateTime(2026, 10, 9), "").GetAwaiter().GetResult();
+
+            Assert.Equal(Visibility.Visible, panel.Visibility);
+            Assert.Equal("No-sale day for 09 Oct 2026: 1 store", panel.Heading);
+            Assert.Equal(0, calls);
+            Assert.Empty(panel.Lines);
+        });
+    }
+
+    [Fact]
+    public void A_failed_no_sale_read_leaves_the_list_as_it_was()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeReadinessQuery(Result(Item(DailyReadinessItemKind.MissingExport, "R025", DailyReadinessDestination.ImportIntake)));
+            var panel = new TodayChecklistPanel(() => query, _ => { }, () => ShellAccess.Owner)
+            {
+                LoadNoSaleDays = (_, _) => Task.FromException<IReadOnlyList<Etp.Reporting.Application.NoSaleDays.NoSaleDay>>(new TimeoutException("synthetic"))
+            };
+
+            panel.RefreshAsync(new DateTime(2026, 10, 9), "").GetAwaiter().GetResult();
+
+            Assert.Single(panel.Lines);
+            Assert.Empty(panel.NoSaleDays);
+            Assert.Null(panel.FailureMessage);
+        });
+    }
+
     private static DailyReadinessItem Item(DailyReadinessItemKind kind, string code, DailyReadinessDestination destination) =>
         new(kind, "AX123", code, $"{code} message for AX123.", destination);
 

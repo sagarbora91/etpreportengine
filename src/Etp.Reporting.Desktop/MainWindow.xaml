@@ -18,16 +18,26 @@
     <Button Content="Settings" Tag="Settings" Click="Section_Click" Style="{DynamicResource RailItem}"/>
     <!-- 1.11.3 (Sys DS-07 / B2, B4): rail items use the RailItem style; no glyph in a button label. -->
     <Button Content="Search" Click="OpenGlobalSearch_Click" Style="{DynamicResource RailItem}" automation:AutomationProperties.Name="Find a screen"/>
-    <Button Content="More details" Click="StatusDetails_Click" Style="{DynamicResource RailItem}" automation:AutomationProperties.Name="Read full status"/>
-    <TextBlock x:Name="AttentionBadge" Foreground="{DynamicResource NavigationMuted}" TextWrapping="Wrap" Margin="6" Visibility="Collapsed" automation:AutomationProperties.LiveSetting="Polite"/>
+    <!-- 1.12 U1 (B5): one name for the rail status button; its automation name is its visible text. -->
+    <Button Content="More details" Click="StatusDetails_Click" Style="{DynamicResource RailItem}"/>
+    <!-- 1.12 U1 (ST4): "Needs attention" is a Critical chip on the rail (white text on Critical), not yellow text. -->
+    <Border x:Name="AttentionBadge" Background="{DynamicResource Critical}" CornerRadius="{DynamicResource RadiusSmall}" Padding="8,3" Margin="6"
+            HorizontalAlignment="Left" Visibility="Collapsed" automation:AutomationProperties.LiveSetting="Polite">
+     <TextBlock x:Name="AttentionBadgeText" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource OnAccent}" TextWrapping="Wrap"/>
+    </Border>
    </StackPanel>
   </Border>
   <Grid Grid.Column="1">
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="28"/></Grid.RowDefinitions>
    <Grid x:Name="ShellHeader" Background="{DynamicResource Surface}" Margin="8,0">
     <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="86"/><ColumnDefinition/><ColumnDefinition Width="180"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
-    <TextBlock x:Name="PageTitle" Text="Today" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" automation:AutomationProperties.HeadingLevel="Level1"/>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" MinWidth="86"/><ColumnDefinition/><ColumnDefinition Width="180"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+    <!-- 1.12 U1 (wave plan C-e): the star beside the page title pins the screen for Ctrl+K (a report: its favourite). -->
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+     <TextBlock x:Name="PageTitle" Text="Today" Style="{DynamicResource PageTitleText}" VerticalAlignment="Center" automation:AutomationProperties.HeadingLevel="Level1"/>
+     <Button x:Name="PinButton" Style="{DynamicResource QuietButton}" Margin="4,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
+             Click="PinButton_Click" ToolTip="Pin this screen to the top of Ctrl+K" automation:AutomationProperties.Name="Pin this screen"/>
+    </StackPanel>
     <WrapPanel x:Name="SectionTabs" Grid.Column="1" VerticalAlignment="Center" automation:AutomationProperties.Name="Section tabs"/>
     <DatePicker x:Name="ShellBusinessDateSelector" Grid.Column="2" Margin="2" SelectedDateChanged="ShellBusinessDate_Changed" automation:AutomationProperties.Name="Business date"/>
     <ComboBox x:Name="ShellStoreSelector" Grid.Column="3" SelectedIndex="2" Margin="2" automation:AutomationProperties.Name="Store">

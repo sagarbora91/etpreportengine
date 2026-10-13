@@ -60,9 +60,9 @@ public partial class MainWindow
         var watcher = PropertyChangeWatcher.Watch(ApplicationStatus, TextBlock.TextProperty, UpdateReferenceBar);
         Closed += (_, _) => watcher.Dispose();
 
+        // 1.12 U1 (ST4): the badge is a Critical chip drawn in MainWindow.xaml from the theme tokens; here it only becomes a
+        // focusable control that opens the Health check.
         AttentionBadge.Focusable = true;
-        AttentionBadge.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xE0, 0x8A));
-        AttentionBadge.FontWeight = FontWeights.SemiBold;
         AttentionBadge.Cursor = Cursors.Hand;
         AutomationProperties.SetName(AttentionBadge, "Needs attention. Open the health check");
         AttentionBadge.MouseLeftButtonUp += (_, _) => OpenNeedsAttention();

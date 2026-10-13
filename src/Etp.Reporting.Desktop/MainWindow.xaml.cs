@@ -29,10 +29,11 @@ public partial class MainWindow : Window
 {
     internal readonly ShellViewModel shell;
     internal readonly DashboardView dashboardView;
-    private readonly Func<string, DashboardQuery> dashboardQueryFactory;
+    // 1.12 U1: services, not string-keyed factories; the composition root builds each from the current connection.
+    private readonly Func<DashboardQuery> dashboardQuery;
     internal readonly SettingsWorkspaceView settingsWorkspace;
     private readonly DesktopConnectionState connectionState;
-    private readonly Func<string, AccessSessionQuery> accessSessionQueryFactory;
+    private readonly Func<AccessSessionQuery> accessSessionQuery;
     internal readonly ArchiveWorkspaceView archiveWorkspaceView;
     internal readonly RegistersWorkspaceView registersWorkspaceView;
     internal readonly DailyWorkflowWorkspaceView dailyWorkflowWorkspace;
@@ -42,7 +43,7 @@ public partial class MainWindow : Window
     internal readonly OperationsWorkspaceView operationsWorkspaceView;
     internal readonly InvestigationApprovalsWorkspaceView investigationWorkspaceView;
     internal readonly AdministrationWorkspaceView administrationWorkspaceView;
-    private readonly Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory;
+    private readonly Func<DatabaseLifecycleService> databaseLifecycleService;
     internal readonly ImportWorkspaceView importWorkspaceView;
     internal ImportHistoryView? importHistoryView;
     // Service centre screens (Service interim). The composition root wires the SQL read model and
@@ -56,10 +57,10 @@ public partial class MainWindow : Window
     public MainWindow(
         ShellViewModel shell,
         DashboardView dashboardView,
-        Func<string, DashboardQuery> dashboardQueryFactory,
+        Func<DashboardQuery> dashboardQuery,
         SettingsWorkspaceView settingsWorkspace,
         DesktopConnectionState connectionState,
-        Func<string, AccessSessionQuery> accessSessionQueryFactory,
+        Func<AccessSessionQuery> accessSessionQuery,
         ArchiveWorkspaceView archiveWorkspaceView,
         RegistersWorkspaceView registersWorkspaceView,
         DailyWorkflowWorkspaceView dailyWorkflowWorkspace,
@@ -69,15 +70,15 @@ public partial class MainWindow : Window
         OperationsWorkspaceView operationsWorkspaceView,
         InvestigationApprovalsWorkspaceView investigationWorkspaceView,
         AdministrationWorkspaceView administrationWorkspaceView,
-        Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory,
+        Func<DatabaseLifecycleService> databaseLifecycleService,
         ImportWorkspaceView importWorkspaceView)
     {
         this.shell = shell ?? throw new ArgumentNullException(nameof(shell));
         this.dashboardView = dashboardView ?? throw new ArgumentNullException(nameof(dashboardView));
-        this.dashboardQueryFactory = dashboardQueryFactory ?? throw new ArgumentNullException(nameof(dashboardQueryFactory));
+        this.dashboardQuery = dashboardQuery ?? throw new ArgumentNullException(nameof(dashboardQuery));
         this.settingsWorkspace = settingsWorkspace ?? throw new ArgumentNullException(nameof(settingsWorkspace));
         this.connectionState = connectionState ?? throw new ArgumentNullException(nameof(connectionState));
-        this.accessSessionQueryFactory = accessSessionQueryFactory ?? throw new ArgumentNullException(nameof(accessSessionQueryFactory));
+        this.accessSessionQuery = accessSessionQuery ?? throw new ArgumentNullException(nameof(accessSessionQuery));
         this.archiveWorkspaceView = archiveWorkspaceView ?? throw new ArgumentNullException(nameof(archiveWorkspaceView));
         this.registersWorkspaceView = registersWorkspaceView ?? throw new ArgumentNullException(nameof(registersWorkspaceView));
         this.dailyWorkflowWorkspace = dailyWorkflowWorkspace ?? throw new ArgumentNullException(nameof(dailyWorkflowWorkspace));
@@ -87,7 +88,7 @@ public partial class MainWindow : Window
         this.operationsWorkspaceView = operationsWorkspaceView ?? throw new ArgumentNullException(nameof(operationsWorkspaceView));
         this.investigationWorkspaceView = investigationWorkspaceView ?? throw new ArgumentNullException(nameof(investigationWorkspaceView));
         this.administrationWorkspaceView = administrationWorkspaceView ?? throw new ArgumentNullException(nameof(administrationWorkspaceView));
-        this.databaseLifecycleServiceFactory = databaseLifecycleServiceFactory ?? throw new ArgumentNullException(nameof(databaseLifecycleServiceFactory));
+        this.databaseLifecycleService = databaseLifecycleService ?? throw new ArgumentNullException(nameof(databaseLifecycleService));
         this.importWorkspaceView = importWorkspaceView ?? throw new ArgumentNullException(nameof(importWorkspaceView));
         if (Application.Current is null) Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Etp.Reporting.Desktop;component/Themes/Theme.xaml", UriKind.Relative) });
         InitializeComponent();
@@ -244,7 +245,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            currentAccess = await accessSessionQueryFactory(connectionState.ConnectionString).LoadCurrentAsync();
+            currentAccess = await accessSessionQuery().LoadCurrentAsync();
             settingsWorkspace.UpdateAccess(new(currentAccess.Role != AccessRole.None, currentAccess.CanAdminister));
             UpdateOperationsAdministrationAccess();
             dailyWorkflowWorkspace.RefreshAccessState();
@@ -321,11 +322,11 @@ public partial class MainWindow : Window
     {
         try
         {
-            var snapshot = await dashboardQueryFactory(connectionState.ConnectionString).LoadAsync();
+            var snapshot = await dashboardQuery().LoadAsync();
             dashboardView.Show(snapshot);
             var state = dashboardView.CurrentState!;
             databaseHealthLine = $"Database: {state.DatabaseHealth} · Last backup: {state.LatestBackup}";
-            AttentionBadge.Text = state.DatabaseHealthTone == DashboardHealthTone.Critical ? "Needs attention" : "";
+            AttentionBadgeText.Text = state.DatabaseHealthTone == DashboardHealthTone.Critical ? "Needs attention" : "";
             AttentionBadge.Visibility = state.DatabaseHealthTone == DashboardHealthTone.Critical ? Visibility.Visible : Visibility.Collapsed;
             taskNavigator?.DefaultBusinessDateToLatestData(snapshot.LatestBusinessDate);
         }
@@ -346,7 +347,7 @@ public partial class MainWindow : Window
 
     private async Task RecordAuditAsync(string eventType, string outcome, string detail)
     {
-        try { await databaseLifecycleServiceFactory(connectionState.ConnectionString).RecordAuditAsync(new RecordOperationalAudit(eventType, outcome, detail)); }
+        try { await databaseLifecycleService().RecordAuditAsync(new RecordOperationalAudit(eventType, outcome, detail)); }
         catch (Exception ex) when (DesktopFriendlyError.IsAuditFailure(ex)) { DesktopDiagnostics.Record(ex, "OperationalAudit", "AUDIT_WRITE_FAILED", DesktopDiagnosticSeverity.Warning); }
     }
 

@@ -3,14 +3,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Windows.Media;
-using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Desktop;
 
 /// <summary>Reproducible review of the live UI against a disposable database, with no mocked results.</summary>
 internal static class ImportReviewSession
 {
-    public static async Task RunAsync(MainWindow window, string connection, string[] arguments)
+    // 1.12 U1: the review reads the database name from the window's connection factory; it never holds a connection string.
+    public static async Task RunAsync(MainWindow window, string[] arguments)
     {
         string? Option(string name) { var index = Array.IndexOf(arguments, name); return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null; }
         var output = Option("--capture-review");
@@ -18,7 +18,7 @@ internal static class ImportReviewSession
         Directory.CreateDirectory(output);
         try
         {
-            if (!new SqlConnectionStringBuilder(connection).InitialCatalog.StartsWith("EtpPhase1Test_", StringComparison.Ordinal))
+            if (!window.DatabaseName.StartsWith("EtpPhase1Test_", StringComparison.Ordinal))
                 throw new InvalidOperationException("UI review runs only against an EtpPhase1Test_ disposable database.");
             var folder = Option("--review-folder") ?? throw new ArgumentException("Provide --review-folder.");
             var corrupted = Option("--review-corrupt-file") ?? throw new ArgumentException("Provide --review-corrupt-file.");

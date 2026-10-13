@@ -26,22 +26,19 @@ public sealed partial class TaskNavigator(MainWindow window)
     /// </summary>
     public static DateTime DefaultBusinessDate(DateTime today) => today.Date.AddDays(-1);
     public static DateTime InitialBusinessDate => DefaultBusinessDate(DateTime.Today);
-    private readonly List<string> recentTaskIds = new();
-    private const int RecentTaskLimit = 5;
+    /// <summary>
+    /// 1.12 U1 (wave plan C-e): recents are the window's persisted preferences (task id only, at most eight, newest first),
+    /// so they survive a restart; pins are the starred screens plus the report favourites.
+    /// </summary>
+    private IReadOnlyList<string> RecentIds => window.UiPreferencesSnapshot.RecentTaskIds;
 
     private void RememberRecentTask(TaskDestination task)
     {
         if (task.Id.StartsWith("help:", StringComparison.Ordinal) || task.Section == "profile") return;
-        recentTaskIds.Remove(task.Id);
-        recentTaskIds.Insert(0, task.Id);
-        if (recentTaskIds.Count > RecentTaskLimit) recentTaskIds.RemoveRange(RecentTaskLimit, recentTaskIds.Count - RecentTaskLimit);
+        window.RememberRecentTask(task.Id);
     }
 
-    private IEnumerable<string> PinnedTaskIds()
-    {
-        try { return UiPreferenceStore.Load().FavouriteReportCodes.Select(code => "report-" + code).ToArray(); }
-        catch { return []; }
-    }
+    private IEnumerable<string> PinnedTaskIds() => window.UiPreferencesSnapshot.PinnedForSearch();
     private readonly Dictionary<WorkspaceRoute, (double Offset, IInputElement? Focus)> contexts = new();
 
     private static IEnumerable<DependencyObject> LogicalChildren(DependencyObject root)
@@ -238,10 +235,10 @@ public sealed partial class TaskNavigator(MainWindow window)
         masterResults.Items.Clear();
         var pinned = PinnedTaskIds().ToArray();
         var emptyQuery = masterSearch.Text.Trim().Length == 0;
-        foreach (var task in TaskNavigation.Search(masterSearch.Text, window.CurrentShellAccess, pinned, recentTaskIds))
+        foreach (var task in TaskNavigation.Search(masterSearch.Text, window.CurrentShellAccess, pinned, RecentIds))
         {
             var text = new StackPanel();
-            var badge = !emptyQuery ? "" : pinned.Contains(task.Id) ? "Pinned - " : recentTaskIds.Contains(task.Id) ? "Recent - " : "";
+            var badge = !emptyQuery ? "" : pinned.Contains(task.Id) ? "Pinned - " : RecentIds.Contains(task.Id) ? "Recent - " : "";
             text.Children.Add(new TextBlock { Text = badge + task.Title, FontWeight = FontWeights.SemiBold, FontSize = 14 });
             text.Children.Add(new TextBlock { Text = task.Path, FontSize = 12, TextWrapping = TextWrapping.Wrap });
             text.Children.Add(new TextBlock { Text = task.Purpose, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
@@ -295,7 +292,9 @@ public sealed partial class TaskNavigator(MainWindow window)
     {
         if (!window.reportsWorkspaceView.IsExportInProgress && !window.settingsWorkspace.IsBusy && !window.operationsWorkspaceView.IsBusy && !window.registersWorkspaceView.IsBusy
             && !window.dailyWorkflowWorkspace.IsBusy && !window.administrationWorkspaceView.IsBusy && !window.importWorkspaceView.IsBusy
-            && !window.accountingWorkspaceView.IsBusy && !window.archiveWorkspaceView.IsBusy && !window.investigationWorkspaceView.IsBusy && !window.sourceInboxWorkspaceView.IsBusy) return false;
+            && !window.accountingWorkspaceView.IsBusy && !window.archiveWorkspaceView.IsBusy && !window.investigationWorkspaceView.IsBusy && !window.sourceInboxWorkspaceView.IsBusy
+            // 1.12 U1: a registered screen that is working (Finalise all on the Morning page) holds the shell the same way.
+            && window.FocusedWorkspaceHost.Content is not IShellScreen { IsBusy: true }) return false;
         window.ApplicationStatus.Text = "Wait for the current operation to finish before leaving this task or closing ETP.";
         return true;
     }
@@ -417,6 +416,30 @@ public sealed partial class TaskNavigator(MainWindow window)
     public void NavigateTaskWithArgument(TaskDestination task, string argument) =>
         NavigateSafely(() => window.shell.Navigate(task.RouteWith(argument), window.CurrentShellAccess));
 
+    /// <summary>
+    /// 1.12 U1: a task by id with an optional route argument, for registered screens (a Morning Fix button). The Fix
+    /// handler <c>import-problems</c> is U2's; while it is not a task row the Problems screen opens instead.
+    /// Unknown ids, and tasks this role cannot open, are ignored (the shell's own refusal text still shows).
+    /// </summary>
+    public bool NavigateTaskById(string taskId, string? argument)
+    {
+        var task = TaskNavigation.Find(taskId) ?? (taskId == ImportFixFallbackFrom ? TaskNavigation.Find(ImportFixFallbackTo) : null);
+        if (task is null) return false;
+        return NavigateSafely(() => window.shell.Navigate(task.RouteWith(argument), window.CurrentShellAccess));
+    }
+
+    internal const string ImportFixFallbackFrom = "import-problems";
+    internal const string ImportFixFallbackTo = "conflicts";
+
+    /// <summary>The page a wave-2 task shows when its lane's screen is not registered in this build.</summary>
+    internal static UserControl NotInThisBuild(TaskDestination task)
+    {
+        var frame = new PageFrame(PageTemplate.Form);
+        frame.Notice.Show(StatusTone.Information, task.Title + " is not part of this build",
+            "This screen arrives with the 1.12 update. Nothing has changed; the rest of ETP works as before.");
+        return new UserControl { Content = frame };
+    }
+
     public void NavigateOverview(string module, string destination, string? category = null) =>
         window.OpenSection(module switch { "Dashboard" => "Today", "Imports" => "Import", "Reports" => "Reports", _ => "Settings" });
     public void RestoreBreadcrumbs() { if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is { } task) window.UpdateSection(task); }
@@ -437,7 +460,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         {
             window.FocusedWorkspaceHost.Content = task.Section == "report-list"
                 ? new Modules.Reports.ReportListView(window.CurrentShellAccess, NavigateTask)
-                : new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask);
+                : new Modules.Reports.FavouriteReportsView(window.UiPreferencesSnapshot, window.CurrentShellAccess, NavigateTask);
             window.focusedWorkspaceKind = "task";
             window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
             return true;
@@ -447,8 +470,10 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         if (task.Id != "settings" && task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
         window.UpdateSection(task);
-        // Service has no store picker: its screens are the Service Centre's (AW330) whatever the header store.
-        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined") && task.Destination != Modules.Service.ServiceScreens.Destination;
+        // Service has no store picker: its screens are the Service Centre's (the SERVICE business unit; A4's catalogue
+        // names the centre) whatever the header store. The Morning page shows every shop, so it has none either.
+        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined") && task.Destination != Modules.Service.ServiceScreens.Destination
+            && task.Destination != TaskNavigation.MorningDestination;
         if (task.ReportCode is "dsr" or "sales-combined")
         {
             appliedStore = window.ShellStoreSelector.Items.Count - 1;
@@ -472,7 +497,7 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         UserControl view;
         if (task.Id == "profiles") view = new Modules.Settings.ApprovedProfilesView();
-        else if (task.Id == "settings") view = new Modules.Settings.GeneralPreferencesView(UiPreferenceStore.Load(), window.SavePreferences, window.CurrentShellAccess);
+        else if (task.Id == "settings") view = new Modules.Settings.GeneralPreferencesView(window.UiPreferencesSnapshot, window.SavePreferences, window.CurrentShellAccess);
         else if (task.Destination == "Dashboard") { view = window.dashboardView; window.dashboardView.SelectTask(task.Id); _ = window.RefreshDashboardAsync(); }
         else view = ResolveTaskView(task, route.Argument);
         ApplyHiddenScope(view);
@@ -512,8 +537,12 @@ public sealed partial class TaskNavigator(MainWindow window)
         // 1.12 (A1 seam): a screen the composition root registered comes before the built-in ones below.
         if (window.Screens.Contains(id) && window.Screens.TryCreate(new ScreenRequest(id, argument, DateOnly.FromDateTime(appliedDate),
                 string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore, window.CurrentShellAccess,
-                taskId => { if (TaskNavigation.Find(taskId) is { } next) NavigateTask(next); }), out var registered) && registered is not null)
+                taskId => { if (TaskNavigation.Find(taskId) is { } next) NavigateTask(next); })
+                { NavigateWithArgument = (taskId, value) => NavigateTaskById(taskId, value) }, out var registered) && registered is not null)
             return registered;
+        // 1.12 U1: a wave-2 task whose lane has not registered its screen in this build says so, instead of falling through
+        // to a built-in workspace that has nothing to do with it.
+        if (TaskNavigation.RegisteredOnly.Contains(id)) return NotInThisBuild(task);
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
             return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, argument, NavigateServiceJob, NavigateService);
         // 1.11.0 self-diagnostics: the Owner-only Health check and Error register screens (Operations Centre, Settings > Database).
@@ -562,15 +591,9 @@ public sealed partial class TaskNavigator(MainWindow window)
             view = window.dailyWorkflowWorkspace;
             window.dailyWorkflowWorkspace.SelectPackTask(id);
             window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
-            (body, actions) = task.Section switch
-            {
-                // Indices are positions in DailyWorkflowWorkspaceView's root StackPanel.
-                // CashQuickFields was inserted at 7, so every child from 7 onward moved
-                // down by one and each entry below was corrected to match.
-                "manual" => (new int[] {7,8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
-                "staff-target" => (new int[] {2,14,3}, new int[] {14}), "finalisation" => (new int[] {2,15,3}, new int[] {15}),
-                "readiness" => (new int[] {3,15,17,18}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
-            };
+            // 1.12 U1: the parts of DailyWorkflowWorkspaceView's root panel are chosen by name (TaskNavigator.CloseDay.cs),
+            // so a part added to that view no longer shifts every task's layout.
+            (body, actions) = CloseDayIndices(view, task.Section);
         }
         else if (task.Destination == "Registers") { view = window.registersWorkspaceView; body = new int[] {4,5,6,1,2}; actions = new int[] {0,1,5}; window.registersWorkspaceView.SelectTask(id); }
         else if (task.Destination == "Accounting")

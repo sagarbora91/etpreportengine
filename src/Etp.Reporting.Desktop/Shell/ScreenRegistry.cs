@@ -15,7 +15,24 @@ public sealed record ScreenRequest(
     DateOnly BusinessDate,
     string? StoreCode,
     ShellAccess Access,
-    Action<string> Navigate);
+    Action<string> Navigate)
+{
+    /// <summary>
+    /// 1.12 U1: opens another task with a route argument (a Fix button passes the import history key). The argument is a
+    /// route value only; it is never stored on disk (pins and recents keep task ids). Unknown ids are ignored.
+    /// </summary>
+    public Action<string, string?> NavigateWithArgument { get; init; } = (taskId, _) => { };
+}
+
+/// <summary>
+/// 1.12 U1: a registered screen the shell can ask for its state. <see cref="IsBusy"/> keeps the shell from leaving the
+/// screen (or closing ETP) while it works, as for the built-in workspaces; <see cref="Refresh"/> is what F5 does on it.
+/// </summary>
+public interface IShellScreen
+{
+    bool IsBusy { get; }
+    void Refresh();
+}
 
 /// <summary>
 /// Task id -> view factory (1.12 A1 seam). The composition root registers each wave-2 screen here
@@ -28,6 +45,12 @@ public sealed class ScreenRegistry
     private readonly Dictionary<string, Func<ScreenRequest, UserControl>> factories = new(StringComparer.Ordinal);
 
     public IReadOnlyCollection<string> TaskIds => factories.Keys;
+
+    /// <summary>
+    /// 1.12 U1: the window this registry belongs to, so a <c>Register*</c> hook can also hand the shell a service it shows
+    /// outside a screen (N1's no-sale buttons and service for the Today checklist). Null for a registry built on its own.
+    /// </summary>
+    internal MainWindow? Window { get; init; }
 
     public void Register(string taskId, Func<ScreenRequest, UserControl> create)
     {
@@ -53,5 +76,7 @@ public sealed class ScreenRegistry
 public partial class MainWindow
 {
     /// <summary>Screens registered by the composition root (1.12 A1); <see cref="TaskNavigator"/> consults it first.</summary>
-    internal ScreenRegistry Screens { get; } = new();
+    private ScreenRegistry? screens;
+
+    internal ScreenRegistry Screens => screens ??= new ScreenRegistry { Window = this };
 }
