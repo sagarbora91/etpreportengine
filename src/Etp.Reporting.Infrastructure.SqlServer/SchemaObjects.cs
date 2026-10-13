@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Etp.Reporting.Application.Imports;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -127,8 +128,8 @@ public static partial class SchemaObjectFiles
         var lf = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
         var header = Header().Match(lf);
         if (!header.Success) return lf;
-        return string.Concat(lf.AsSpan(0, header.Index), "CREATE " + CanonicalKind(header.Groups["kind"].Value) + " " + header.Groups["name"].Value,
-            lf.AsSpan(header.Index + header.Length));
+        return lf[..header.Index] + "CREATE " + CanonicalKind(header.Groups["kind"].Value) + " " + header.Groups["name"].Value
+            + lf[(header.Index + header.Length)..];
     }
 
     /// <summary>Splits a script on lines holding only <c>GO</c>; batches that are only white space are dropped.</summary>
@@ -287,7 +288,7 @@ public static partial class SchemaObjectFiles
     private static partial Regex GrantsLine();
 
     // Non-capturing: Regex.Split would put a captured group into the batches.
-    [GeneratedRegex(@"^[ \t]*GO[ \t]*(?:--[^\r\n]*)?\r?$",RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^[ \t]*GO[ \t]*(?:--[^\r\n]*)?\r?$", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GoLine();
 
     [GeneratedRegex(@"^[ \t]*(?<verb>CREATE[ \t]+OR[ \t]+ALTER|CREATE|ALTER)\s+(?<kind>VIEW|PROCEDURE|PROC|FUNCTION)\s+(?<name>(\[[^\]\r\n]+\]|[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*(\[[^\]\r\n]+\]|[A-Za-z_][A-Za-z0-9_]*))",
