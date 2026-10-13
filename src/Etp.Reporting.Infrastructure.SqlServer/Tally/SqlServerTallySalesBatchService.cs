@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Etp.Reporting.Application.Accounting;
 using Microsoft.Data.SqlClient;
@@ -8,8 +9,9 @@ namespace Etp.Reporting.Infrastructure.SqlServer.Tally;
 
 /// <summary>Plan task 6: reads one day's invoices, composes one Sales voucher per invoice and saves them as a
 /// <c>SALES_VOUCHERS</c> batch with its vouchers, entries, invoice reservations and the plan task 7 validation findings.
-/// Owner only. Nothing is sent to Tally.</summary>
-public sealed class SqlServerTallySalesBatchService(string connectionString, Func<DateOnly>? today = null) : ITallySalesBatchService
+/// Plan task 8 (1.12 D1): writes an approved batch as the Tally file. Owner only. Nothing is sent to Tally.</summary>
+public sealed class SqlServerTallySalesBatchService(string connectionString, Func<DateOnly>? today = null, string? evidenceRootOverride = null)
+    : ITallySalesBatchService, ITallySalesVoucherExportService
 {
     private DateOnly Today => today?.Invoke() ?? DateOnly.FromDateTime(DateTime.Now);
 
@@ -136,6 +138,159 @@ public sealed class SqlServerTallySalesBatchService(string connectionString, Fun
         }
     }
 
+    /// <summary>Plan task 8 (1.12 D1): writes the approved batch's planned vouchers as <c>payload.xml</c> in the batch's evidence
+    /// folder, reads that file back (RULE-PAY-001: same company, count, keys and amounts) and only then marks the batch
+    /// EXPORTED_AWAITING_IMPORT and its vouchers EXPORTED. Refused for a live company, for a test company whose name could be
+    /// mistaken for the real books, and, for TallyPrime in Educational mode, for a date it would refuse. Never written twice.</summary>
+    public async Task<TallyVoucherFileReceipt> ExportAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        if (batchId <= 0) throw new ArgumentOutOfRangeException(nameof(batchId));
+        await RequireOwnerAsync(cancellationToken);
+        var head = await LoadExportHeadAsync(batchId, cancellationToken);
+        if (head.Kind != "SALES_VOUCHERS" || head.ProfileId is null)
+            throw new InvalidOperationException("This batch is a day journal. Only invoice vouchers are written as a Tally voucher file.");
+        if (head.Status != TallyBatchStatus.ApprovedReady)
+            throw new InvalidOperationException(head.Status == TallyBatchStatus.ExportedAwaitingImport
+                ? "This batch's Tally file is already written. A file is never written twice: import that file into Tally, then read back."
+                : "Approve the batch before writing its Tally file.");
+        var profile = (await new SqlServerTallyProfileService(connectionString).LoadAsync(cancellationToken)).FirstOrDefault(item => item.Id == head.ProfileId)
+            ?? throw new InvalidOperationException("This batch's Tally company no longer exists.");
+        if (ExportRefusal(profile) is { } refusal) throw new InvalidOperationException(refusal);
+
+        var drafts = await LoadDraftsAsync(batchId, cancellationToken);
+        if (drafts.Count == 0) throw new InvalidOperationException("This batch has no voucher ready to send; every invoice is left out.");
+        if (TallyEducationalCalendar.AppliesTo(profile) && TallyEducationalCalendar.Default.Refusal(drafts.Select(draft => draft.VoucherDate)) is { } dates)
+            throw new InvalidOperationException(dates);
+
+        var content = TallySalesVoucherXmlWriter.Write(profile, drafts);
+        if (TallySalesVoucherXmlWriter.Verify(content, profile.CompanyName, drafts) is { } problem)
+            throw new InvalidOperationException($"RULE-PAY-001: {problem} Nothing was written.");
+        var sha = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+
+        var evidence = new TallyEvidenceStore(connectionString, evidenceRootOverride);
+        var relative = $@"{TallyEvidencePaths.BatchFolder(profile.ProfileCode, head.StoreCode, head.BusinessDate, batchId)}\payload.xml";
+        var earlier = (await evidence.VerifyAsync(batchId, cancellationToken)).Where(check => check.Artifact.Kind == "PAYLOAD_XML").ToArray();
+        TallyArtifact artifact;
+        if (earlier.Length == 0)
+            artifact = await evidence.WriteAsync(batchId, "PAYLOAD_XML", relative, content, cancellationToken);
+        else if (earlier.Length == 1 && earlier[0].State == TallyEvidenceState.Ok && earlier[0].Artifact.Sha256 == sha)
+            // Written by an earlier run that stopped before the batch was marked: the same approved vouchers give the same bytes.
+            artifact = earlier[0].Artifact;
+        else
+            throw new InvalidOperationException("A different Tally file is already recorded for this batch. Nothing was marked; check the batch's evidence folder.");
+
+        // RULE-PAY-001 on the file as it lies on disk, read once and hashed.
+        var onDisk = await evidence.ReadVerifiedAsync(artifact, cancellationToken)
+            ?? throw new InvalidOperationException("The Tally file changed or vanished right after it was written. Nothing was marked.");
+        if (TallySalesVoucherXmlWriter.Verify(onDisk, profile.CompanyName, drafts) is { } diskProblem)
+            throw new InvalidOperationException($"RULE-PAY-001: {diskProblem} Nothing was marked.");
+
+        const string sql = """
+            SET XACT_ABORT ON; BEGIN TRANSACTION;
+            DECLARE @lock int; EXEC @lock=sys.sp_getapplock @Resource='ETP.AccountingReservations',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=15000;
+            IF @lock<0 THROW 51451,'Accounting is busy. Try again.',1;
+            IF NOT EXISTS(SELECT 1 FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK)
+                WHERE accounting_batch_id=@batch AND status='APPROVED_READY' AND batch_kind='SALES_VOUCHERS' AND tally_profile_id=@profile)
+              THROW 51940,'This batch is no longer approved and ready. Refresh the list; nothing was marked.',1;
+            IF NOT EXISTS(SELECT 1 FROM dbo.tally_profiles WITH(UPDLOCK,HOLDLOCK) WHERE tally_profile_id=@profile AND is_enabled=1 AND environment='TEST'
+                AND production_enabled_utc IS NULL AND CONVERT(varbinary(400),company_name)=CONVERT(varbinary(400),@company))
+              THROW 51941,'The Tally company changed while the file was written. Nothing was marked; write the file again.',1;
+            IF (SELECT COUNT(*) FROM dbo.accounting_vouchers WHERE accounting_batch_id=@batch AND voucher_status='PLANNED')<>@count
+              THROW 51942,'The batch''s vouchers changed while the file was written. Nothing was marked.',1;
+            INSERT dbo.tally_attempts(accounting_batch_id,tally_profile_id,payload_artifact_id,delivery_mode,payload_format,attempt_status,completed_utc)
+            VALUES(@batch,@profile,@artifact,'FILE','XML','FILE_WRITTEN',SYSUTCDATETIME());
+            INSERT dbo.accounting_export_receipts(accounting_batch_id,output_path,sha256,tally_company_name,environment_label,exported_by)
+            VALUES(@batch,@path,@sha,@company,'TEST',SUSER_SNAME());
+            EXEC sys.sp_set_session_context @key=N'etp.status_reason',@value=N'Tally voucher file written; Tally has not imported it yet';
+            UPDATE dbo.accounting_batches SET status='EXPORTED_AWAITING_IMPORT',exported_utc=SYSUTCDATETIME(),export_sha256=@sha WHERE accounting_batch_id=@batch;
+            UPDATE dbo.accounting_vouchers SET voucher_status='EXPORTED' WHERE accounting_batch_id=@batch AND voucher_status='PLANNED';
+            EXEC sys.sp_set_session_context @key=N'etp.status_reason',@value=NULL;
+            EXEC dbo.record_operational_audit 'AccountingExport','Succeeded',N'Tally voucher file written; Tally result has not been checked',N'database';
+            COMMIT TRANSACTION;
+            SELECT exported_utc FROM dbo.accounting_batches WHERE accounting_batch_id=@batch;
+            """;
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@batch", batchId);
+        command.Parameters.AddWithValue("@profile", profile.Id!.Value);
+        command.Parameters.Add("@company", SqlDbType.NVarChar, 200).Value = profile.CompanyName;
+        command.Parameters.AddWithValue("@count", drafts.Count);
+        command.Parameters.AddWithValue("@artifact", artifact.Id);
+        command.Parameters.Add("@path", SqlDbType.NVarChar, 500).Value = artifact.RelativePath;
+        command.Parameters.Add("@sha", SqlDbType.Char, 64).Value = artifact.Sha256;
+        var exported = (DateTime)(await command.ExecuteScalarAsync(cancellationToken))!;
+        return new(batchId, profile.CompanyName, artifact.RelativePath, artifact.Sha256, drafts.Count, drafts.Sum(draft => draft.Total), exported);
+    }
+
+    /// <summary>Null when vouchers may be written for this company now; otherwise the sentence to show.</summary>
+    public static string? ExportRefusal(TallyProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (!profile.IsEnabled) return "This Tally company is switched off in Settings → Tally companies.";
+        if (profile.Environment != "TEST" || profile.ProductionEnabledUtc is not null)
+            return "Live books are not enabled in this version. Only the test company can be written (decision 48).";
+        if (!TallyTestCompany.IsTheTestCompany(profile.CompanyName) && !profile.CompanyName.Contains("TEST", StringComparison.Ordinal))
+            return $"A test company must be '{TallyTestCompany.Name}' or have TEST in its name, so its file is never mistaken for the real books.";
+        return TallySalesVoucherComposer.Unsupported(profile);
+    }
+
+    private sealed record ExportHead(string Kind, string Status, string StoreCode, DateOnly BusinessDate, int? ProfileId);
+
+    private async Task<ExportHead> LoadExportHeadAsync(long batchId, CancellationToken token)
+    {
+        await using var connection = await OpenAsync(token);
+        await using var command = new SqlCommand(
+            "SELECT batch_kind,status,store_code,business_date,tally_profile_id FROM dbo.accounting_batches WHERE accounting_batch_id=@batch", connection);
+        command.Parameters.AddWithValue("@batch", batchId);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token)) throw new InvalidOperationException("The accounting batch was not found.");
+        return new(reader.GetString(0), reader.GetString(1), reader.GetString(2), DateOnly.FromDateTime(reader.GetDateTime(3)),
+            reader.IsDBNull(4) ? null : reader.GetInt32(4));
+    }
+
+    /// <summary>The PLANNED vouchers with their saved entries. Each voucher's plan hash is computed again from the saved
+    /// entries; a voucher changed after it was prepared is refused, never written.</summary>
+    private async Task<IReadOnlyList<AccountingVoucherDraft>> LoadDraftsAsync(long batchId, CancellationToken token)
+    {
+        const string sql = """
+            SELECT v.voucher_sequence,v.correspondence_key,v.voucher_type,v.voucher_date,v.document_number,v.plan_sha256,
+                   e.business_event,e.ledger_name,e.debit_amount,e.credit_amount,e.cost_centre,e.narration,e.tax_rate
+            FROM dbo.accounting_vouchers v JOIN dbo.accounting_entries e ON e.accounting_voucher_id=v.accounting_voucher_id
+            WHERE v.accounting_batch_id=@batch AND v.voucher_status='PLANNED'
+            ORDER BY v.voucher_sequence,e.line_number;
+            """;
+        var heads = new List<(int Sequence, string Key, string Type, DateOnly Date, string Document, string PlanSha, string Narration)>();
+        var entries = new Dictionary<int, List<PlannedEntry>>();
+        await using (var connection = await OpenAsync(token))
+        await using (var command = new SqlCommand(sql, connection))
+        {
+            command.Parameters.AddWithValue("@batch", batchId);
+            await using var reader = await command.ExecuteReaderAsync(token);
+            while (await reader.ReadAsync(token))
+            {
+                var sequence = reader.GetInt32(0);
+                if (!entries.TryGetValue(sequence, out var list))
+                {
+                    entries[sequence] = list = [];
+                    heads.Add((sequence, reader.GetString(1), reader.GetString(2), DateOnly.FromDateTime(reader.GetDateTime(3)), reader.GetString(4),
+                        reader.GetString(5), reader.GetString(11)));
+                }
+                list.Add(new(list.Count + 1, reader.GetString(6), reader.GetString(7), reader.GetDecimal(8), reader.GetDecimal(9), Text(reader, 10),
+                    reader.IsDBNull(12) ? null : reader.GetDecimal(12)));
+            }
+        }
+        var drafts = new List<AccountingVoucherDraft>();
+        foreach (var head in heads)
+        {
+            var lines = entries[head.Sequence];
+            if (!string.Equals(TallySalesVoucherComposer.PlanHash(head.Key, head.Date, lines), head.PlanSha, StringComparison.Ordinal))
+                throw new InvalidOperationException($"Invoice {head.Document}: the saved voucher no longer matches what was prepared and approved. Nothing was written; reject the batch and prepare the day again.");
+            drafts.Add(new(head.Sequence, head.Key, head.Type, head.Date, head.Document, head.Narration,
+                lines.Select(line => new AccountingVoucherLine(line.LedgerName, line.Debit, line.Credit, line.CostCentre)).ToArray()));
+        }
+        return drafts;
+    }
+
     public async Task<IReadOnlyList<SavedValidationFinding>> LoadFindingsAsync(long batchId, CancellationToken cancellationToken = default)
     {
         await RequireOwnerAsync(cancellationToken);
@@ -169,7 +324,16 @@ public sealed class SqlServerTallySalesBatchService(string connectionString, Fun
             DECLARE @generation bigint=(SELECT TOP(1) daily_report_generation_id FROM dbo.daily_report_generations WHERE store_code=@store AND business_date=@date AND is_final=1 ORDER BY generation_number DESC);
             IF @generation IS NULL THROW 51220,'Finalise the report generation before preparing accounting.',1;
             SELECT @generation;
-            SELECT sales_invoice_id,store_code,invoice_year,document_number,transaction_date FROM dbo.sales_invoices WHERE store_code=@store AND transaction_date=@date;
+            -- Decision 41: a bill cancelled the same day (0060's view) is marked, and the composer leaves it out. The view is
+            -- read only when it exists, so this still runs on a database from before 1.11.2.
+            IF OBJECT_ID(N'dbo.v_sales_cancelled_same_day',N'V') IS NOT NULL
+              SELECT i.sales_invoice_id,i.store_code,i.invoice_year,i.document_number,i.transaction_date,
+                     CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.v_sales_cancelled_same_day c
+                       WHERE c.store_code=i.store_code AND c.document_number=i.document_number AND c.transaction_date=i.transaction_date) THEN 1 ELSE 0 END)
+              FROM dbo.sales_invoices i WHERE i.store_code=@store AND i.transaction_date=@date;
+            ELSE
+              SELECT sales_invoice_id,store_code,invoice_year,document_number,transaction_date,CONVERT(bit,0)
+              FROM dbo.sales_invoices WHERE store_code=@store AND transaction_date=@date;
             SELECT l.sales_invoice_id,l.line_identifier,l.product_code,l.source_transaction_type,l.source_quantity,l.source_gross_amount,l.source_net_amount,l.source_tax_amount
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id WHERE i.store_code=@store AND i.transaction_date=@date;
             WITH invoice_tax AS (
@@ -197,10 +361,10 @@ public sealed class SqlServerTallySalesBatchService(string connectionString, Fun
         await reader.ReadAsync(cancellationToken);
         var generation = reader.GetInt64(0);
 
-        var heads = new List<(long Id, string Store, int Year, string Document, DateOnly Date)>();
+        var heads = new List<(long Id, string Store, int Year, string Document, DateOnly Date, bool Cancelled)>();
         await reader.NextResultAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            heads.Add((reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3), DateOnly.FromDateTime(reader.GetDateTime(4))));
+            heads.Add((reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3), DateOnly.FromDateTime(reader.GetDateTime(4)), reader.GetBoolean(5)));
 
         var lines = heads.ToDictionary(head => head.Id, _ => new List<InvoiceSourceLine>());
         await reader.NextResultAsync(cancellationToken);
@@ -218,7 +382,7 @@ public sealed class SqlServerTallySalesBatchService(string connectionString, Fun
             tenders[reader.GetInt64(0)].Add(new(reader.GetString(1), Text(reader, 2), reader.GetDecimal(3)));
 
         return (generation, heads.Select(head => new InvoiceAccountingSource(head.Id, head.Store, head.Year, head.Document, head.Date,
-            lines[head.Id], tax[head.Id], tenders[head.Id])).ToArray());
+            lines[head.Id], tax[head.Id], tenders[head.Id], head.Cancelled)).ToArray());
     }
 
     /// <summary>Approved, active mappings on the date; a store-specific mapping wins over the all-stores one.</summary>

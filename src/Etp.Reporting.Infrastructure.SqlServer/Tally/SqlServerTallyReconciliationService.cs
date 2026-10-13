@@ -59,14 +59,36 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         ArgumentNullException.ThrowIfNull(content);
         if (content.Length == 0) throw new ArgumentException("The file is empty. Export the Day Book from Tally again.", nameof(content));
         if (fromDate > toDate) throw new ArgumentException("The first date must not be after the last.");
+        return await RecordReadbackAsync(batchId, "MANUAL_FILE", fromDate, toDate, content, null, null, null, ManualFileAdapterVersion, cancellationToken);
+    }
+
+    /// <summary>Records one read-back, from a file (MANUAL_FILE) or over HTTP (1.12 D1). Over HTTP, Tally answers for the
+    /// company named in the request and its Day Book does not repeat the name; the caller has just seen that company open in
+    /// Tally, so <paramref name="companyAskedFor"/> stands for the answer's company. A file's company is only what it says.
+    /// <paramref name="gatewayFailure"/> is the <see cref="TallyGatewayFailure"/> of the HTTP exchange, kept as the incomplete reason.</summary>
+    internal async Task<TallyReadbackRecord> RecordReadbackAsync(long batchId, string source, DateOnly fromDate, DateOnly toDate, byte[] content,
+        byte[]? request, string? companyAskedFor, string? gatewayFailure, string adapterVersion, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        if (content.Length == 0) throw new ArgumentException("Tally's answer is empty, so there is nothing to keep as evidence.", nameof(content));
+        if (source is not ("MANUAL_FILE" or "HTTP")) throw new ArgumentException("Unknown read-back source.", nameof(source));
         await RequireOwnerAsync(cancellationToken);
         var batch = await LoadBatchAsync(batchId, cancellationToken);
 
         var document = TallyVoucherXmlReader.Read(content);
-        var reason = document.FailureReason switch
+        var reported = document.CompanyNameReported
+            ?? (source == "HTTP" && document.FailureReason is null && gatewayFailure is null ? companyAskedFor?.Trim() : null);
+        var reason = gatewayFailure switch
         {
-            null when document.CompanyNameReported is null => "COMPANY_NOT_REPORTED",
-            null when !string.Equals(document.CompanyNameReported, batch.CompanyName.Trim(), StringComparison.Ordinal) => "WRONG_COMPANY",
+            null => null,
+            TallyGatewayFailure.CompanyNotOpen => "COMPANY_NOT_OPEN",
+            TallyGatewayFailure.Truncated => "TRUNCATED",
+            TallyGatewayFailure.NotXml => "NOT_XML",
+            _ => "TALLY_ERROR"
+        } ?? document.FailureReason switch
+        {
+            null when reported is null => "COMPANY_NOT_REPORTED",
+            null when !string.Equals(reported, batch.CompanyName.Trim(), StringComparison.Ordinal) => "WRONG_COMPANY",
             // The dates entered here must lie within the period the file itself says it covers, when it says one.
             null when document.FromDateReported is { } reportedFrom && document.ToDateReported is { } reportedTo
                 && (fromDate < reportedFrom || toDate > reportedTo) => "PERIOD_MISMATCH",
@@ -77,12 +99,15 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
 
         var number = await NextNumberAsync(batchId, "READBACK_XML", cancellationToken);
         var store = new TallyEvidenceStore(connectionString, evidenceRootOverride);
+        var requestArtifact = request is { Length: > 0 }
+            ? await store.WriteAsync(batchId, "HTTP_REQUEST", $@"{batch.Folder}\actuals\readback-{number}-request.xml", request, cancellationToken)
+            : null;
         var artifact = await store.WriteAsync(batchId, "READBACK_XML", $@"{batch.Folder}\actuals\readback-{number}.xml", content, cancellationToken);
 
         const string sql = """
             SET XACT_ABORT ON; BEGIN TRANSACTION;
-            INSERT dbo.tally_readbacks(tally_profile_id,accounting_batch_id,source,company_name_reported,from_date,to_date,voucher_count,is_complete,incomplete_reason,response_artifact_id,adapter_version)
-            VALUES(@profile,@batch,'MANUAL_FILE',@company,@from,@to,@count,@complete,@reason,@artifact,@adapter);
+            INSERT dbo.tally_readbacks(tally_profile_id,accounting_batch_id,source,company_name_reported,from_date,to_date,voucher_count,is_complete,incomplete_reason,request_artifact_id,response_artifact_id,adapter_version)
+            VALUES(@profile,@batch,@source,@company,@from,@to,@count,@complete,@reason,@request,@artifact,@adapter);
             DECLARE @readback bigint=SCOPE_IDENTITY();
             INSERT dbo.tally_actual_vouchers(tally_readback_id,voucher_index,voucher_type,voucher_date,voucher_number,reference,narration,correspondence_key,tally_guid,tally_master_id,tally_alter_id,is_cancelled,is_optional,total_amount,fragment_sha256)
             SELECT @readback,voucher_index,voucher_type,voucher_date,voucher_number,reference,narration,correspondence_key,tally_guid,tally_master_id,tally_alter_id,is_cancelled,is_optional,total_amount,fragment_sha256
@@ -92,7 +117,7 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
             SELECT a.tally_actual_id,l.line_number,l.ledger_name,l.amount,l.is_deemed_positive
             FROM OPENJSON(@lines) WITH(voucher_index int,line_number int,ledger_name nvarchar(200),amount decimal(19,4),is_deemed_positive bit) l
             JOIN dbo.tally_actual_vouchers a ON a.tally_readback_id=@readback AND a.voucher_index=l.voucher_index;
-            EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Tally read-back file recorded',N'database';
+            EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',@audit,N'database';
             COMMIT TRANSACTION; SELECT @readback;
             """;
         var vouchers = document.Vouchers.Select(v => new
@@ -112,18 +137,21 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@profile", batch.ProfileId);
         command.Parameters.AddWithValue("@batch", batchId);
-        command.Parameters.AddWithValue("@company", (object?)Cut(document.CompanyNameReported, 200) ?? DBNull.Value);
+        command.Parameters.AddWithValue("@company", (object?)Cut(reported, 200) ?? DBNull.Value);
+        command.Parameters.AddWithValue("@source", source);
+        command.Parameters.AddWithValue("@request", (object?)requestArtifact?.Id ?? DBNull.Value);
+        command.Parameters.Add("@audit", System.Data.SqlDbType.NVarChar, 200).Value = source == "HTTP" ? "Tally read-back over HTTP recorded" : "Tally read-back file recorded";
         command.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = fromDate.ToDateTime(TimeOnly.MinValue);
         command.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = toDate.ToDateTime(TimeOnly.MinValue);
         command.Parameters.AddWithValue("@count", document.Vouchers.Count);
         command.Parameters.AddWithValue("@complete", reason is null);
         command.Parameters.AddWithValue("@reason", (object?)reason ?? DBNull.Value);
         command.Parameters.AddWithValue("@artifact", artifact.Id);
-        command.Parameters.AddWithValue("@adapter", ManualFileAdapterVersion);
+        command.Parameters.AddWithValue("@adapter", adapterVersion);
         command.Parameters.Add("@vouchers", System.Data.SqlDbType.NVarChar, -1).Value = JsonSerializer.Serialize(vouchers);
         command.Parameters.Add("@lines", System.Data.SqlDbType.NVarChar, -1).Value = JsonSerializer.Serialize(lines);
         var id = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
-        return new(id, batchId, document.CompanyNameReported, reason is null, reason, document.Vouchers.Count, document.TallyMessage);
+        return new(id, batchId, reported, reason is null, reason, document.Vouchers.Count, document.TallyMessage);
     }
 
     /// <summary>Compares a batch with one of its read-backs and records the run, its differences and each voucher's

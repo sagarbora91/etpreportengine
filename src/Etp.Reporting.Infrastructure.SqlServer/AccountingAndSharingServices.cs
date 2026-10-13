@@ -30,6 +30,9 @@ public sealed class AccountingBatchComposer
     }
 }
 
+/// <summary>Phase 5 day-journal file (DAY_JOURNAL batches only; the export SQL refuses SALES_VOUCHERS batches with 51571).
+/// Invoice vouchers are written by <see cref="Tally.TallySalesVoucherXmlWriter"/> through
+/// <see cref="Tally.SqlServerTallySalesBatchService.ExportAsync"/> (1.12 D1), which replaces this exporter for Tally vouchers.</summary>
 public sealed class TallyXmlExportService
 {
     public async Task<string> ExportAsync(string path, string companyName, DateOnly businessDate,

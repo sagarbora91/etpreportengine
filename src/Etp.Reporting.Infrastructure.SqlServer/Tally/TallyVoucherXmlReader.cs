@@ -29,11 +29,9 @@ public static class TallyVoucherXmlReader
         XDocument document;
         try
         {
-            using var reader = XmlReader.Create(stream, new XmlReaderSettings
-            {
-                DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = MaxBytes,
-                IgnoreComments = true, IgnoreProcessingInstructions = true, CloseInput = false
-            });
+            // Same hardening as before (no DTD, no resolver, size cap); character checking is off because Tally writes
+            // control characters such as &#4; into real exports (1.12 D1).
+            using var reader = XmlReader.Create(stream, TallyXml.ReaderSettings());
             document = XDocument.Load(reader, LoadOptions.None);
         }
         catch (XmlException)
