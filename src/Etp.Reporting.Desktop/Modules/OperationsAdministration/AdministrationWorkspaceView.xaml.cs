@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using Etp.Reporting.Desktop.Modules.Service;
 using IAdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IAdministrationService;
 using ServiceCentre = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentre;
+using ServiceCentreAdministration = EtpApplication::Etp.Reporting.Application.Stores.IServiceCentreAdministration;
 using ServiceCentreRules = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules;
 
 namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;
@@ -73,15 +74,29 @@ public partial class AdministrationWorkspaceView : UserControl
     /// <summary>The Service Centres the editor knows (from the catalogue at refresh); a test may set them.</summary>
     internal IReadOnlyList<ServiceCentre> ServiceCentres { get => serviceCentres; set { serviceCentres = value ?? []; UpdateMasterActiveState(); } }
 
+    /// <summary>The Service Centre save for this view; null uses the composition root's (a test supplies its own).</summary>
+    internal Func<ServiceCentreAdministration>? ServiceCentreAdministrationFactory { get; set; }
+
     private bool updatingServiceState;
+    // True while "Service Centre" is ticked only because the typed code is an existing Service Centre; the tick goes
+    // away again when the code changes, so a Retail code typed next is never saved as a Service Centre by accident.
+    private bool serviceTickedByCode;
 
     private void UpdateServiceCentreState()
     {
         var code = MasterCodeInput.Text.Trim();
         var existingService = serviceStoreCodes.Contains(code);
         var existingShop = !existingService && shopStoreCodes.Contains(code);
-        if (existingService) MasterServiceInput.IsChecked = true;
-        else if (existingShop) MasterServiceInput.IsChecked = false;
+        if (existingService)
+        {
+            if (MasterServiceInput.IsChecked != true) { MasterServiceInput.IsChecked = true; serviceTickedByCode = true; MasterPrefixInput.Clear(); }
+        }
+        else if (serviceTickedByCode || existingShop)
+        {
+            if (serviceTickedByCode) MasterPrefixInput.Clear();
+            MasterServiceInput.IsChecked = false;
+            serviceTickedByCode = false;
+        }
         MasterServiceInput.IsEnabled = !existingService && !existingShop;
         var service = MasterServiceInput.IsChecked == true;
         MasterPrefixInput.IsEnabled = service;
@@ -255,8 +270,8 @@ public partial class AdministrationWorkspaceView : UserControl
                 await Service.SaveMasterAsync(OperationsAdministrationPresentationSession.CreateMasterCommand(
                     SelectedContent(MasterTypeInput), MasterCodeInput.Text, MasterNameInput.Text,
                     SelectedContent(MasterApprovalInput), MasterActiveInput.IsChecked == true, MasterReasonInput.Text));
-            MasterServiceInput.IsChecked = false; MasterPrefixInput.Clear();
             MasterCodeInput.Clear(); MasterNameInput.Clear(); MasterReasonInput.Clear();
+            MasterServiceInput.IsChecked = false; MasterPrefixInput.Clear(); serviceTickedByCode = false;
             masterBaselines[editingMaster] = CaptureMaster();
             await RefreshAsync();
             if (StoresChangedAsync is not null) await StoresChangedAsync();
@@ -280,7 +295,7 @@ public partial class AdministrationWorkspaceView : UserControl
             AdministrationStatus.Text = "Service Centre was not saved: " + problem;
             return false;
         }
-        if (ServiceCentreServices.Administration is not { } administration)
+        if ((ServiceCentreAdministrationFactory ?? ServiceCentreServices.Administration) is not { } administration)
         {
             AdministrationStatus.Text = "Service Centre was not saved: adding a Service Centre is not available in this window. Reopen ETP and try again.";
             return false;

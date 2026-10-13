@@ -1,5 +1,7 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Domain.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Service;
@@ -10,7 +12,8 @@ namespace Etp.Reporting.SqlServer.Tests.Service;
 
 /// <summary>
 /// The Service interim rules of the folder import (lane L3, decision 15) that need no Service catalogue entry: the
-/// Not needed gate by file name, the gate by matched family, the AW330 store fallback, the Snapshot History check and
+/// Not needed gate by file name, the gate by matched family, the Service Centre store fallback (1.12 A4: from the
+/// catalogue), the Snapshot History check and
 /// their messages. Retail files must route exactly as before. Synthetic workbooks only.
 /// </summary>
 public sealed class ServiceRoutingTests
@@ -96,16 +99,44 @@ public sealed class ServiceRoutingTests
     [Fact]
     public void Only_service_families_fall_back_to_the_service_centre_store()
     {
-        Assert.Equal("AW330", ServiceInterimFamilies.ServiceStoreCode);
-        Assert.Equal(ServiceInterimFamilies.ServiceStoreCode, ImportScope.ServiceStoreFallback(ServiceFamily("S011")));
-        Assert.Equal(ServiceInterimFamilies.ServiceStoreCode, ImportScope.ServiceStoreFallback(ServiceFamily("S013")));
-        Assert.Null(ImportScope.ServiceStoreFallback(EtpReportFamilyRegistry.Resolve("R025")));
-        Assert.Null(ImportScope.ServiceStoreFallback("R025"));
-        Assert.Null(ImportScope.ServiceStoreFallback("CLOSING_STOCK"));
-        Assert.Null(ImportScope.ServiceStoreFallback("UNKNOWN_CODE"));
-        Assert.Null(ImportScope.ServiceStoreFallback((string?)null));
+        IReadOnlyList<ServiceCentre> one = [new("AW330", "Service Centre AW330", "JOAW330")];
+        IReadOnlyList<ServiceCentre> two = [.. one, new("SC999", "Synthetic Service Centre", "JOSC999")];
+        Assert.Equal("AW330", ImportScope.ServiceStoreFallback(ServiceFamily("S011"), one)!.StoreCode);
+        Assert.Equal("AW330", ImportScope.ServiceStoreFallback(ServiceFamily("S013"), one)!.StoreCode);
+        Assert.Equal("SC999", ImportScope.ServiceStoreFallback(ServiceFamily("S013"), [two[1]])!.StoreCode);
+        var refused = ImportScope.ServiceStoreFallback(ServiceFamily("S011"), two)!;
+        Assert.True(refused.IsRefused);
+        Assert.Equal(ServiceCentreRules.StoreAmbiguousCode, refused.RefusalCode);
+        Assert.Equal(ServiceCentreRules.StoreNotSetUpCode, ImportScope.ServiceStoreFallback(ServiceFamily("S011"), [])!.RefusalCode);
+        Assert.Null(ImportScope.ServiceStoreFallback(EtpReportFamilyRegistry.Resolve("R025"), one));
+        Assert.Null(ImportScope.ServiceStoreFallback("R025", one));
+        Assert.Null(ImportScope.ServiceStoreFallback("CLOSING_STOCK", one));
+        Assert.Null(ImportScope.ServiceStoreFallback("UNKNOWN_CODE", one));
+        Assert.Null(ImportScope.ServiceStoreFallback((string?)null, one));
+        Assert.True(ImportScope.TakesServiceStoreFallback("S011"));
+        Assert.False(ImportScope.TakesServiceStoreFallback("R025"));
+        Assert.False(ImportScope.TakesServiceStoreFallback(null));
         Assert.False(ServiceRouting.IsService("R025"));
         Assert.False(ServiceRouting.IsService(null));
+    }
+
+    [Fact]
+    public async Task The_automation_fallback_reads_the_catalogue_only_for_a_service_family()
+    {
+        var reads = new CountingCatalogue([new("AW330", "Service Centre AW330", "JOAW330")]);
+        Assert.Null(await ServiceCentreFallback.StoreForAsync(reads, "R025"));
+        Assert.Equal(0, reads.Reads);
+        Assert.Equal("AW330", await ServiceCentreFallback.StoreForAsync(reads, "S011"));
+        Assert.Equal(1, reads.Reads);
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() =>
+            ServiceCentreFallback.StoreForAsync(new FixedServiceCentreCatalog([]), "S013"));
+        Assert.Equal(ServiceCentreRules.StoreNotSetUpMessage, refusal.Message);
+    }
+
+    private sealed class CountingCatalogue(IReadOnlyList<ServiceCentre> centres) : IServiceCentreCatalog
+    {
+        public int Reads { get; private set; }
+        public Task<IReadOnlyList<ServiceCentre>> LoadAsync(CancellationToken ct = default) { Reads++; return Task.FromResult(centres); }
     }
 
     [Fact]

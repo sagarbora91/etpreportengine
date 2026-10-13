@@ -81,9 +81,14 @@ public sealed class ServiceMoneyCheckTests
             (Day1, "OTHERSHOP", "SERVICE_CASH", 300m), (Day1, "OTHERSHOP", "SERVICE_CARD", 10m), (Day1, "OTHERSHOP", "SERVICE_WDC", 90m),
             (Day2, "OTHERSHOP", "SERVICE_UPI", 40m),
         ], unmatched.Select(entry => (entry.BusinessDate, entry.StoreCode, entry.FieldCode, entry.Amount)));
-        Assert.Equal("Service entry at Helios: not matched to AW330.", unmatched[0].Note);
+        Assert.Equal("Service entry at Helios: not matched to the Service Centre.", unmatched[0].Note);
         // The catalogue name of any entry of the group is used; the code only when the shop has no name at all.
-        Assert.Equal("Service entry at OTHERSHOP: not matched to AW330.", ServiceMoneyCheck.UnmatchedNote(null, "OTHERSHOP"));
+        Assert.Equal("Service entry at OTHERSHOP: not matched to the Service Centre.", ServiceMoneyCheck.UnmatchedNote(null, "OTHERSHOP"));
+        // 1.12 A4: the Service centre is named from the catalogue when the caller has it; no store code is written in C#.
+        Assert.Equal("Service entry at OTHERSHOP: not matched to Synthetic Service Centre.",
+            ServiceMoneyCheck.UnmatchedNote(null, "OTHERSHOP", "Synthetic Service Centre"));
+        Assert.Equal("Service entry at Helios: not matched to Synthetic Service Centre.",
+            ServiceMoneyCheck.Unmatched([Other(Day1, "SERVICE_CASH", 300)], "Synthetic Service Centre")[0].Note);
         Assert.Empty(ServiceMoneyCheck.Unmatched([Shop(Day1, "SERVICE_CASH", 700), Shop(Day1, "SERVICE_WDC", 90)]));
     }
 

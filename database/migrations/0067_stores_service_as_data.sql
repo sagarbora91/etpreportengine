@@ -9,9 +9,11 @@
 -- Settings (text test ServiceCentreCatalogMigrationTextTests).
 --
 -- THROW numbers (lane A4 block 51970-51979):
---   51970 a job-number prefix on a store that is not a Service Centre store
+--   51970 a job-number prefix on a store that is not a Service Centre store (a move out of the unit coded SERVICE is
+--         left to 0048's 51904, so that refusal keeps its number whichever trigger runs first)
 --   51971 two Service Centres whose job-number prefixes overlap
---   51972 an active store in a SERVICE unit (0048's 51900 covers the unit coded SERVICE; this covers every SERVICE unit)
+--   51972 an active store in any other SERVICE-kind unit (0048's 51900 alone answers for the unit coded SERVICE, so a
+--         refusal there keeps its 1.9 number whichever trigger SQL Server runs first)
 --   51973 a business unit that has stores changing between RETAIL and SERVICE
 --
 -- No grant changes: both tables are read through SELECT ON SCHEMA::dbo (0022) and written by the Owner only.
@@ -43,14 +45,16 @@ FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_uni
 WHERE u.unit_kind=''SERVICE'' AND s.service_job_prefix IS NULL
   AND LEN(s.store_code) BETWEEN 1 AND 18 AND s.store_code COLLATE Latin1_General_BIN2 NOT LIKE ''%[^A-Z0-9]%'';');
 
--- 51970-51972: a prefix belongs to a Service Centre store only; prefixes never overlap; a store of any SERVICE unit stays
--- inactive (it is not a shop store).
+-- 51970-51972: a prefix belongs to a Service Centre store only; prefixes never overlap; a store of any other SERVICE-kind
+-- unit stays inactive too (it is not a shop store).
 EXEC(N'CREATE OR ALTER TRIGGER dbo.trg_stores_service_job_prefix ON dbo.stores
 AFTER INSERT, UPDATE AS
 BEGIN
  SET NOCOUNT ON;
  IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN dbo.business_units u ON u.business_unit_id=i.business_unit_id
-   WHERE i.service_job_prefix IS NOT NULL AND COALESCE(u.unit_kind,''RETAIL'')<>''SERVICE'')
+   WHERE i.service_job_prefix IS NOT NULL AND COALESCE(u.unit_kind,''RETAIL'')<>''SERVICE''
+     AND NOT EXISTS(SELECT 1 FROM deleted d JOIN dbo.business_units du ON du.business_unit_id=d.business_unit_id
+       WHERE d.store_id=i.store_id AND du.business_unit_code=''SERVICE''))
   THROW 51970,''A job-number prefix is for a Service Centre store only.'',1;
  IF EXISTS(SELECT 1 FROM inserted i JOIN dbo.stores s ON s.store_id<>i.store_id
    WHERE i.service_job_prefix IS NOT NULL AND s.service_job_prefix IS NOT NULL
@@ -58,7 +62,7 @@ BEGIN
        OR LEFT(i.service_job_prefix,LEN(s.service_job_prefix))=s.service_job_prefix))
   THROW 51971,''Each Service Centre needs its own job-number prefix, and one prefix cannot begin with another.'',1;
  IF EXISTS(SELECT 1 FROM inserted i JOIN dbo.business_units u ON u.business_unit_id=i.business_unit_id
-   WHERE u.unit_kind=''SERVICE'' AND i.is_active=1)
+   WHERE u.unit_kind=''SERVICE'' AND u.business_unit_code<>''SERVICE'' AND i.is_active=1)
   THROW 51972,''A Service Centre store is not a shop store and cannot be made active.'',1;
 END');
 
