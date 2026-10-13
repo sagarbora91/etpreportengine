@@ -365,15 +365,23 @@ public static class ServiceJobProjection
 
 /// <summary>
 /// The Service job key (design 1.3, Q1): the exported job order number, trimmed, never padded or re-formatted. On live every
-/// key is <c>JOAW330</c> plus 8 digits (FY 2024-25 numbering) or 9 digits (FY code plus a 5-digit sequence). A key of another
-/// shape is still a key (it is just listed); this check is for counts and warnings, never for dropping a row.
+/// key is the Service Centre's job-number prefix (0067 <c>stores.service_job_prefix</c>, JO and the store code) plus
+/// 8 digits (FY 2024-25 numbering) or 9 digits (FY code plus a 5-digit sequence). The pattern comes from the catalogue
+/// (1.12 A4), never from a code in C#. A key of another shape is still a key (it is just listed); this check is for counts
+/// and warnings, never for dropping a row.
 /// </summary>
 public static class ServiceJobKey
 {
-    public const string Pattern = "^JOAW330[0-9]{8,9}$";
+    /// <summary>The well-formed shape for one centre: <c>^{prefix}[0-9]{8,9}$</c>.</summary>
+    public static string PatternFor(Etp.Reporting.Application.Stores.ServiceCentre centre)
+    {
+        ArgumentNullException.ThrowIfNull(centre);
+        return centre.JobNumberPattern;
+    }
 
     public static string? Normalise(string? exported) => string.IsNullOrWhiteSpace(exported) ? null : exported.Trim();
 
-    public static bool IsWellFormed(string? key) =>
-        Normalise(key) is { } k && System.Text.RegularExpressions.Regex.IsMatch(k, Pattern, System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    /// <summary>True when the trimmed key has the shape of one of <paramref name="centres"/>.</summary>
+    public static bool IsWellFormed(string? key, IReadOnlyList<Etp.Reporting.Application.Stores.ServiceCentre> centres) =>
+        Etp.Reporting.Application.Stores.ServiceCentreRules.IsWellFormedJobNumber(centres, Normalise(key));
 }

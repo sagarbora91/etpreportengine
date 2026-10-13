@@ -8,8 +8,8 @@ public sealed class StoreScopeCatalog
     /// <summary>Active shop stores: every store picker and Retail scope. Never a Service Centre store.</summary>
     public IReadOnlyList<StoreCatalogEntry> Stores { get; private set; } = [];
     /// <summary>
-    /// Service Centre stores (0048: AW330, inactive, SERVICE unit). Kept for display only, so that
-    /// Import History names Service rows "Service Centre (AW330)" instead of "Custom: AW330".
+    /// Service Centre stores (0048 and 1.12 A4: inactive, of a SERVICE unit; one or more). Kept for display only, so that
+    /// Import History names Service rows "Service Centre (code)" instead of "Custom: code".
     /// </summary>
     public IReadOnlyList<StoreCatalogEntry> ServiceStores { get; private set; } = [];
     public void Replace(IEnumerable<StoreCatalogEntry> stores)
@@ -28,7 +28,7 @@ public sealed class StoreScopeCatalog
             || string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase)
             || string.Equals(Label(x), value, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (matches.Length == 1) return matches[0].Code;
-        // Display gives a Service store its label instead of "Custom: AW330"; the label resolves
+        // Display gives a Service store its label instead of "Custom: code"; the label resolves
         // back to the code, as the Custom form did. A bare Service code still resolves to nothing.
         return matches.Length == 0 && ServiceStore(value, byLabel: true) is { } service ? service.Code : null;
     }

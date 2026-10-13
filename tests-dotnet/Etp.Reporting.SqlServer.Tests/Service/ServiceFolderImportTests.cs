@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Service;
@@ -16,11 +17,16 @@ public sealed class ServiceFolderImportTests
 {
     private static readonly DateOnly Week1 = ServiceFixtures.Week1SnapshotDate;
 
+    // 1.12 A4: the Service Centres come from the store catalogue. The fixtures' centre, and a synthetic second one.
+    private static readonly ServiceCentre Fixture = new("AW330", "Service Centre AW330", "JOAW330");
+    private static readonly ServiceCentre Second = new("SC999", "Synthetic Service Centre", "JOSC999");
+    private static readonly IServiceCentreCatalog OneCentre = new FixedServiceCentreCatalog([Fixture]);
+
     [Fact]
     public async Task Week1_lands_35_families_under_AW330_dated_by_the_folder_and_reports_the_rest_not_needed()
     {
         var persistence = new ServicePersistence();
-        var summary = await new FolderImportService(persistence).RunAsync(ServiceFixtures.Week1Folder, new("tester"));
+        var summary = await new FolderImportService(persistence, serviceCentres: OneCentre).RunAsync(ServiceFixtures.Week1Folder, new("tester"));
 
         var imported = summary.Files.Where(file => file.Status == "Imported").ToArray();
         Assert.Equal(35, imported.Length);
@@ -64,7 +70,7 @@ public sealed class ServiceFolderImportTests
             var zip = Path.Combine(root, ServiceFixtures.Week1FolderName + ".zip");
             System.IO.Compression.ZipFile.CreateFromDirectory(ServiceFixtures.Week1Folder, zip, System.IO.Compression.CompressionLevel.Fastest, includeBaseDirectory: false);
             var persistence = new ServicePersistence();
-            var summary = await new FolderImportService(persistence).RunAsync(zip, new("tester"));
+            var summary = await new FolderImportService(persistence, serviceCentres: OneCentre).RunAsync(zip, new("tester"));
 
             Assert.Equal(0, summary.UnknownLayouts);
             Assert.Equal(0, summary.Failed);
@@ -83,7 +89,7 @@ public sealed class ServiceFolderImportTests
     [Fact]
     public async Task S011_and_S013_take_AW330_from_their_siblings()
     {
-        var summary = await new FolderImportService(new ServicePersistence()).RunAsync(ServiceFixtures.Week1Folder, new("tester"));
+        var summary = await new FolderImportService(new ServicePersistence(), serviceCentres: OneCentre).RunAsync(ServiceFixtures.Week1Folder, new("tester"));
         foreach (var code in new[] { "S011", "S013" })
         {
             var file = Assert.Single(summary.Files, file => file.ReportCode == code);
@@ -97,18 +103,68 @@ public sealed class ServiceFolderImportTests
     public async Task A_lone_S011_defaults_to_AW330_with_a_note()
     {
         var path = Directory.GetFiles(ServiceFixtures.Week1Folder, "S011_*.xlsx").Single();
-        var file = Assert.Single((await new FolderImportService(new ServicePersistence()).RunFilesAsync([path], new("tester"))).Files);
+        var file = Assert.Single((await new FolderImportService(new ServicePersistence(), serviceCentres: OneCentre).RunFilesAsync([path], new("tester"))).Files);
         Assert.Equal("Imported", file.Status);
         Assert.Equal("AW330", file.StoreCode);
         var note = Assert.Single(file.Diagnostics!, issue => issue.Code == ServiceInterimFamilies.Codes.ServiceStoreDefaulted);
         Assert.Equal(ImportIssueSeverity.Information, note.Severity);
+        Assert.Equal(ServiceCentreRules.StoreDefaultedMessage, note.Message);
+        Assert.DoesNotContain("AW330", note.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_lone_S011_goes_to_the_only_service_centre_whatever_its_code()
+    {
+        var path = Directory.GetFiles(ServiceFixtures.Week1Folder, "S011_*.xlsx").Single();
+        var persistence = new ServicePersistence();
+        var file = Assert.Single((await new FolderImportService(persistence, serviceCentres: new FixedServiceCentreCatalog([Second]))
+            .RunFilesAsync([path], new("tester"))).Files);
+        Assert.Equal("Imported", file.Status);
+        Assert.Equal("SC999", file.StoreCode);
+        Assert.Equal("SC999", Assert.Single(persistence.Requests).ExpectedStoreCode);
+    }
+
+    [Fact]
+    public async Task A_lone_S011_with_two_service_centres_is_refused_in_plain_words()
+    {
+        var path = Directory.GetFiles(ServiceFixtures.Week1Folder, "S011_*.xlsx").Single();
+        var persistence = new ServicePersistence();
+        var file = Assert.Single((await new FolderImportService(persistence, serviceCentres: new FixedServiceCentreCatalog([Fixture, Second]))
+            .RunFilesAsync([path], new("tester"))).Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Equal(ServiceCentreRules.StoreAmbiguousCode, file.Failure!.Code);
+        Assert.Equal(ServiceCentreRules.StoreAmbiguousMessage, file.Message);
+        Assert.Empty(persistence.Requests);
+    }
+
+    [Fact]
+    public async Task A_lone_S011_with_no_service_centre_says_to_add_one()
+    {
+        var path = Directory.GetFiles(ServiceFixtures.Week1Folder, "S011_*.xlsx").Single();
+        var persistence = new ServicePersistence();
+        var file = Assert.Single((await new FolderImportService(persistence, serviceCentres: new FixedServiceCentreCatalog([]))
+            .RunFilesAsync([path], new("tester"))).Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Equal(ServiceCentreRules.StoreNotSetUpCode, file.Failure!.Code);
+        Assert.Equal(ServiceCentreRules.StoreNotSetUpMessage, file.Message);
+        Assert.Empty(persistence.Requests);
+    }
+
+    [Fact]
+    public async Task S011_and_S013_still_take_their_siblings_store_with_two_service_centres()
+    {
+        // The catalogue is read only when a file has no store of its own or beside it; a whole week1 folder never asks it.
+        var summary = await new FolderImportService(new ServicePersistence(), serviceCentres: new FixedServiceCentreCatalog([Fixture, Second]))
+            .RunAsync(ServiceFixtures.Week1Folder, new("tester"));
+        Assert.Equal(0, summary.Failed);
+        Assert.All(summary.Files.Where(file => file.Status == "Imported"), file => Assert.Equal("AW330", file.StoreCode));
     }
 
     [Fact]
     public async Task An_undated_service_folder_says_how_to_date_it()
     {
         var persistence = new ServicePersistence();
-        var summary = await new FolderImportService(persistence).RunAsync(ServiceFixtures.UndatedFolder, new("tester"));
+        var summary = await new FolderImportService(persistence, serviceCentres: OneCentre).RunAsync(ServiceFixtures.UndatedFolder, new("tester"));
         Assert.Equal(2, summary.Files.Count);
         Assert.All(summary.Files, file =>
         {
@@ -194,7 +250,7 @@ public sealed class ServiceFolderImportTests
         // import. The raw S005 and S028 are recognised by header, so L3's gate reports them Not needed, not Unknown layout.
         // The GPRC CLAIM file has the 34 real headers, so it imports as S041 (lane L10, decision 16).
         var persistence = new ServicePersistence();
-        var summary = await new FolderImportService(persistence).RunAsync(RawFolder(), new("tester"));
+        var summary = await new FolderImportService(persistence, serviceCentres: OneCentre).RunAsync(RawFolder(), new("tester"));
 
         var imported = summary.Files.Where(file => file.Status == "Imported").ToArray();
         Assert.Equal(["S002", "S003", "S004", "S009", "S010", "S018", "S022", "S031", "S041"],

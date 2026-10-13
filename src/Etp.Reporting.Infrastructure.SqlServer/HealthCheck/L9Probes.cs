@@ -103,23 +103,33 @@ public sealed class LandingCopyProbe(string connectionString) : IHealthProbe
 }
 
 /// <summary>
-/// DB-06 (Architecture audit 7, F5/F7): how long the main Service screens' views take to count their rows. A Warning
-/// above one second, so the day to materialise the Service views is measured. Read-only SELECT COUNT(*); a missing
-/// view or a refusal is Skipped.
+/// DB-06 (Architecture audit 7, F5/F7; 1.12 A4 warm timing): how long the Service screens' views take to count their rows.
+/// Each view is counted twice on one connection. The first (cold) count after a SQL Server start or a view change pays for
+/// compiling the plan (the VM's first <c>v_service_job</c> count took 2.7 s, Workpc 1.2 s), so it is reported as a number
+/// only; the Warning is judged on the second (warm) count, above one second, which is what a screen pays on every open
+/// after the first. A materialised Service table is planned only if the warm count stays slow. Each sub-result carries
+/// <c>cold_ms</c> and <c>warm_ms</c>. Read-only SELECT COUNT(*); a missing view or a refusal is Skipped.
 /// </summary>
 public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthProbe
 {
     public static readonly TimeSpan SlowAfter = TimeSpan.FromSeconds(1);
 
-    /// <summary>The views behind the Service screens (key, view).</summary>
+    /// <summary>The views behind the Service screens (key, view). Job history reads the list events (1.12 A4: sixth view).</summary>
     internal static readonly IReadOnlyList<(string Key, string View)> Views =
     [
         ("JOBS", "dbo.v_service_job"),
         ("PENDING", "dbo.v_service_pending_current"),
         ("STATUS", "dbo.v_service_status_view_rows"),
         ("CLAIMS", "dbo.v_service_claims"),
-        ("PARTS", "dbo.v_service_parts")
+        ("PARTS", "dbo.v_service_parts"),
+        ("JOB_HISTORY", "dbo.v_service_job_list_events")
     ];
+
+    /// <summary>The sub-result field holding the first (compile) count in milliseconds.</summary>
+    public const string ColdField = "cold_ms";
+
+    /// <summary>The sub-result field holding the repeat count in milliseconds (the one judged).</summary>
+    public const string WarmField = "warm_ms";
 
     public IReadOnlyList<string> CheckIds { get; } = [HealthCheckId.Db06];
 
@@ -130,20 +140,19 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
         var timer = Stopwatch.StartNew();
         var result = await ImportDataProbeSupport.GuardAsync(HealthCheckId.Db06, async () =>
         {
-            var timings = new List<(string Key, TimeSpan? Elapsed)>();
+            var timings = new List<(string Key, TimeSpan? Cold, TimeSpan? Warm)>();
             await using var connection = await DatabaseProbeSql.OpenAsync(connectionString, cancellationToken).ConfigureAwait(false);
             foreach (var (key, view) in Views)
             {
-                var one = Stopwatch.StartNew();
                 try
                 {
-                    await using var command = ImportDataProbeSupport.ReadOnlyCommand(connection, CountSql(view));
-                    await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-                    timings.Add((key, one.Elapsed));
+                    var cold = await CountAsync(connection, view, cancellationToken).ConfigureAwait(false);
+                    var warm = await CountAsync(connection, view, cancellationToken).ConfigureAwait(false);
+                    timings.Add((key, cold, warm));
                 }
                 catch (SqlException)
                 {
-                    timings.Add((key, null)); // view missing (older database) or not permitted
+                    timings.Add((key, null, null)); // view missing (older database) or not permitted
                 }
             }
             return Evaluate(timings, timer.Elapsed);
@@ -151,25 +160,58 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
         return [result];
     }
 
-    internal static HealthCheckResult Evaluate(IReadOnlyList<(string Key, TimeSpan? Elapsed)> timings, TimeSpan duration)
+    private static async Task<TimeSpan> CountAsync(SqlConnection connection, string view, CancellationToken cancellationToken)
     {
-        var subs = timings.Select(item => item.Elapsed is not { } elapsed
+        var one = Stopwatch.StartNew();
+        await using var command = ImportDataProbeSupport.ReadOnlyCommand(connection, CountSql(view));
+        await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return one.Elapsed;
+    }
+
+    /// <summary>One count per view (1.11.2 form): each time is judged as a repeat read, with no first-read number.</summary>
+    internal static HealthCheckResult Evaluate(IReadOnlyList<(string Key, TimeSpan? Elapsed)> timings, TimeSpan duration) =>
+        Evaluate([.. timings.Select(item => (item.Key, (TimeSpan?)null, item.Elapsed))], duration);
+
+    /// <summary>
+    /// The verdict from each view's first (cold) and repeat (warm) count. Warning only when a warm count is above
+    /// <see cref="SlowAfter"/>; a slow cold count with a fast warm one is a Pass whose text still gives both numbers. The
+    /// metric is the slowest warm count in milliseconds.
+    /// </summary>
+    internal static HealthCheckResult Evaluate(IReadOnlyList<(string Key, TimeSpan? Cold, TimeSpan? Warm)> timings, TimeSpan duration)
+    {
+        var subs = timings.Select(item => item.Warm is not { } warm
                 ? new HealthCheckSubResult(item.Key, HealthOutcome.Skipped, "NOT_READABLE")
-                : new HealthCheckSubResult(item.Key, elapsed > SlowAfter ? HealthOutcome.Warning : HealthOutcome.Pass,
-                    elapsed > SlowAfter ? "SERVICE_VIEW_SLOW" : null, (decimal)Math.Round(elapsed.TotalMilliseconds)))
+                : new HealthCheckSubResult(item.Key, warm > SlowAfter ? HealthOutcome.Warning : HealthOutcome.Pass,
+                    warm > SlowAfter ? "SERVICE_VIEW_SLOW" : null, Ms(warm), Fields(item.Cold, warm)))
             .ToList();
-        var read = subs.Where(sub => sub.Outcome != HealthOutcome.Skipped).ToList();
+        var read = timings.Where(item => item.Warm is not null).ToList();
         if (read.Count == 0)
             return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Skipped, "NOT_READABLE",
                 "The Service views could not be read here (not installed or not permitted).", null, duration, null, subs);
-        var slowest = read.Max(sub => sub.MetricValue ?? 0);
-        var slow = read.Count(sub => sub.Outcome == HealthOutcome.Warning);
+        var slowestWarm = read.Max(item => Ms(item.Warm!.Value));
+        var slowestCold = read.Where(item => item.Cold is not null).Select(item => Ms(item.Cold!.Value)).DefaultIfEmpty(-1m).Max();
+        var both = Describe(slowestCold, slowestWarm);
+        var slow = subs.Count(sub => sub.Outcome == HealthOutcome.Warning);
         if (slow > 0)
             return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Warning, "SERVICE_VIEW_SLOW",
-                ImportDataProbeSupport.Text($"{slow} Service view(s) took over 1 second to count (slowest {slowest:0} ms). Time to plan a faster Service job index."),
-                null, duration, slowest, subs);
+                ImportDataProbeSupport.Text($"{slow} Service view(s) took over 1 second to count on a repeat read ({both}). Time to plan a faster Service job index."),
+                null, duration, slowestWarm, subs);
         return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Pass, HealthCheckTexts.Ok,
-            ImportDataProbeSupport.Text($"The Service views answer quickly (slowest {slowest:0} ms)."), null, duration, slowest, subs);
+            ImportDataProbeSupport.Text($"The Service views answer quickly ({both})."), null, duration, slowestWarm, subs);
+    }
+
+    /// <summary>"first read after start took N ms (compile), repeat read M ms"; only the repeat read when no first read was timed.</summary>
+    internal static string Describe(decimal coldMs, decimal warmMs) => coldMs < 0
+        ? ImportDataProbeSupport.Text($"slowest repeat read {warmMs:0} ms")
+        : ImportDataProbeSupport.Text($"first read after start took {coldMs:0} ms (compile), repeat read {warmMs:0} ms");
+
+    private static decimal Ms(TimeSpan elapsed) => (decimal)Math.Round(elapsed.TotalMilliseconds);
+
+    private static Dictionary<string, string>? Fields(TimeSpan? cold, TimeSpan warm)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal) { [WarmField] = Ms(warm).ToString("0", CultureInfo.InvariantCulture) };
+        if (cold is { } first) fields[ColdField] = Ms(first).ToString("0", CultureInfo.InvariantCulture);
+        return fields;
     }
 }
 

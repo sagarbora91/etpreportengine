@@ -138,7 +138,7 @@ public sealed class ServicePartsViewTests
             Assert.Equal(2, view.GitRows.Count);
             Assert.Equal("STMSYN0002", view.GitRows[0].Cells[1]);
             Assert.Equal("2 lines in the 30 days to 05 Oct 2026.", view.GitStatusText);
-            Assert.Equal("Latest closing stock (S006) as at 03 Oct 2026: 412 items, quantity 1,180, value 95,400.00.", view.ClosingStockText);
+            Assert.Equal("Latest closing stock as at 03 Oct 2026: 412 items, quantity 1,180, value 95,400.00.", view.ClosingStockText);
             Assert.Equal(ServicePartsView.NoLinesText, view.LinesStatusText);
             Assert.Empty(view.LineRows);
             Assert.Equal(["All months", "Sept 2026", "Aug 2026"], view.MonthChoices.Select(choice => choice.Label));
@@ -273,7 +273,7 @@ public sealed class ServicePartsViewTests
             Assert.All(invoices.Data.Rows, row => Assert.Equal(invoices.Data.Columns.Count, row.Count));
             Assert.Equal("Service parts and purchases", invoices.Metadata.ReportName);
             Assert.Equal((new DateOnly(2026, 8, 17), Snapshot), (invoices.Metadata.DateFrom, invoices.Metadata.DateTo));
-            Assert.Equal(ServiceScreenView.ServiceCentreLabel, invoices.Metadata.AppliedScope);
+            Assert.Equal(ServiceScreenView.DefaultCentreLabel, invoices.Metadata.AppliedScope);
 
             var waiting = captured[1];
             Assert.Equal(view.WaitingColumnHeaders, waiting.Data.Columns.Select(column => column.Header));
@@ -302,10 +302,10 @@ public sealed class ServicePartsViewTests
             view.ActivateAsync().GetAwaiter().GetResult();
 
             Assert.Empty(view.Rows);
-            Assert.Equal("No purchase invoices (S007/S008) imported yet.", view.StatusText);
+            Assert.Equal("No purchase invoices imported yet.", view.StatusText);
             Assert.Equal("No job on the latest Pending repair list is waiting for a part.", view.WaitingStatusText);
             Assert.Equal("No goods in transit lines in the 30 days to 05 Oct 2026.", view.GitStatusText);
-            Assert.Equal("No S006 closing stock reading imported yet.", view.ClosingStockText);
+            Assert.Equal("No closing stock reading imported yet.", view.ClosingStockText);
             Assert.Equal("", view.LinesStatusText);
             Assert.NotNull(view.NumbersShown);
             var numbers = view.NumbersShown!;

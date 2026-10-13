@@ -247,8 +247,8 @@ public sealed class ServiceClaimsView : ServiceScreenView
             // R-SQL-08: a business-date hole between the last S023 line and the first S041 window.
             ? ServiceDisplay.Text($"No GPRC claim lines {holeFrom:dd MMM yyyy} - {loaded.GprcHoleTo ?? loaded.AsAt ?? holeFrom:dd MMM yyyy}: export GPRC CLAIM for those dates")
             : loaded.GprcGapWarning
-            ? "GPRC cell claims may be incomplete: the latest GPRC CLAIM export (S041) is " + gprcState + " " +
-              "and the latest DC/RA list (S014/S016) is dated " + dcRaDate + ". Export GPRC CLAIM up to that date and import it; " +
+            ? "GPRC cell claims may be incomplete: the latest GPRC CLAIM export is " + gprcState + " " +
+              "and the latest DC/RA list is dated " + dcRaDate + ". Export GPRC CLAIM up to that date and import it; " +
               "until then the GPRC claims of the gap are in no table."
             : "";
         gapWarning.Visibility = loaded.GprcGapWarning ? Visibility.Visible : Visibility.Collapsed;

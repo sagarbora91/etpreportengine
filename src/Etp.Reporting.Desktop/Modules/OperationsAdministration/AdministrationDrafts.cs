@@ -6,17 +6,19 @@ public partial class AdministrationWorkspaceView
     public bool IsBusy { get; private set; }
     private bool BeginSave() { if (IsBusy) return false; IsBusy = true; IsEnabled = false; return true; }
     private void EndSave() { IsBusy = false; IsEnabled = true; }
-    private sealed record MasterDraft(string Code, string Name, string Reason, int Approval, bool Active);
+    private sealed record MasterDraft(string Code, string Name, string Reason, int Approval, bool Active, bool Service = false, string Prefix = "");
     private readonly Dictionary<string, MasterDraft> masters = new();
     private readonly Dictionary<string, MasterDraft> masterBaselines = new();
     private string editingMaster = "Store";
-    private MasterDraft CaptureMaster() => new(MasterCodeInput.Text, MasterNameInput.Text, MasterReasonInput.Text, MasterApprovalInput.SelectedIndex, MasterActiveInput.IsChecked == true);
+    private MasterDraft CaptureMaster() => new(MasterCodeInput.Text, MasterNameInput.Text, MasterReasonInput.Text, MasterApprovalInput.SelectedIndex,
+        MasterActiveInput.IsChecked == true, MasterServiceInput.IsChecked == true, MasterPrefixInput.Text);
     private static MasterDraft EmptyMaster => new("", "", "", 0, true);
     private void ApplyMaster(MasterDraft value)
     {
-        // The draft's tick goes in first and is what the AW330 lock gives back on unlock, so a
+        // The draft's tick goes in first and is what the Service Centre lock gives back on unlock, so a
         // draft never leaves the box ticked under the lock or unticked for a Retail code.
         MasterActiveInput.IsChecked = value.Active; masterActiveBeforeLock = value.Active;
+        MasterServiceInput.IsChecked = value.Service; MasterPrefixInput.Text = value.Prefix;
         MasterCodeInput.Text = value.Code; MasterNameInput.Text = value.Name; MasterReasonInput.Text = value.Reason;
         MasterApprovalInput.SelectedIndex = value.Approval;
         UpdateMasterActiveState();

@@ -34,14 +34,15 @@ public sealed record ServiceGridRow(object Source, IReadOnlyList<object?> Cells)
 
 /// <summary>
 /// The shared frame of the read-only Service screens (Service interim, decision 15; Service rail, 1.10.0):
-/// a title, "Service Centre AW330", the "Service data as at" line with the freshness strip under it (one chip per
+/// a title, the Service Centre's catalogue name (1.12 A4), the "Service data as at" line with the freshness strip under it (one chip per
 /// family group, design 3.7), a filter bar, an optional summary panel (cards), one grid and Export.
 /// Every activation re-queries; a slower earlier load never overwrites a newer one (revision counter).
 /// Service has no store picker, so the shell's store selection is ignored.
 /// </summary>
 public abstract class ServiceScreenView : UserControl
 {
-    public const string ServiceCentreLabel = "Service Centre AW330";
+    /// <summary>The label before the catalogue is read, and when it holds no Service Centre or cannot be read (1.12 A4).</summary>
+    public const string DefaultCentreLabel = "Service Centre";
     public const string NoDataText = "No Service data imported yet";
 
     private readonly Func<ServiceReportQuery> query;
@@ -53,6 +54,8 @@ public abstract class ServiceScreenView : UserControl
     public const double MinGridHeight = 260;
 
     private readonly TextBlock asAt = ServiceUi.Text("", "BodyText");
+    private readonly TextBlock centreCaption = ServiceUi.Caption(DefaultCentreLabel + ReadOnlySuffix);
+    private const string ReadOnlySuffix = " · read only";
     private readonly WrapPanel freshnessSummary = new() { Orientation = Orientation.Horizontal };
     private readonly WrapPanel freshnessStrip = new() { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
     private readonly Button allGroupsLink = ServiceUi.MakeButton("All groups", "QuietButton");
@@ -97,7 +100,7 @@ public abstract class ServiceScreenView : UserControl
         var titleLeft = new StackPanel { Orientation = Orientation.Horizontal };
         titleLeft.Children.Add(titleBlock);
         titleLeft.Children.Add(ServiceUi.InfoMark(intro));
-        var centre = ServiceUi.Caption(ServiceCentreLabel + " · read only");
+        var centre = centreCaption;
         centre.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
         centre.VerticalAlignment = VerticalAlignment.Center; centre.Margin = ServiceUi.Gap(ServiceUi.S12, 0, 0, 0);
         titleLeft.Children.Add(centre);
@@ -281,6 +284,10 @@ public abstract class ServiceScreenView : UserControl
         Rows = []; Table.ItemsSource = null; exportButton.IsEnabled = false;
         try
         {
+            // 1.12 A4: the name beside the title comes from the store catalogue (no store code in a title).
+            var centres = await ServiceCentreServices.LoadOrEmptyAsync();
+            if (current != revision) return;
+            ShowCentre(ServiceCentreServices.Label(centres));
             var source = query();
             var refreshes = await source.LoadRefreshesAsync();
             if (current != revision) return;
@@ -317,6 +324,16 @@ public abstract class ServiceScreenView : UserControl
             StatusText = FailureText($"{title} could not be loaded. ", exception, diagnosticsSource, diagnosticsEvent);
         }
         finally { if (current == revision) IsLoading = false; }
+    }
+
+    /// <summary>The Service Centre this screen names beside its title and in its exports' scope (1.12 A4).</summary>
+    public string CentreLabel { get; private set; } = DefaultCentreLabel;
+
+    /// <summary>Sets the label beside the title (a test may call it; the activation sets it from the catalogue).</summary>
+    public void ShowCentre(string label)
+    {
+        CentreLabel = string.IsNullOrWhiteSpace(label) ? DefaultCentreLabel : label.Trim();
+        centreCaption.Text = CentreLabel + ReadOnlySuffix;
     }
 
     /// <summary>The export rule version of every 1.10.0 Service export (R-UI-20).</summary>
@@ -415,7 +432,7 @@ public abstract class ServiceScreenView : UserControl
     {
         var (from, to) = ExportPeriod;
         var metadata = new ExcelReportMetadata(ExportName, from, to, "Read only", ExportRuleVersion,
-            ExportMessage, DateTimeOffset.UtcNow, ServiceCentreLabel);
+            ExportMessage, DateTimeOffset.UtcNow, CentreLabel);
         await export(path, metadata, BuildExportData());
     }
 

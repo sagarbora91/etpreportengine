@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using Etp.Reporting.Application.Access;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Application.OperationsAdministration;
+using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Desktop.Modules.Imports;
 using Etp.Reporting.Desktop.Modules.OperationsAdministration;
 using Etp.Reporting.Infrastructure.SqlServer;
@@ -115,13 +116,122 @@ public sealed class StoreDisplayTests
             Assert.Equal("WLMHW", service.LastSaved?.Code);
             Assert.True(view.MasterActiveChecked);
 
-            // The database refusal (51900, mapped by the repository) reaches the Owner as plain words.
-            service.SaveFailure = new InvalidOperationException(ServiceCentreStores.ActivationRefusedMessage);
+            // 1.12 A4: an existing Service Centre's code ticks "Service Centre" (locked: a store never changes kind), so its
+            // save goes through the Service Centre save; a database refusal reaches the Owner as plain words.
+            var centres = new CentreAdministration { SaveFailure = new InvalidOperationException(ServiceCentreStores.PrefixOverlapMessage) };
+            view.ServiceCentreAdministrationFactory = () => centres;
             view.TypeMasterCode("AW330");
+            Assert.True(view.MasterServiceChecked);
+            Assert.False(view.CanToggleMasterService);
+            Assert.True(view.CanTypeMasterPrefix);
+            Assert.Equal("JOAW330", view.MasterPrefixText);
+            view.TypeMasterNameAndReason("Service Centre AW330", "Synthetic rename");
             Assert.False(await view.SaveMasterDraftAsync());
             // 1.11.3 (U5 FW-20): Owner/admin failures end with "Ref: ..." so the Error register can find them.
-            Assert.StartsWith("Master value was not saved: " + ServiceCentreStores.ActivationRefusedMessage + " Ref: ", view.StatusText, StringComparison.Ordinal);
+            Assert.StartsWith("Master value was not saved: " + ServiceCentreStores.PrefixOverlapMessage + " Ref: ", view.StatusText, StringComparison.Ordinal);
+            Assert.Null(centres.LastSaved);
+
+            // A Retail code typed next drops the tick the Service code gave, and the shop save is used again.
+            view.TypeMasterCode("HEMW");
+            Assert.False(view.MasterServiceChecked);
+            Assert.False(view.CanToggleMasterService);
+            Assert.True(view.CanToggleMasterActive);
         });
+    }
+
+    [Fact]
+    public void Settings_stores_adds_a_second_service_centre_with_its_prefix()
+    {
+        RunSta(async () =>
+        {
+            var service = new StoreAdministrationService();
+            var centres = new CentreAdministration();
+            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => service)
+                { ServiceCentreAdministrationFactory = () => centres };
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+            view.ServiceCentres = [new ServiceCentre("AW330", "Service Centre AW330", "JOAW330")];
+
+            view.TypeMasterCode("SC999");
+            Assert.True(view.CanToggleMasterService);
+            Assert.False(view.CanTypeMasterPrefix);
+            view.SetMasterServiceCentre(true);
+            Assert.True(view.CanTypeMasterPrefix);
+            Assert.Equal("JOSC999", view.MasterPrefixText);   // JO and the code is offered
+            Assert.False(view.CanToggleMasterActive);        // a Service Centre is never an active shop store
+            Assert.False(view.MasterActiveChecked);
+            view.TypeMasterNameAndReason("Synthetic Service Centre", "Second Service Centre (synthetic)");
+
+            Assert.True(await view.SaveMasterDraftAsync());
+            Assert.Equal(("SC999", "Synthetic Service Centre", "JOSC999", "Second Service Centre (synthetic)"), centres.LastSaved);
+            Assert.Null(service.LastSaved);                  // the shop save was not used
+            Assert.False(view.MasterServiceChecked);
+            Assert.Equal("", view.MasterPrefixText);
+        });
+    }
+
+    [Theory]
+    [InlineData("jo-sc", "capital letters A-Z and digits only")]
+    [InlineData("J", "capital letters A-Z and digits only")]
+    [InlineData("JOAW3", "overlaps the prefix of Service Centre AW330")]
+    public void Settings_stores_refuses_a_bad_service_centre_prefix_before_saving(string prefix, string reason)
+    {
+        RunSta(async () =>
+        {
+            var service = new StoreAdministrationService();
+            var centres = new CentreAdministration();
+            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => service)
+                { ServiceCentreAdministrationFactory = () => centres };
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+            view.ServiceCentres = [new ServiceCentre("AW330", "Service Centre AW330", "JOAW330")];
+
+            view.TypeMasterCode("SC999");
+            view.SetMasterServiceCentre(true);
+            view.TypeMasterPrefix(prefix);
+            view.TypeMasterNameAndReason("Synthetic Service Centre", "Second Service Centre (synthetic)");
+
+            Assert.False(await view.SaveMasterDraftAsync());
+            Assert.StartsWith("Service Centre was not saved: ", view.StatusText, StringComparison.Ordinal);
+            Assert.Contains(reason, view.StatusText, StringComparison.Ordinal);
+            Assert.Null(centres.LastSaved);
+            Assert.Null(service.LastSaved);
+        });
+    }
+
+    [Theory]
+    [InlineData(51970, ServiceCentreStores.PrefixOnShopStoreMessage)]
+    [InlineData(51971, ServiceCentreStores.PrefixOverlapMessage)]
+    [InlineData(51972, ServiceCentreStores.ActivationRefusedMessage)]
+    [InlineData(51973, ServiceCentreStores.UnitKindChangeMessage)]
+    [InlineData(51974, ServiceCentreStores.ServiceUnitMissingMessage)]
+    [InlineData(51975, ServiceCentreStores.CodeIsShopStoreMessage)]
+    public void The_0067_refusals_are_described_in_plain_words(int number, string expected)
+    {
+        var exception = SqlExceptionFactory.Create(new SqlExceptionFactory.Error(number, "synthetic", Procedure: "trg_stores_service_job_prefix", Line: 5));
+        Assert.Equal(expected, ServiceCentreStores.DescribeRefusal(exception));
+    }
+
+    [Fact]
+    public void The_prefix_check_refusal_is_described_in_plain_words()
+    {
+        var exception = SqlExceptionFactory.Create(new SqlExceptionFactory.Error(547,
+            "The INSERT statement conflicted with the CHECK constraint \"CK_stores_service_job_prefix\"."));
+        Assert.Equal(ServiceCentreStores.PrefixInvalidMessage, ServiceCentreStores.DescribeRefusal(exception));
+        Assert.Null(ServiceCentreStores.DescribeRefusal(SqlExceptionFactory.Create(new SqlExceptionFactory.Error(547, "another CHECK constraint"))));
+    }
+
+    private sealed class CentreAdministration : IServiceCentreAdministration
+    {
+        public Exception? SaveFailure { get; set; }
+        public (string Code, string Name, string Prefix, string Reason)? LastSaved { get; private set; }
+
+        public Task SaveServiceCentreAsync(string storeCode, string name, string jobNumberPrefix, string reason, CancellationToken ct = default)
+        {
+            if (SaveFailure is not null) return Task.FromException(SaveFailure);
+            LastSaved = (storeCode, name, jobNumberPrefix, reason);
+            return Task.CompletedTask;
+        }
     }
 
     // Lane L0 added 51904 to trg_stores_service_unit_inactive: a Service store moved out of the

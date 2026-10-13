@@ -182,7 +182,7 @@ public sealed class ServicePendingBoardViewTests
             var grouped = Assert.IsAssignableFrom<IEnumerable<object>>(view.Table.Items.Groups).Cast<CollectionViewGroup>().ToArray();
             Assert.Equal(BoardLabels, grouped.Select(group => (string)group.Name));
             Assert.Same(view.Rows, view.Table.ItemsSource);
-            Assert.Contains(Descendants<TextBlock>(view), block => block.Text.StartsWith(ServiceScreenView.ServiceCentreLabel, StringComparison.Ordinal));
+            Assert.Contains(Descendants<TextBlock>(view), block => block.Text.StartsWith(ServiceScreenView.DefaultCentreLabel + " · read only", StringComparison.Ordinal));
             // The tint and the overdue text follow the rules of module section 4.
             Assert.Equal("CriticalSoft", ServicePendingBoardView.RowTintKey(srn.Source as ServicePendingBoardRow ?? throw new InvalidOperationException()));
             Assert.Null(ServicePendingBoardView.RowTintKey(Assert.IsType<ServicePendingBoardRow>(view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0109").Source)));

@@ -90,8 +90,8 @@ public sealed class ServiceClaimsViewTests
         {
             var view = new ServiceClaimsView(() => new FakeClaimsQuery(), NoExport);
             view.ActivateAsync().GetAwaiter().GetResult();
-            Assert.Contains("latest GPRC CLAIM export (S041) is dated 02 Oct 2026", view.GapWarningText);
-            Assert.Contains("latest DC/RA list (S014/S016) is dated 05 Oct 2026", view.GapWarningText);
+            Assert.Contains("latest GPRC CLAIM export is dated 02 Oct 2026", view.GapWarningText);
+            Assert.Contains("latest DC/RA list is dated 05 Oct 2026", view.GapWarningText);
             Assert.Contains("Export GPRC CLAIM", view.GapWarningText);
             Assert.Contains(Descendants<TextBlock>(view), block => block.Visibility == Visibility.Visible && block.Text == view.GapWarningText);
         });
@@ -263,7 +263,7 @@ public sealed class ServiceClaimsViewTests
             Assert.Equal(view.Rows.Count, export.Data.Rows.Count);
             Assert.All(export.Data.Rows, row => Assert.Equal(export.Data.Columns.Count, row.Count));
             Assert.DoesNotContain(export.Data.Columns, column => ForbiddenHeaderWords.Any(word => column.Header.Contains(word, StringComparison.OrdinalIgnoreCase)));
-            Assert.Equal(ServiceScreenView.ServiceCentreLabel, export.Metadata.AppliedScope);
+            Assert.Equal(ServiceScreenView.DefaultCentreLabel, export.Metadata.AppliedScope);
             Assert.True(export.Metadata.DateFrom <= export.Metadata.DateTo);
             if (mode != ServiceClaimsView.NotYetClaimedMode) Assert.Equal((new DateOnly(2026, 7, 1), new DateOnly(2026, 10, 1)), (export.Metadata.DateFrom, export.Metadata.DateTo));
         });

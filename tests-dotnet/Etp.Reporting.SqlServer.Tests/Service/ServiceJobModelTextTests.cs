@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Etp.Reporting.Application.Service;
+using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.SqlServer.Tests.Service;
@@ -221,10 +222,13 @@ public sealed partial class ServiceJobModelTextTests
     [InlineData("SAMPLE", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void The_job_key_shape_is_JOAW330_and_8_or_9_digits(string? key, bool wellFormed)
+    public void The_job_key_shape_is_the_centre_prefix_and_8_or_9_digits(string? key, bool wellFormed)
     {
-        Assert.Equal(@"^JOAW330[0-9]{8,9}$", ServiceJobKey.Pattern);
-        Assert.Equal(wellFormed, ServiceJobKey.IsWellFormed(key));
+        // 1.12 A4: the prefix is the catalogue's (stores.service_job_prefix), never a code in C#.
+        var centre = new ServiceCentre("AW330", "Service Centre AW330", "JOAW330");
+        Assert.Equal(@"^JOAW330[0-9]{8,9}$", ServiceJobKey.PatternFor(centre));
+        Assert.Equal(wellFormed, ServiceJobKey.IsWellFormed(key, [centre]));
+        Assert.False(ServiceJobKey.IsWellFormed(key, []));
     }
 
     [Fact]

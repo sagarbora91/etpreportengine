@@ -22,7 +22,7 @@ public sealed record ServiceManualMoneyEntry(
 
 /// <summary>
 /// A manual Service entry made at another shop. It is listed beside the money check and never added to it
-/// (decision 16, Q1); its note names the shop, for example "Service entry at Helios: not matched to" the Service centre.
+/// (decision 16, Q1); its note names the shop, for example "Service entry at Helios: not matched to the Service Centre."
 /// </summary>
 public sealed record ServiceUnmatchedMoneyEntry(
     DateOnly BusinessDate,
@@ -48,8 +48,8 @@ public sealed record ServiceUnmatchedMoneyEntry(
 /// </summary>
 public static class ServiceMoneyCheck
 {
-    /// <summary>The Service centre whose S004 money is checked.</summary>
-    public const string ServiceCentreStoreCode = "AW330";
+    /// <summary>What a note calls the Service centre when the caller gives no catalogue name (1.12 A4: no store code in C#).</summary>
+    public const string DefaultServiceCentreName = "the Service Centre";
 
     /// <summary>The manual fields compared with S004, and the S004 tender each one is compared with.</summary>
     public static IReadOnlyDictionary<string, string> ComparedFields { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -102,8 +102,9 @@ public static class ServiceMoneyCheck
     /// <summary>
     /// Every SERVICE_* entry made at a shop other than the Service-money shop (SERVICE_WDC included: it is still a Service
     /// entry at the wrong shop), by date, shop and field. Listed separately, never added to the comparison (Q1).
+    /// <paramref name="serviceCentreName"/> is the catalogue name the note ends with ("the Service Centre" when null).
     /// </summary>
-    public static IReadOnlyList<ServiceUnmatchedMoneyEntry> Unmatched(IEnumerable<ServiceManualMoneyEntry> manual)
+    public static IReadOnlyList<ServiceUnmatchedMoneyEntry> Unmatched(IEnumerable<ServiceManualMoneyEntry> manual, string? serviceCentreName = null)
     {
         ArgumentNullException.ThrowIfNull(manual);
         return [.. manual
@@ -112,12 +113,17 @@ public static class ServiceMoneyCheck
             .OrderBy(group => group.Key.BusinessDate).ThenBy(group => group.Key.Store, StringComparer.Ordinal)
             .ThenBy(group => FieldRank(group.Key.Field)).ThenBy(group => group.Key.Field, StringComparer.Ordinal)
             .Select(group => new ServiceUnmatchedMoneyEntry(group.Key.BusinessDate, group.Key.Store, group.Key.Field,
-                group.Sum(entry => entry.Amount), UnmatchedNote(group.Select(entry => entry.StoreName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)), group.Key.Store)))];
+                group.Sum(entry => entry.Amount), UnmatchedNote(group.Select(entry => entry.StoreName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)), group.Key.Store,
+                    serviceCentreName)))];
     }
 
-    /// <summary>"Service entry at {shop}: not matched to" the Service centre code. The shop is its catalogue name, or its code when it has none.</summary>
-    public static string UnmatchedNote(string? storeName, string storeCode) =>
-        $"Service entry at {(string.IsNullOrWhiteSpace(storeName) ? storeCode.Trim() : storeName.Trim())}: not matched to {ServiceCentreStoreCode}.";
+    /// <summary>
+    /// "Service entry at {shop}: not matched to {Service centre}." The shop is its catalogue name, or its code when it has none;
+    /// the Service centre is <paramref name="serviceCentreName"/> (its catalogue name), else "the Service Centre".
+    /// </summary>
+    public static string UnmatchedNote(string? storeName, string storeCode, string? serviceCentreName = null) =>
+        $"Service entry at {(string.IsNullOrWhiteSpace(storeName) ? storeCode.Trim() : storeName.Trim())}: not matched to " +
+        $"{(string.IsNullOrWhiteSpace(serviceCentreName) ? DefaultServiceCentreName : serviceCentreName.Trim())}.";
 
     private static int TenderRank(string tender)
     {

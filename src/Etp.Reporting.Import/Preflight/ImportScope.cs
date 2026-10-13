@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Domain.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Conversion;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Profiles;
-using Etp.Reporting.Import.Service;
 using Etp.Reporting.Import.Sources;
 using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
@@ -57,16 +57,25 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
 
     /// <summary>
     /// The store a Service Centre file is imported under when neither the file nor its siblings name one (Service interim,
-    /// decision 15): the Service Centre AW330, an inactive store of the SERVICE unit. S011 and S013 carry no store column.
-    /// Null for every Retail family, which keeps <c>SCOPE_NOT_DETECTED</c>.
+    /// decision 15; 1.12 A4: from the catalogue). S011 and S013 carry no store column. With exactly one Service Centre it
+    /// is that centre; with none or several the result is a refusal (<see cref="ServiceCentreDefault.IsRefused"/>) whose
+    /// code and plain message the caller throws. Null for every Retail family, which keeps <c>SCOPE_NOT_DETECTED</c>.
     /// </summary>
-    public static string? ServiceStoreFallback(string? reportCode) =>
+    public static ServiceCentreDefault? ServiceStoreFallback(string? reportCode, IReadOnlyList<ServiceCentre> centres) =>
         reportCode is null ? null : ServiceStoreFallback(EtpReportFamilyRegistry.Families.FirstOrDefault(family =>
-            family.ReportCode == reportCode || family.FamilyCode == reportCode));
+            family.ReportCode == reportCode || family.FamilyCode == reportCode), centres);
 
-    /// <inheritdoc cref="ServiceStoreFallback(string?)"/>
-    public static string? ServiceStoreFallback(EtpReportFamily? family) =>
-        family?.BusinessUnit == BusinessUnit.Service ? ServiceInterimFamilies.ServiceStoreCode : null;
+    /// <inheritdoc cref="ServiceStoreFallback(string?, IReadOnlyList{ServiceCentre})"/>
+    public static ServiceCentreDefault? ServiceStoreFallback(EtpReportFamily? family, IReadOnlyList<ServiceCentre> centres)
+    {
+        ArgumentNullException.ThrowIfNull(centres);
+        return family?.BusinessUnit == BusinessUnit.Service ? ServiceCentreRules.DefaultFor(centres) : null;
+    }
+
+    /// <summary>True for a catalogued family of the Service business unit (the families that may take the fallback).</summary>
+    public static bool TakesServiceStoreFallback(string? reportCode) =>
+        reportCode is not null && EtpReportFamilyRegistry.Families.FirstOrDefault(family =>
+            family.ReportCode == reportCode || family.FamilyCode == reportCode)?.BusinessUnit == BusinessUnit.Service;
 
     public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging, IReadOnlyList<string>? knownStores = null,
         WorkbookSheet? dataSheet = null, ContractReadResult? contract = null)
