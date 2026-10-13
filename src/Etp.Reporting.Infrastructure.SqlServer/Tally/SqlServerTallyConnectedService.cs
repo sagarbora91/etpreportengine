@@ -13,14 +13,18 @@ public sealed record TallySendOutcome(long AttemptId, string AttemptStatus, int 
 /// <summary>1.12 D1, decision 49: talks to the test Tally in the acceptance VM over HTTP. Read back pulls the Day Book and records
 /// it as a read-back (source HTTP) for the existing comparison. Send posts a batch's already written and verified Tally file, and
 /// only after a fresh read-back proves none of its vouchers is in Tally yet, so nothing is ever posted twice. Both are refused
-/// unless the batch's company is the TEST company 'Saagar Traders Titan' with an address on this PC (default: none, so off).
+/// unless the batch's company is the TEST company 'Saagar Traders Titan' with an address on this PC, port 9000 (default: none, so
+/// off). A send also needs this PC to be the test PC the profile names and Tally to report Educational mode (decision 53).
 /// Owner only. Every request and answer is kept as evidence.</summary>
 public sealed class SqlServerTallyConnectedService(
     string connectionString,
     Func<Uri, ITallyReadbackGateway> readbackGateway,
     Func<Uri, ITallyImportGateway>? importGateway = null,
-    string? evidenceRootOverride = null)
+    string? evidenceRootOverride = null,
+    Func<string>? machineName = null)
 {
+    private readonly Func<string> thisMachine = machineName ?? (() => Environment.MachineName);
+
     public const string HttpAdapterVersion = "http-12.1";
 
     /// <summary>Reads the Day Book of the batch's company for the dates (default: the batch's day) and records it. Tally not
@@ -44,6 +48,7 @@ public sealed class SqlServerTallyConnectedService(
         if (profile.DefaultDeliveryMode != "HTTP")
             throw new InvalidOperationException("Sending straight to Tally is off for this company: its delivery is 'file'. Change it in Settings → Tally companies, or import the file in Tally by hand.");
         if (importGateway is null) throw new InvalidOperationException("Sending to Tally is not available in this build.");
+        if (TallyConnectedMode.TestPcRefusal(profile, thisMachine()) is { } notTestPc) throw new InvalidOperationException(notTestPc);
         if (batch.Status != TallyBatchStatus.ExportedAwaitingImport)
             throw new InvalidOperationException("Write the Tally file first. Only a written and checked file is sent.");
 
@@ -62,6 +67,11 @@ public sealed class SqlServerTallyConnectedService(
         var dates = document.Vouchers.Select(voucher => voucher.VoucherDate ?? batch.BusinessDate).ToArray();
         if (TallyEducationalCalendar.AppliesTo(profile) && TallyEducationalCalendar.Default.Refusal(dates) is { } educational)
             throw new InvalidOperationException(educational + " Nothing was sent.");
+
+        // Decision 53: Tally itself must say it is in Educational mode; anything else (No, no answer, an unreadable answer) refuses.
+        var educationalAnswer = await importGateway(endpoint).FetchEducationalModeAsync(cancellationToken);
+        if (!educationalAnswer.Succeeded) throw new InvalidOperationException((educationalAnswer.Message ?? "Tally could not be asked whether it is in Educational mode.") + " Nothing was sent.");
+        if (TallyXml.EducationalMode(educationalAnswer.Response) != true) throw new InvalidOperationException(TallyConnectedMode.OnlyEducationalMode);
 
         // Duplicate guard: what does Tally hold right now for these days?
         var before = await ReadBackAsync(batchId, profile, endpoint, dates.Min(), dates.Max(), cancellationToken);

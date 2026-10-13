@@ -20,18 +20,57 @@ public sealed class HttpTallyGatewayTests
     [InlineData("https://127.0.0.1:9000/")]
     [InlineData("http://tally.example:9000/")]
     [InlineData("http://127.0.0.1:9000/path/")]
-    public void Only_a_Tally_on_this_PC_with_a_port_from_9000_to_9999_is_accepted(string address)
+    [InlineData("http://127.0.0.1:9001/")]
+    [InlineData("http://localhost:9999/")]
+    public void Only_a_Tally_on_this_PC_on_port_9000_is_accepted(string address)
     {
         var stub = new StubHandler(_ => throw new InvalidOperationException("No request may be made."));
         var refused = Assert.Throws<ArgumentException>(() => new HttpTallyGateway(new Uri(address), stub, TimeSpan.FromSeconds(5)));
-        Assert.Contains("9000 to 9999", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("port 9000 only", refused.Message, StringComparison.Ordinal);
         Assert.Equal(0, stub.Calls);
+    }
+
+    [Fact]
+    public async Task Educational_mode_is_asked_with_the_licence_function_and_only_Yes_counts()
+    {
+        string? body = null;
+        var answer = "licence-educational.xml";
+        var stub = new StubHandler(request => { body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(); return Ok(answer); });
+        using var gateway = new HttpTallyGateway(Endpoint, stub, TimeSpan.FromSeconds(5));
+
+        var yes = await gateway.FetchEducationalModeAsync();
+        Assert.True(yes.Succeeded, yes.Message);
+        Assert.Contains("<TYPE>Function</TYPE>", body, StringComparison.Ordinal);
+        Assert.Contains("<ID>$$LicenseInfo</ID>", body, StringComparison.Ordinal);
+        Assert.Contains("<PARAM>IsEducationalMode</PARAM>", body, StringComparison.Ordinal);
+        Assert.True(TallyXml.EducationalMode(yes.Response));
+
+        answer = "licence-licensed.xml";
+        Assert.False(TallyXml.EducationalMode((await gateway.FetchEducationalModeAsync()).Response));
+        answer = "open-companies.xml";
+        Assert.Null(TallyXml.EducationalMode((await gateway.FetchEducationalModeAsync()).Response));
+        Assert.Null(TallyXml.EducationalMode(null));
+        Assert.Null(TallyXml.EducationalMode("<!DOCTYPE x [<!ENTITY a 'Yes'>]><ENVELOPE><RESULT>&a;</RESULT></ENVELOPE>"u8.ToArray()));
+    }
+
+    [Fact]
+    public void A_send_needs_the_test_PC_named_in_the_profile()
+    {
+        var profile = TallyProfile.NewTest("GVM", TallyTestCompany.Name, ["TXV"]);
+        Assert.Equal(TallyConnectedMode.OnlyTheTestPc, TallyConnectedMode.TestPcRefusal(profile, "ETP-VM"));
+        var named = profile with { TestMachineName = "ETP-VM" };
+        Assert.Null(TallyConnectedMode.TestPcRefusal(named, "etp-vm"));
+        Assert.Equal(TallyConnectedMode.OnlyTheTestPc, TallyConnectedMode.TestPcRefusal(named, "OFFICE-PC"));
+        Assert.Equal(TallyConnectedMode.OnlyTheTestPc, TallyConnectedMode.TestPcRefusal(named, ""));
+        Assert.Equal("ETP-VM", TallyProfileRules.Normalise(profile with { TestMachineName = " etp-vm " }, "Synthetic").TestMachineName);
+        Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(profile with { TestMachineName = "ETP VM" }, "Synthetic"));
+        Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(profile with { Environment = "PRODUCTION", TestMachineName = "ETP-VM" }, "Synthetic"));
     }
 
     [Theory]
     [InlineData("http://127.0.0.1:9000/")]
-    [InlineData("http://localhost:9999/")]
-    public void Loopback_addresses_in_range_are_accepted(string address)
+    [InlineData("http://localhost:9000/")]
+    public void Loopback_addresses_on_port_9000_are_accepted(string address)
     {
         using var gateway = new HttpTallyGateway(new Uri(address), new StubHandler(_ => Ok("open-companies.xml")), TimeSpan.FromSeconds(5));
         Assert.NotNull(gateway);

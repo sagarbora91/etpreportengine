@@ -257,8 +257,12 @@ public sealed record TallyProfile(
     DateTime? ProductionEnabledUtc = null,
     string? ModifiedBy = null,
     DateTime? ModifiedUtc = null,
-    IReadOnlyDictionary<string, string>? StoreCostCentres = null)
+    IReadOnlyDictionary<string, string>? StoreCostCentres = null,
+    string? TestMachineName = null)
 {
+    // TestMachineName (1.12 integration, review M-3, migration 0066): the Windows computer name of the one PC (the acceptance VM)
+    // where ETP may send this TEST company's vouchers to Tally over HTTP. Null: sending is refused on every PC.
+
     /// <summary>D12: the Tally cost centre each store's vouchers carry when one company holds several stores.</summary>
     public string? CostCentreFor(string storeCode) =>
         StoreCostCentres is not null && StoreCostCentres.TryGetValue(storeCode, out var name) ? name : null;
@@ -304,6 +308,8 @@ public static class TallyProfileRules
     public static bool IsFolderSafeCode(string code) =>
         !LongDigitRun.IsMatch(code) && !WindowsDeviceName.IsMatch(code);
 
+    private static readonly System.Text.RegularExpressions.Regex TestMachineNamePattern = new("^[A-Z0-9][-A-Z0-9_.]{0,62}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     /// <summary>Returns the profile with codes trimmed and upper-cased, or throws <see cref="ArgumentException"/>.</summary>
     public static TallyProfile Normalise(TallyProfile profile, string reason)
     {
@@ -348,6 +354,11 @@ public static class TallyProfileRules
             throw new ArgumentException("The first allowed voucher date must not be after the last.");
         var build = string.IsNullOrWhiteSpace(profile.TallyBuildLabel) ? null : profile.TallyBuildLabel.Trim();
         if (build?.Length > 100) throw new ArgumentException("The Tally build label can have at most 100 characters.");
+        var machine = string.IsNullOrWhiteSpace(profile.TestMachineName) ? null : profile.TestMachineName.Trim().ToUpperInvariant();
+        if (machine is not null && !TestMachineNamePattern.IsMatch(machine))
+            throw new ArgumentException("Enter the test PC's name exactly as Windows shows it (Settings > System > About): letters, digits, '-', '_' or '.', at most 63.");
+        if (machine is not null && profile.Environment != "TEST")
+            throw new ArgumentException("Only a test Tally company can name the test PC that may send to Tally.");
 
         var stores = (profile.StoreCodes ?? []).Select(store => (store ?? "").Trim().ToUpperInvariant()).Where(store => store.Length > 0)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
@@ -370,7 +381,7 @@ public static class TallyProfileRules
         return profile with
         {
             ProfileCode = code, CompanyName = company, EndpointUrl = endpoint, SinglePartyLedger = ledger,
-            TallyBuildLabel = build, StoreCodes = stores, StoreCostCentres = costCentres
+            TallyBuildLabel = build, StoreCodes = stores, StoreCostCentres = costCentres, TestMachineName = machine
         };
     }
 

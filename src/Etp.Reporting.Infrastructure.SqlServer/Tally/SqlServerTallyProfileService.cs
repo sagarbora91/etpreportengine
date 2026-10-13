@@ -17,7 +17,8 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
                    p.posting_from_date,p.posting_to_date,p.tally_build_label,p.is_enabled,p.production_enabled_utc,p.modified_by,p.modified_utc,
                    (SELECT STRING_AGG(s.store_code,',') WITHIN GROUP(ORDER BY s.store_code) FROM dbo.tally_profile_stores s WHERE s.tally_profile_id=p.tally_profile_id),
                    (SELECT s.store_code AS store,s.cost_centre AS centre FROM dbo.tally_profile_stores s
-                    WHERE s.tally_profile_id=p.tally_profile_id AND s.cost_centre IS NOT NULL ORDER BY s.store_code FOR JSON PATH)
+                    WHERE s.tally_profile_id=p.tally_profile_id AND s.cost_centre IS NOT NULL ORDER BY s.store_code FOR JSON PATH),
+                   p.test_machine_name
             FROM dbo.tally_profiles p ORDER BY p.environment DESC,p.profile_code;
             """;
         await using var connection = await OpenAsync(cancellationToken);
@@ -31,7 +32,8 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
                 reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), Optional(reader, 9),
                 reader.GetString(10), reader.GetString(11), reader.GetString(12), OptionalDate(reader, 13), OptionalDate(reader, 14),
                 Optional(reader, 15), reader.GetBoolean(16), stores,
-                reader.IsDBNull(17) ? null : reader.GetDateTime(17), reader.GetString(18), reader.GetDateTime(19), CostCentres(reader, 21)));
+                reader.IsDBNull(17) ? null : reader.GetDateTime(17), reader.GetString(18), reader.GetDateTime(19), CostCentres(reader, 21),
+                Optional(reader, 22)));
         }
         return result;
     }
@@ -48,8 +50,8 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
             IF @saved IS NULL
             BEGIN
               INSERT dbo.tally_profiles(profile_code,company_name,environment,endpoint_url,default_delivery_mode,payload_format,voucher_granularity,
-                party_policy,single_party_ledger,tender_model,posting_model,voucher_view,posting_from_date,posting_to_date,tally_build_label,is_enabled,change_reason)
-              VALUES(@code,@company,@environment,@endpoint,@delivery,@format,@granularity,@party,@ledger,@tender,@posting,@view,@from,@to,@build,@enabled,@reason);
+                party_policy,single_party_ledger,tender_model,posting_model,voucher_view,posting_from_date,posting_to_date,tally_build_label,is_enabled,change_reason,test_machine_name)
+              VALUES(@code,@company,@environment,@endpoint,@delivery,@format,@granularity,@party,@ledger,@tender,@posting,@view,@from,@to,@build,@enabled,@reason,@machine);
               SET @saved=CONVERT(int,SCOPE_IDENTITY());
             END
             ELSE
@@ -63,7 +65,7 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
               UPDATE dbo.tally_profiles SET profile_code=@code,company_name=@company,environment=@environment,endpoint_url=@endpoint,
                 default_delivery_mode=@delivery,payload_format=@format,voucher_granularity=@granularity,party_policy=@party,single_party_ledger=@ledger,
                 tender_model=@tender,posting_model=@posting,voucher_view=@view,posting_from_date=@from,posting_to_date=@to,tally_build_label=@build,
-                is_enabled=@enabled,change_reason=@reason,modified_by=ORIGINAL_LOGIN(),modified_utc=SYSUTCDATETIME()
+                is_enabled=@enabled,change_reason=@reason,test_machine_name=@machine,modified_by=ORIGINAL_LOGIN(),modified_utc=SYSUTCDATETIME()
               WHERE tally_profile_id=@saved;
               IF @@ROWCOUNT<>1 THROW 51579,'This Tally company no longer exists. Refresh the list.',1;
             END;
@@ -91,6 +93,7 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
         Add(command, "@from", SqlDbType.Date, value.PostingFromDate?.ToDateTime(TimeOnly.MinValue));
         Add(command, "@to", SqlDbType.Date, value.PostingToDate?.ToDateTime(TimeOnly.MinValue));
         Add(command, "@build", SqlDbType.NVarChar, value.TallyBuildLabel, 100);
+        Add(command, "@machine", SqlDbType.NVarChar, value.TestMachineName, 63);
         Add(command, "@enabled", SqlDbType.Bit, value.IsEnabled);
         Add(command, "@reason", SqlDbType.NVarChar, reason.Trim(), 500);
         Add(command, "@stores", SqlDbType.NVarChar, System.Text.Json.JsonSerializer.Serialize(

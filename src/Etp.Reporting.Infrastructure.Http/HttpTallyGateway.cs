@@ -6,7 +6,7 @@ using Etp.Reporting.Application.Accounting;
 namespace Etp.Reporting.Infrastructure.Http;
 
 /// <summary>1.12 D1 (master plan 7a task 9; decision 49): the only code in ETP that opens a socket to Tally. It talks to one
-/// address on this PC (http://127.0.0.1 or localhost, port 9000-9999), never follows a redirect, never uses a proxy, waits at
+/// address on this PC (http://127.0.0.1 or localhost, port 9000 only, decision 53), never follows a redirect, never uses a proxy, waits at
 /// most 3 s to connect and 60 s in all, reads at most 50 MB, and checks every answer with a reader that refuses DTDs and
 /// external entities. Every failure becomes a <see cref="TallyGatewayFailure"/> with one plain sentence; it never throws for
 /// what Tally does, only for a wrong address or the caller's own cancellation.</summary>
@@ -81,6 +81,9 @@ public sealed class HttpTallyGateway : ITallyReadbackGateway, ITallyImportGatewa
         var exchange = await PostAsync(payload.ToArray(), cancellationToken).ConfigureAwait(false);
         return exchange.Succeeded ? Inspect(exchange, companyName) : exchange;
     }
+
+    public Task<TallyGatewayResponse> FetchEducationalModeAsync(CancellationToken cancellationToken = default) =>
+        PostAsync(TallyXml.EducationalModeRequest(), cancellationToken);
 
     public void Dispose() => client.Dispose();
 

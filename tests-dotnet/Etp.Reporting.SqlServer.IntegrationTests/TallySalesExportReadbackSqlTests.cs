@@ -139,7 +139,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
     {
         var off = await PrepareAndApproveAsync(await SeedAsync("TXF", TallyTestCompany.Name), "TXF");
         var other = await PrepareAndApproveAsync(await SeedAsync("TXG", "TEST - ETP TXG", endpoint: "http://127.0.0.1:9000/"), "TXG");
-        var closed = await PrepareAndApproveAsync(await SeedAsync("TXH", TallyTestCompany.Name, endpoint: "http://localhost:9100/"), "TXH");
+        var closed = await PrepareAndApproveAsync(await SeedAsync("TXH", TallyTestCompany.Name, endpoint: "http://localhost:9000/"), "TXH");
         var tally = new FakeTally();
         var connected = Connected(tally);
 
@@ -163,7 +163,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
     [Fact]
     public async Task A_send_is_recorded_with_Tally_s_answer_and_a_second_send_is_refused_as_a_duplicate()
     {
-        var profile = await SeedAsync("TXI", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP");
+        var profile = await SeedAsync("TXI", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: Environment.MachineName);
         var batch = await PrepareAndApproveAsync(profile, "TXI");
         var tally = new FakeTally { ImportAnswer = Fixture("import-created.xml") };
         var connected = Connected(tally);
@@ -200,7 +200,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
     [Fact]
     public async Task A_rejected_send_keeps_Tally_s_words_and_may_be_sent_again_once_Tally_holds_nothing()
     {
-        var profile = await SeedAsync("TXJ", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP");
+        var profile = await SeedAsync("TXJ", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: Environment.MachineName);
         var batch = await PrepareAndApproveAsync(profile, "TXJ");
         await Sales().ExportAsync(batch);
         var tally = new FakeTally { ImportAnswer = Fixture("import-rejected-ledger.xml"), ImportPutsVouchersInTally = false };
@@ -224,6 +224,34 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         Assert.Equal(2, tally.Imports);
         Assert.Equal("RESPONDED|RESPONDED", await database.ExecuteAsync(
             $"SELECT STRING_AGG(attempt_status,'|') WITHIN GROUP(ORDER BY tally_attempt_id) FROM dbo.tally_attempts WHERE accounting_batch_id={batch} AND delivery_mode='HTTP'"));
+    }
+
+    // Decision 53 (review M-3): a send needs this PC to be the test PC the profile names, and Tally to say it is in Educational
+    // mode. Either refusal happens before anything is recorded or sent.
+    [Fact]
+    public async Task A_send_is_refused_on_any_other_PC_and_when_Tally_is_not_in_Educational_mode()
+    {
+        var profile = await SeedAsync("TXL", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: "ETP-TEST-VM");
+        var batch = await PrepareAndApproveAsync(profile, "TXL");
+        await Sales().ExportAsync(batch);
+        var tally = new FakeTally();
+
+        var otherPc = new SqlServerTallyConnectedService(database.ConnectionString, _ => tally, _ => tally, root, () => "OFFICE-PC");
+        Assert.Equal(TallyConnectedMode.OnlyTheTestPc, (await Assert.ThrowsAsync<InvalidOperationException>(() => otherPc.SendAsync(batch))).Message);
+        Assert.Equal(0, tally.Calls);
+
+        var testPc = new SqlServerTallyConnectedService(database.ConnectionString, _ => tally, _ => tally, root, () => "etp-test-vm");
+        tally.Educational = Fixture("licence-licensed.xml");
+        Assert.Equal(TallyConnectedMode.OnlyEducationalMode, (await Assert.ThrowsAsync<InvalidOperationException>(() => testPc.SendAsync(batch))).Message);
+        tally.Educational = Fixture("malformed.xml");
+        Assert.Equal(TallyConnectedMode.OnlyEducationalMode, (await Assert.ThrowsAsync<InvalidOperationException>(() => testPc.SendAsync(batch))).Message);
+        Assert.Equal(0, tally.Imports);
+        Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.tally_attempts WHERE accounting_batch_id={batch} AND delivery_mode='HTTP'"));
+
+        // The PC name is kept upper-case, and the 0066 CHECK refuses a name Windows would not give a PC.
+        Assert.Equal("ETP-TEST-VM", await database.ExecuteAsync($"SELECT test_machine_name FROM dbo.tally_profiles WHERE tally_profile_id={profile}"));
+        await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => database.ExecuteAsync(
+            $"UPDATE dbo.tally_profiles SET test_machine_name=N'ETP VM' WHERE tally_profile_id={profile}"));
     }
 
     [Fact]
@@ -264,13 +292,14 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
     // One store in its own TEST company (cost centre "Synthetic Centre"), a G01 cash sale INV-1 of 1,180.00 and a split-payment
     // sale INV-2 on 25 Aug 2026, their R018 GST rows, approved ledger mappings and a final report generation. With
     // cancelSecondSameDay, a current R025 file cancels INV-2 on its own day (decision 41).
-    private async Task<int> SeedAsync(string store, string company, string? endpoint = null, string delivery = "FILE", string? build = null, bool cancelSecondSameDay = false)
+    private async Task<int> SeedAsync(string store, string company, string? endpoint = null, string delivery = "FILE", string? build = null, bool cancelSecondSameDay = false,
+        string? machine = null)
     {
         await database.ExecuteAsync($"INSERT dbo.stores(store_code,store_name) VALUES('{store}',N'Synthetic {store}')");
         var profile = await new SqlServerTallyProfileService(database.ConnectionString).SaveAsync(
             TallyProfile.NewTest("G" + store, company, new[] { store }) with
             {
-                EndpointUrl = endpoint, DefaultDeliveryMode = delivery, TallyBuildLabel = build,
+                EndpointUrl = endpoint, DefaultDeliveryMode = delivery, TallyBuildLabel = build, TestMachineName = machine,
                 StoreCostCentres = new Dictionary<string, string> { [store] = "Synthetic Centre" }
             },
             "Synthetic company for 1.12 D1");
@@ -345,6 +374,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         public byte[] DayBook { get; set; } = Fixture("daybook-empty.xml");
         public byte[] ImportAnswer { get; set; } = Fixture("import-created.xml");
         public bool ImportPutsVouchersInTally { get; set; } = true;
+        public byte[] Educational { get; set; } = Fixture("licence-educational.xml");
         public int Calls { get; private set; }
         public int Imports { get; private set; }
 
@@ -367,6 +397,12 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
             Imports++;
             if (ImportPutsVouchersInTally) DayBook = AsDayBook(payload.ToArray());
             return Task.FromResult(new TallyGatewayResponse(payload.ToArray(), ImportAnswer, 200, null, null));
+        }
+
+        public Task<TallyGatewayResponse> FetchEducationalModeAsync(CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new TallyGatewayResponse(TallyXml.EducationalModeRequest(), Educational, 200, null, null));
         }
     }
 

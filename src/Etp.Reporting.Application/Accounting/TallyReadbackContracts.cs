@@ -17,17 +17,33 @@ public static class TallyTestCompany
 }
 
 /// <summary>When ETP may open a connection to Tally (1.12 D1, decision 49). Connected mode is off by default: a profile has no
-/// address until the Owner enters one. Even then it is refused unless every rule below holds; the plain sentence says which.</summary>
+/// address until the Owner enters one. Even then it is refused unless every rule below holds; the plain sentence says which.
+/// Decision 53 (review M-3): port 9000 only, and a send also needs this PC to be the test PC named in the profile and Tally to
+/// report Educational mode.</summary>
 public static class TallyConnectedMode
 {
-    public const int LowestPort = 9000;
-    public const int HighestPort = 9999;
+    public const int Port = 9000;
+    public const int LowestPort = Port;
+    public const int HighestPort = Port;
 
     public const string NotConfigured = "Connecting to Tally is switched off for this company. Enter the address where the test Tally answers (for example http://127.0.0.1:9000/) in Settings → Tally companies.";
     public const string OnlyTestCompany = "ETP talks to Tally only for the test company '" + TallyTestCompany.Name + "' in the test PC (decision 49). Use the file steps for any other company.";
-    public const string OnlyThisPc = "Only a Tally on this PC can be used: http://127.0.0.1:<port>/ or http://localhost:<port>/ with a port from 9000 to 9999.";
+    public const string OnlyThisPc = "Only a Tally on this PC can be used: http://127.0.0.1:9000/ or http://localhost:9000/ (port 9000 only).";
+    public const string OnlyTheTestPc = "Sending to Tally is allowed only on the test PC named for this company in Settings → Tally companies (decision 53). Nothing was sent; use the file steps on this PC.";
+    public const string OnlyEducationalMode = "Tally does not report Educational mode, so ETP sends nothing to it (decision 49). Nothing was sent; check that this is the test Tally in Educational mode.";
 
-    /// <summary>True for http://127.0.0.1:&lt;9000-9999&gt;/ or http://localhost:&lt;9000-9999&gt;/ and nothing else.</summary>
+    /// <summary>Null when this PC (<paramref name="machineName"/>, normally <see cref="System.Environment.MachineName"/>) is the test PC
+    /// the profile names; otherwise <see cref="OnlyTheTestPc"/>. A profile that names no PC refuses everywhere.</summary>
+    public static string? TestPcRefusal(TallyProfile profile, string? machineName)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var named = profile.TestMachineName?.Trim();
+        return !string.IsNullOrEmpty(named) && !string.IsNullOrWhiteSpace(machineName)
+               && string.Equals(named, machineName.Trim(), StringComparison.OrdinalIgnoreCase)
+            ? null : OnlyTheTestPc;
+    }
+
+    /// <summary>True for http://127.0.0.1:9000/ or http://localhost:9000/ and nothing else.</summary>
     public static bool IsAllowedEndpoint(string? endpointUrl, out Uri? endpoint)
     {
         endpoint = null;
@@ -97,6 +113,9 @@ public interface ITallyReadbackGateway
 public interface ITallyImportGateway
 {
     Task<TallyGatewayResponse> ImportAsync(string companyName, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default);
+
+    /// <summary>Asks Tally whether it is in Educational mode (<see cref="TallyXml.EducationalModeRequest"/>). Decision 53: no send otherwise.</summary>
+    Task<TallyGatewayResponse> FetchEducationalModeAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>Tally's answer to an import. Counts Tally did not return stay null. <paramref name="LineErrors"/> are Tally's own
@@ -193,6 +212,28 @@ public static class TallyXml
             DateVariable(writer, "SVTODATE", request.To);
             writer.WriteEndElement(); writer.WriteEndElement(); writer.WriteEndElement();
         });
+    }
+
+    /// <summary>Tally's licence function: is this Tally in Educational mode? (decision 53; the request shape is checked at the VM.)</summary>
+    public static byte[] EducationalModeRequest() => Build(writer =>
+    {
+        Header(writer, "Export", "Function", "$$LicenseInfo");
+        writer.WriteStartElement("BODY"); writer.WriteStartElement("DESC");
+        writer.WriteStartElement("STATICVARIABLES"); writer.WriteElementString("SVEXPORTFORMAT", "$$SysName:XML"); writer.WriteEndElement();
+        writer.WriteStartElement("FUNCPARAMLIST"); writer.WriteElementString("PARAM", "IsEducationalMode"); writer.WriteEndElement();
+        writer.WriteEndElement(); writer.WriteEndElement();
+    });
+
+    /// <summary>True or false from the function's RESULT ("Yes"/"No"); null when the answer is not XML or holds no such result,
+    /// which a send treats as "not Educational".</summary>
+    public static bool? EducationalMode(byte[]? content)
+    {
+        if (content is null || content.Length == 0) return null;
+        XDocument document;
+        try { document = Load(content); }
+        catch (XmlException) { return null; }
+        var result = document.Descendants().FirstOrDefault(element => element.Name.LocalName == "RESULT")?.Value.Trim();
+        return result switch { "Yes" => true, "No" => false, _ => null };
     }
 
     /// <summary>A small collection of the companies open in Tally (name only).</summary>
