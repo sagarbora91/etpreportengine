@@ -141,6 +141,14 @@ public sealed class NoSaleDayActionsTests
     });
 
     [Fact]
+    public void Dsr_status_names_each_marked_store_day_and_nothing_otherwise()
+    {
+        const string line = "No sales (marked by manager on 21 Aug 2026)";
+        Assert.Equal("", ReportsWorkspaceView.DsrNoSaleNote(Document(marked: false)));
+        Assert.Equal($" ZZ001: {line}.", ReportsWorkspaceView.DsrNoSaleNote(Document(marked: true, line)));
+    }
+
+    [Fact]
     public void No_sale_desktop_files_use_tokens_and_styles_only()
     {
         var root = RepositoryRoot();
