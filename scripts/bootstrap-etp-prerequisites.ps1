@@ -732,36 +732,112 @@ function New-EtpActiveOwnersSql {
     return "SET NOCOUNT ON; SELECT windows_identity FROM dbo.application_users WHERE role_code='OWNER' AND is_active=1 ORDER BY windows_identity;"
 }
 
-# 1.12 integration (review B-2): the evidence folders ETP writes while an Owner or a Store Manager
-# imports, unelevated. %ProgramData%\EtpReporting is administrators-only, so setup creates them with
-# the HealthExports rule: SYSTEM and Administrators full control, every active Owner and Store Manager
-# account Modify, nobody else; only administrators can change the permissions.
+# 1.12 integration (review B-2, narrowed by IR-1/IR-2, decision 59): the evidence folders ETP writes
+# while an Owner or a Store Manager works unelevated. %ProgramData%\EtpReporting is administrators-only,
+# so setup creates them; only administrators can change the permissions.
+#   TallyEvidence (0038 default root): all Tally work is Owner-only, so the HealthExports rule with
+#     active Owners only: SYSTEM and Administrators full control, Owners Modify, nobody else.
+#   CollectionsEvidence (0063 default root): raw bank and settlement statements carry customer names
+#     and VPAs (0063 denies those columns to the Store Manager). SYSTEM and Administrators full control,
+#     Owners Modify; a Store Manager may only pass through the folders, create files and folders in them
+#     and read a file's attributes (the "already kept" check), and has Modify on the files they created
+#     (CREATOR OWNER) - no listing, no reading of anyone else's file. OWNER RIGHTS removes the implicit
+#     owner right to change the permissions of a folder a Store Manager created.
 function Get-EtpEvidenceFolderNames {
     # Pure. CollectionsEvidence: bank and settlement statement copies (0063 default root).
     # TallyEvidence: Tally files and read-backs (0038 default root).
     return @('CollectionsEvidence','TallyEvidence')
 }
 
-function New-EtpActiveEvidenceWritersSql {
-    # Read-only, in the ETP database: one active Owner's or Store Manager's Windows account per line.
-    return "SET NOCOUNT ON; SELECT windows_identity FROM dbo.application_users WHERE role_code IN ('OWNER','STORE_MANAGER') AND is_active=1 ORDER BY windows_identity;"
+function New-EtpActiveStoreManagersSql {
+    # Read-only, in the ETP database: one active Store Manager's Windows account per line.
+    return "SET NOCOUNT ON; SELECT windows_identity FROM dbo.application_users WHERE role_code='STORE_MANAGER' AND is_active=1 ORDER BY windows_identity;"
+}
+
+function Get-EtpCollectionsEvidenceFolderRules {
+    # Pure. The HealthExports rules for the Owners, then the Store Manager's create-only rules, in a fixed
+    # order. A Store Manager SID that is also an Owner's, a well-known group or a blank is skipped.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$OwnerSids,[AllowNull()][AllowEmptyCollection()][string[]]$StoreManagerSids)
+    $rules = [Collections.Generic.List[object]]::new()
+    foreach ($rule in @(Get-EtpHealthExportFolderRules -AutomationSid $null -OwnerSids $OwnerSids)) { $rules.Add($rule) }
+    $seen = @{}
+    foreach ($rule in $rules) { $seen[$rule.Sid] = $true }
+    foreach ($sid in @($StoreManagerSids)) {
+        if ([string]::IsNullOrWhiteSpace($sid)) { continue }
+        $value = $sid.Trim()
+        if ($seen.ContainsKey($value) -or $value -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$') { continue }
+        $seen[$value] = $true
+        # This folder and subfolders: pass through, create files and folders, read attributes. No list, no read.
+        $rules.Add([pscustomobject]@{ Sid = $value; Rights = 'Traverse, CreateFiles, CreateDirectories, ReadAttributes, Synchronize'; Inheritance = 'ContainerInherit'; Propagation = 'None' })
+        # Files only: read attributes, so ETP can see that identical bytes are already kept under their hash.
+        $rules.Add([pscustomobject]@{ Sid = $value; Rights = 'ReadAttributes, Synchronize'; Inheritance = 'ObjectInherit'; Propagation = 'InheritOnly' })
+    }
+    # CREATOR OWNER: whoever creates a file has Modify on that file.
+    $rules.Add([pscustomobject]@{ Sid = 'S-1-3-0'; Rights = 'Modify, Synchronize'; Inheritance = 'ObjectInherit'; Propagation = 'InheritOnly' })
+    # OWNER RIGHTS: an object's owner gets only this, not the implicit right to read or change its permissions.
+    $rules.Add([pscustomobject]@{ Sid = 'S-1-3-4'; Rights = 'ReadAttributes, Synchronize'; Inheritance = 'ContainerInherit,ObjectInherit'; Propagation = 'None' })
+    return $rules.ToArray()
+}
+
+function New-EtpFolderSecurity {
+    # Pure. The protected (not inherited) access list for $Rules. A rule without Inheritance applies to the
+    # folder, its subfolders and files, as the HealthExports rules always have.
+    param([Parameter(Mandatory)][object[]]$Rules)
+    $acl = [Security.AccessControl.DirectorySecurity]::new()
+    $acl.SetAccessRuleProtection($true,$false)
+    foreach ($rule in $Rules) {
+        $names = @($rule.PSObject.Properties.Name)
+        $inheritance = if ($names -contains 'Inheritance') { $rule.Inheritance } else { 'ContainerInherit,ObjectInherit' }
+        $propagation = if ($names -contains 'Propagation') { $rule.Propagation } else { 'None' }
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($rule.Sid),
+            [Security.AccessControl.FileSystemRights]$rule.Rights,[Security.AccessControl.InheritanceFlags]$inheritance,
+            [Security.AccessControl.PropagationFlags]$propagation,[Security.AccessControl.AccessControlType]::Allow))
+    }
+    return ,$acl
+}
+
+function Reset-EtpFolderChildrenToInherited {
+    # Every file and folder under $Path (never through a link) loses its own explicit entries and takes
+    # the folder's rules by inheritance, so a re-run of setup narrows what an earlier setup or an earlier
+    # build left behind. Ownership is kept: CREATOR OWNER then maps to whoever owns each file.
+    # Returns how many entries were reset.
+    param([Parameter(Mandatory)][string]$Path)
+    $reset = 0
+    $pending = [Collections.Generic.Stack[string]]::new()
+    $pending.Push([IO.Path]::GetFullPath($Path))
+    while ($pending.Count -gt 0) {
+        $folder = $pending.Pop()
+        foreach ($entry in @([IO.Directory]::GetFileSystemEntries($folder))) {
+            $item = Get-Item -LiteralPath $entry -Force
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+            # The access list only: Set-Acl would also try to write the audit list, which needs SeSecurityPrivilege.
+            $acl = if ($item.PSIsContainer) { [Security.AccessControl.DirectorySecurity]::new($item.FullName,'Access') } else { [Security.AccessControl.FileSecurity]::new($item.FullName,'Access') }
+            $explicit = @($acl.GetAccessRules($true,$false,[Security.Principal.SecurityIdentifier]))
+            if ($acl.AreAccessRulesProtected -or $explicit.Count -gt 0) {
+                foreach ($rule in $explicit) { [void]$acl.RemoveAccessRuleSpecific($rule) }
+                $acl.SetAccessRuleProtection($false,$false)
+                if ($item | Get-Member -Name SetAccessControl -MemberType Method) { $item.SetAccessControl($acl) } else { [IO.FileSystemAclExtensions]::SetAccessControl($item,$acl) }
+                $reset++
+            }
+            if ($item.PSIsContainer) { $pending.Push($entry) }
+        }
+    }
+    return $reset
 }
 
 function Set-EtpHealthExportFolder {
     # Creates the folder when missing and replaces its access list with $Rules (not inherited).
-    # Files already in it take the new rules by inheritance. Never follows a link.
-    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][object[]]$Rules)
+    # Files already in it take the new rules by inheritance; with -ResetChildren any explicit entries
+    # below it are removed as well (Reset-EtpFolderChildrenToInherited). Never follows a link.
+    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][object[]]$Rules,[switch]$ResetChildren)
     $full = [IO.Path]::GetFullPath($Path)
     Assert-EtpNoLinks $full
     if (-not (Test-Path -LiteralPath $full -PathType Container)) { New-Item -ItemType Directory -Path $full | Out-Null }
     Assert-EtpNoLinks $full
-    $acl = [Security.AccessControl.DirectorySecurity]::new()
-    $acl.SetAccessRuleProtection($true,$false)
+    $acl = New-EtpFolderSecurity -Rules $Rules
     $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
-    foreach ($rule in $Rules) {
-        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($rule.Sid),$rule.Rights,'ContainerInherit,ObjectInherit','None','Allow'))
-    }
     Set-Acl -LiteralPath $full -AclObject $acl
+    if ($ResetChildren) { [void](Reset-EtpFolderChildrenToInherited -Path $full) }
     return $full
 }
 
@@ -1125,17 +1201,21 @@ try {
 catch {
     Write-SetupLog "WARNING: setup could not prepare the software update folder ($($_.Exception.Message)). In-app updates stay unavailable until setup runs again."
 }
-# 1.12 integration (review B-2): CollectionsEvidence and TallyEvidence, written by an Owner or a
-# Store Manager from ETP unelevated. Best effort: without them a statement import or a Tally file
-# says plainly that setup must run again. Rebuilt on every setup run, like HealthExports.
+# 1.12 integration (review B-2; IR-1/IR-2, decision 59): CollectionsEvidence and TallyEvidence.
+# Best effort: without them a statement import or a Tally file says plainly that setup must run again.
+# Rebuilt on every setup run, like HealthExports, and everything below them is reset to inherit, so a
+# re-run also narrows a folder an earlier 1.12 build prepared with Store Manager Modify.
 try {
-    $evidenceIdentities = @(& $sqlcmdPath -x -S $ServerInstance -E -b -h -1 -W -d $Database -Q (New-EtpActiveEvidenceWritersSql))
-    if ($LASTEXITCODE -ne 0) { throw 'the active Owners and Store Managers could not be read' }
-    $evidenceSids = @(Get-EtpActiveOwnerSids -Identities @($evidenceIdentities | ForEach-Object { "$_".Trim() } | Where-Object { $_ }))
-    foreach ($evidenceName in @(Get-EtpEvidenceFolderNames)) {
-        $evidenceFolder = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData "EtpReporting\$evidenceName") -Rules (Get-EtpHealthExportFolderRules -AutomationSid $null -OwnerSids $evidenceSids)
-        Write-SetupLog "Evidence folder ready at $evidenceFolder (SYSTEM and Administrators full control; $($evidenceSids.Count) active Owner and Store Manager account(s) read and write; nobody else)."
-    }
+    $evidenceOwnerIdentities = @(& $sqlcmdPath -x -S $ServerInstance -E -b -h -1 -W -d $Database -Q (New-EtpActiveOwnersSql))
+    if ($LASTEXITCODE -ne 0) { throw 'the active Owners could not be read' }
+    $evidenceManagerIdentities = @(& $sqlcmdPath -x -S $ServerInstance -E -b -h -1 -W -d $Database -Q (New-EtpActiveStoreManagersSql))
+    if ($LASTEXITCODE -ne 0) { throw 'the active Store Managers could not be read' }
+    $evidenceOwnerSids = @(Get-EtpActiveOwnerSids -Identities @($evidenceOwnerIdentities | ForEach-Object { "$_".Trim() } | Where-Object { $_ }))
+    $evidenceManagerSids = @(Get-EtpActiveOwnerSids -Identities @($evidenceManagerIdentities | ForEach-Object { "$_".Trim() } | Where-Object { $_ }))
+    $collectionsFolder = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData 'EtpReporting\CollectionsEvidence') -Rules (Get-EtpCollectionsEvidenceFolderRules -OwnerSids $evidenceOwnerSids -StoreManagerSids $evidenceManagerSids) -ResetChildren
+    Write-SetupLog "Evidence folder ready at $collectionsFolder (SYSTEM and Administrators full control; $($evidenceOwnerSids.Count) active Owner account(s) read and write; $($evidenceManagerSids.Count) active Store Manager account(s) add files and read and write only their own; nobody else)."
+    $tallyFolder = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData 'EtpReporting\TallyEvidence') -Rules (Get-EtpHealthExportFolderRules -AutomationSid $null -OwnerSids $evidenceOwnerSids) -ResetChildren
+    Write-SetupLog "Evidence folder ready at $tallyFolder (SYSTEM and Administrators full control; $($evidenceOwnerSids.Count) active Owner account(s) read and write; nobody else)."
 }
 catch {
     Write-SetupLog "WARNING: setup could not prepare the evidence folders ($($_.Exception.Message)). Bank and settlement imports and Tally files stay unavailable until setup runs again."

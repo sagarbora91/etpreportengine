@@ -29,7 +29,7 @@ Wave 1 of 1.12: seams and engines. Most new features have no screen yet (wave 2 
 - "Write Tally masters" makes the ledger groups, cost centres, sales, GST, round-off, tender, cash and bank ledgers for a new Tally company as an import file plus a list for the accountant.
 - Approved days are written as one Sales voucher per invoice (GST-inclusive), checked by reading the file back. Bills cancelled the same day are left out (decision 41).
 - Read back from and send to the test Tally 'Saagar Traders Titan' over HTTP (off by default; this PC only, port 9000 only). A send also needs the test PC named in the Tally company (migration 0066) and Tally reporting Educational mode (decision 53). Every send reads back first and refuses duplicates; Tally's answer is kept as evidence.
-- Setup prepares the `TallyEvidence` folder for active Owners and Store Managers.
+- Setup prepares the `TallyEvidence` folder for active Owners only (all Tally work is Owner-only; decision 59).
 
 **Collections, first slice (migrations 0063, 0064; no screens yet)**
 
@@ -37,7 +37,7 @@ Wave 1 of 1.12: seams and engines. Most new features have no screen yet (wave 2 
 - Cash deposits now have two states: sent (from the daily sheet) and credited by the bank; ETP proposes the bank line (same amount, 0-3 days), the Owner accepts, also on a finalised day.
 - New report "Collections: expected vs evidence", marked "totals only, not matched yet"; Deposits in transit list, oldest first.
 - Bank narrations, UPI payer names and VPAs are visible to the Owner only; the Viewer reads collections only through the report views (decision 53).
-- Setup prepares the `CollectionsEvidence` folder for active Owners and Store Managers; without it an import says plainly that setup must run again.
+- Setup prepares the `CollectionsEvidence` folder: active Owners read and write it; a Store Manager can add statement files and read only the files they added, never anyone else's (decision 59). A re-run of setup also narrows the files already in both evidence folders. Without the folder an import says plainly that setup must run again.
 
 **In-app updates (engine only, off by default; migration 0065)**
 
