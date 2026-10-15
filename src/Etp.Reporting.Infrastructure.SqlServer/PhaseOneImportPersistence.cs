@@ -114,7 +114,7 @@ public sealed partial class SqlServerTransactionalImportStore
                 return new(id, true, [], new Dictionary<int,string>()) { Redated = current ? redated : [] };
             }
         }
-        if (package.AcceptedImport is not { } accepted) return new(null, false, [], new Dictionary<int,string>());
+        if (package.AcceptedImport is not { } accepted) return new(null, false, [], new Dictionary<int,string>()) { Redated = redated };
         var keys = ContentKeys(accepted, file.BusinessDate);
         var previous = new List<PreviousFile>();
         const string sql = """

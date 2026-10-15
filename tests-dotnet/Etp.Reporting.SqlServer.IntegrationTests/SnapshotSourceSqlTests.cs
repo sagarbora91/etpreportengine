@@ -343,6 +343,8 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
             "itemnumber" => item,
             "lotnumber" => "LOT-1",
             "uid" => null,
+            // IF-032: the effective view reads a BinWise row's RETAILBIN; the synthetic units are all in the retail bin.
+            "retailbin" => quantity,
             "closingbalance" => quantity,
             "ucp" => 10m,
             "totalucp" => 10m * quantity,
