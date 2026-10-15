@@ -17,7 +17,7 @@ public static class ReleasePublisherCertificates
     public static bool AreConfigured => TrustedThumbprints.Count > 0;
 
     public static string Normalize(string? thumbprint) =>
-        new((thumbprint ?? "").Where(c => !char.IsWhiteSpace(c) && c != '‎' && c != '‏').ToArray()).ToUpperInvariant();
+        new string((thumbprint ?? "").Where(c => !char.IsWhiteSpace(c) && c != '\u200E' && c != '\u200F').ToArray()).ToUpperInvariant();
 }
 
 public enum AuthenticodeSignatureState
