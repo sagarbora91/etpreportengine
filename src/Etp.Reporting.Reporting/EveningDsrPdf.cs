@@ -27,7 +27,7 @@ internal static class EveningDsrPdf
             var s = stores[i]; var width = (806d - 9 * Math.Max(0, stores.Length - 1)) / Math.Max(1, stores.Length); var x = 18 + i * (width + 9);
             Write(g, s.StoreName, x, 52, width, 18, 12, true);
             Write(g, $"Month target {DsrDisplay.Currency(s.StoreTarget)}    ·    Target per day {DsrDisplay.Currency(s.DayTarget)}", x, 71, width, 14, 8.5);
-            Write(g, $"Balance to target {DsrDisplay.Currency(s.Balance)}    ·    Needed per day, incl. today {DsrDisplay.Currency(s.RequiredAds)}", x, 86, width, 14, 8.5);
+            Write(g, $"Balance to target {DsrDisplay.Currency(s.Balance)}    ·    Needed per day, after today {DsrDisplay.Currency(s.RequiredAds)}", x, 86, width, 14, 8.5);
             Table(g, x, 104, width, 328, s.Rows);
         }
         var combined = report.EveningSheets.FirstOrDefault(x => x.StoreCode == "COMBINED");
@@ -39,7 +39,7 @@ internal static class EveningDsrPdf
         Write(g, $"Service today · WDC {DsrDisplay.Currency(report.Service.Wdc)} · Cash {DsrDisplay.Currency(report.Service.Cash)} · Card {DsrDisplay.Currency(report.Service.Card)} · UPI {DsrDisplay.Currency(report.Service.Upi)} · Total {DsrDisplay.Currency(report.Service.Total)}",
             18, 543, 806, 14, BodyFontSize);
         Paragraph(g, "All values incl. GST. Bills count invoices (INV) only. Sales, units and bills exclude gift cards, which have their own row. "
-            + OutputText.MissingLegend + " Totals of manual entries use the entries made. Needed per day includes today.", 18, 562, 806, 26, BodyFontSize);
+            + OutputText.MissingLegend + " Totals of manual entries use the entries made. Needed per day counts the days after today.", 18, 562, 806, 26, BodyFontSize);
     }
 
     /// <summary>The words a reader sees for an evening row code (OUT-03); a brand row keeps its own name.</summary>

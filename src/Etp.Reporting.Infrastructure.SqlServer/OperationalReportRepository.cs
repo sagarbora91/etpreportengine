@@ -52,7 +52,10 @@ public sealed record DsrManagementRow(
     int WalkInMissingDays = 0,
     decimal? TyGiftCards = null,
     decimal? LyGiftCards = null,
-    DateOnly? SourceCoversTo = null);
+    DateOnly? SourceCoversTo = null,
+    // Decision 68 #4 (1.12.1): set when the sales export covers only part of this period (this year, last year or both);
+    // the figures are the partial sums and growth is blank. Null when every day is covered.
+    string? PartialNote = null);
 
 public sealed record StaffPerformanceRow(
     string StoreCode,
@@ -244,7 +247,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// AUDIT-4 spot 4: the names of the window are numbered once and joined, not probed per invoice; 0060 indexes etp_r024
     /// by date.
     /// </summary>
-    internal const string InvoiceSummarySql = """
+    internal static readonly string InvoiceSummarySql = $"""
         SELECT i.transaction_date,i.store_code,i.document_number,
                CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
                     THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED'))
@@ -270,6 +273,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
           ON customer.newest=1 AND customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date
         WHERE i.transaction_date BETWEEN @from AND @to
           AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          -- Decision 68 #1: the DSR VALUE basis. Gift-card lines and lines of a type the DSR does not count are left out, so
+          -- a gift-card-only bill is not listed and the grand total equals the DSR VALUE.
+          AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC') AND NOT {NonMerchandiseSql.SalesLine("l")}
         GROUP BY i.transaction_date,i.store_code,i.document_number
         ORDER BY i.transaction_date,i.store_code,i.document_number;
         """;
@@ -402,7 +408,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var supplementary = await LoadDsrSupplementaryAsync(businessDate, cancellationToken);
         var document = DailySalesReportBuilder.Build(businessDate,
             dsr.Select(x => new DsrPeriodFact(x.Period, x.Store, x.TySales, x.LySales, x.TyUnits, x.LyUnits,
-                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent, x.TyGiftCards, x.LyGiftCards)).ToArray(),
+                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent, x.TyGiftCards, x.LyGiftCards, x.PartialNote)).ToArray(),
             service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.MissingDays==0?x.Total:null, x.LastYearMissingDays==0?x.LastYearTotal:null)).ToArray(),
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
             (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
@@ -422,16 +428,23 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// staff name and the discounts. For a sales return R013 states a different value than R025 (R013 SR NETAMOUNT is
     /// positive while its quantity is negative), so the old sum of R013's own value left staff totals Rs 435 to Rs 10,702 a
     /// month off the store total in 18 of 25 months at the Titan store and 8 of 25 at the Helios store; now the two agree whenever every line has a CRO.
+    /// Decision 68 (1.12.1): gift-card lines are left out (#1) and a bill cancelled the same day is not a CRO transaction (#2,
+    /// decision 41, the DSR INVOICE rule), so the CRO ATV and AUPT denominators are the DSR's. Read through
+    /// <see cref="CancelledBillsSqlFor"/> so a database below 0060 still loads.
     /// </summary>
     internal static readonly string StaffSql = $"""
         SELECT e.store_code,e.source_cro_number,COALESCE(SUM(l.source_gross_amount),0),COALESCE(SUM(l.source_quantity),0),
                SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
-               COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
+               COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' AND cancelled.document_number IS NULL THEN CONCAT(e.invoice_year,'|',e.document_number) END),
                MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
         FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
         JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
+        JOIN dbo.sales_invoices si ON si.sales_invoice_id=l.sales_invoice_id
+        LEFT JOIN dbo.v_sales_cancelled_same_day cancelled
+          ON cancelled.store_code=si.store_code AND cancelled.document_number=si.document_number AND cancelled.transaction_date=si.transaction_date
         LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
         WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+          AND NOT {NonMerchandiseSql.SalesLine("l")}
           AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
           AND e.source_cro_number IS NOT NULL
         GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(l.source_gross_amount) DESC;
@@ -443,6 +456,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
         JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
         WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+          AND NOT {NonMerchandiseSql.SalesLine("l")}
           AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
           AND e.source_cro_number IS NOT NULL
         GROUP BY e.store_code,e.source_cro_number;
@@ -453,16 +467,19 @@ public sealed partial class OperationalReportRepository(string connectionString)
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        const string totalSql = """
+        // Decision 68 #1: the store total is the DSR VALUE basis: INV/SR/BC lines only, gift cards left out.
+        var totalSql = $"""
             SELECT i.store_code,COALESCE(SUM(l.source_gross_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             WHERE i.transaction_date BETWEEN @from AND @to
+              AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC') AND NOT {NonMerchandiseSql.SalesLine("l")}
               AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
             GROUP BY i.store_code;
             """;
         await using var connection = await OpenAsync(cancellationToken);
         var raw = new List<(string Store, string Cro, decimal Sales, decimal Quantity, decimal Discount, int Transactions, string Name)>();
-        await using (var command = ScopeCommand(connection, StaffSql, scope))
+        var cancelledViewExists = await CancelledViewExistsAsync(connection, cancellationToken);
+        await using (var command = ScopeCommand(connection, CancelledBillsSqlFor(StaffSql, cancelledViewExists), scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
                 raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5), reader.GetString(6)));
@@ -804,9 +821,21 @@ public sealed partial class OperationalReportRepository(string connectionString)
     internal const string NoCancelledBillsSql =
         "(SELECT CONVERT(varchar(30),NULL) store_code,CONVERT(nvarchar(80),NULL) document_number,CONVERT(date,NULL) transaction_date WHERE 1=0)";
 
-    internal static string DsrFactsSqlFor(bool cancelledViewExists) => cancelledViewExists
-        ? DsrFactsSql
-        : DsrFactsSql.Replace("dbo.v_sales_cancelled_same_day", NoCancelledBillsSql, StringComparison.Ordinal);
+    internal static string DsrFactsSqlFor(bool cancelledViewExists) => CancelledBillsSqlFor(DsrFactsSql, cancelledViewExists);
+
+    /// <summary>
+    /// <paramref name="sql"/> unchanged when dbo.v_sales_cancelled_same_day exists, else with the view replaced by
+    /// <see cref="NoCancelledBillsSql"/> (no bill is cancelled). Used by the DSR, Staff/CRO and Management Trend.
+    /// </summary>
+    internal static string CancelledBillsSqlFor(string sql, bool cancelledViewExists) => cancelledViewExists
+        ? sql
+        : sql.Replace("dbo.v_sales_cancelled_same_day", NoCancelledBillsSql, StringComparison.Ordinal);
+
+    internal static async Task<bool> CancelledViewExistsAsync(SqlConnection connection, CancellationToken token)
+    {
+        await using var probe = new SqlCommand("SELECT CASE WHEN OBJECT_ID(N'dbo.v_sales_cancelled_same_day', N'V') IS NULL THEN 0 ELSE 1 END", connection);
+        return Convert.ToInt32(await probe.ExecuteScalarAsync(token)) == 1;
+    }
 
     private static async Task<Dictionary<string, DsrFacts>> LoadDsrFactsAsync(
         SqlConnection connection,
@@ -814,9 +843,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         IReadOnlyList<string> stores,
         CancellationToken token)
     {
-        bool cancelledViewExists;
-        await using (var probe = new SqlCommand("SELECT CASE WHEN OBJECT_ID(N'dbo.v_sales_cancelled_same_day', N'V') IS NULL THEN 0 ELSE 1 END", connection))
-            cancelledViewExists = Convert.ToInt32(await probe.ExecuteScalarAsync(token)) == 1;
+        var cancelledViewExists = await CancelledViewExistsAsync(connection, token);
         await using var command = new SqlCommand(DsrFactsSqlFor(cancelledViewExists), connection);
         command.Parameters.AddWithValue("@currentFrom", period.Current.Start);
         command.Parameters.AddWithValue("@currentTo", period.Current.End);
@@ -835,21 +862,42 @@ public sealed partial class OperationalReportRepository(string connectionString)
         coverage.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
         var ranges=new List<(string Store,DateOnly From,DateOnly To)>();
         await using(var cr=await coverage.ExecuteReaderAsync(token))while(await cr.ReadAsync(token))if(!cr.IsDBNull(1)&&!cr.IsDBNull(2))ranges.Add((cr.GetString(0),cr.GetFieldValue<DateOnly>(1),cr.GetFieldValue<DateOnly>(2)));
-        return ApplySourceCoverage(result,ranges,stores,period);
+        // Decision 68 #4: a day marked as a no-sale day (decision 52) has no file but is not missing, so it does not make a
+        // period partial. The view arrives with 1.12; on an older database no day is marked.
+        const string noSaleSql = """
+            IF OBJECT_ID(N'dbo.v_no_sale_days_current', N'V') IS NOT NULL
+                EXEC sp_executesql N'SELECT store_code,business_date FROM dbo.v_no_sale_days_current WHERE store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))',
+                    N'@stores nvarchar(max)', @stores=@stores;
+            """;
+        var noSaleDays=new List<(string Store,DateOnly Day)>();
+        await using(var marks=new SqlCommand(noSaleSql,connection))
+        {
+            marks.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
+            await using var mr=await marks.ExecuteReaderAsync(token);
+            while(await mr.ReadAsync(token))noSaleDays.Add((mr.GetString(0).Trim(),mr.GetFieldValue<DateOnly>(1)));
+        }
+        return ApplySourceCoverage(result,ranges,stores,period,noSaleDays);
     }
 
     /// <summary>
     /// A period with no sales reads 0 only when a current R025 file covers every day of it; otherwise it stays null
     /// (not imported, never zero). Every store carries the last day its R025 covers so the DSR can say so (RA-SALES-01).
+    /// Decision 68 #4 (1.12.1): a period that has sales but that the files (plus the store's no-sale days) cover only in part
+    /// keeps its partial figure and is marked partial (TyPartial / LyPartial), so its growth is left blank.
     /// </summary>
-    internal static Dictionary<string, DsrFacts> ApplySourceCoverage(Dictionary<string, DsrFacts> result,IReadOnlyList<(string Store,DateOnly From,DateOnly To)> ranges,IReadOnlyList<string> stores,BusinessReportingPeriod period)
+    internal static Dictionary<string, DsrFacts> ApplySourceCoverage(Dictionary<string, DsrFacts> result,IReadOnlyList<(string Store,DateOnly From,DateOnly To)> ranges,IReadOnlyList<string> stores,BusinessReportingPeriod period,
+        IReadOnlyList<(string Store,DateOnly Day)>? noSaleDays=null)
     {
         foreach(var store in stores)
         {
-            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>ranges.Any(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)&&range.Start.AddDays(offset)>=r.From&&range.Start.AddDays(offset)<=r.To));
+            bool InFile(DateOnly day)=>ranges.Any(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)&&day>=r.From&&day<=r.To);
+            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>InFile(range.Start.AddDays(offset)));
+            bool Known(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).Select(offset=>range.Start.AddDays(offset))
+                .All(day=>InFile(day)||(noSaleDays?.Any(x=>x.Day==day&&string.Equals(x.Store,store,StringComparison.OrdinalIgnoreCase))??false));
             var fact=result.GetValueOrDefault(store)??new();
             if(fact.TySales is null&&Covered(period.Current))fact=fact with{TySales=0,TyUnits=0,TyInvoices=0,TyGiftCards=0};
             if(fact.LySales is null&&Covered(period.LastYear))fact=fact with{LySales=0,LyUnits=0,LyInvoices=0,LyGiftCards=0};
+            fact=fact with{TyPartial=fact.TySales is not null&&!Known(period.Current),LyPartial=fact.LySales is not null&&!Known(period.LastYear)};
             var covered=ranges.Where(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)).Select(r=>(DateOnly?)r.To).ToArray();
             result[store]=fact with{SourceCoversTo=covered.Length==0?null:covered.Max()};
         }
@@ -908,7 +956,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
             """;
         await using var connection = await OpenAsync(token);
         var targets = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
-        var wdc = new List<decimal>();
+        var wdc = new List<(string Store, decimal Value)>();
         await using (var command = new SqlCommand(sql, connection))
         {
             command.Parameters.AddWithValue("@date", businessDate);
@@ -917,7 +965,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
             {
                 if (reader.IsDBNull(2)) continue;
                 if (reader.GetString(1).Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
-                else wdc.Add(reader.GetDecimal(2));
+                else wdc.Add((reader.GetString(0).Trim(), reader.GetDecimal(2)));
             }
         }
         var serviceMoneyStores = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -926,7 +974,16 @@ public sealed partial class OperationalReportRepository(string connectionString)
         {
             while (await reader.ReadAsync(token)) serviceMoneyStores.Add(reader.GetString(0).Trim());
         }
-        return new(targets, wdc.Count == 0 ? null : wdc.Sum(), serviceMoneyStores);
+        // Decision 68 #6 (1.12.1): the WDC tile sums only the Service-money shop(s), like the Service total (it summed every
+        // active shop before, so a WDC keyed at another shop showed in the tile but not in the total).
+        return new(targets, ServiceMoneyWdc(wdc, serviceMoneyStores), serviceMoneyStores);
+    }
+
+    /// <summary>The DSR WDC tile: the WDC entries of the Service-money shop(s) only; null when none of them has one.</summary>
+    internal static decimal? ServiceMoneyWdc(IEnumerable<(string Store, decimal Value)> entries, IReadOnlySet<string> serviceMoneyStores)
+    {
+        var rows = entries.Where(x => serviceMoneyStores.Contains(x.Store)).ToArray();
+        return rows.Length == 0 ? null : rows.Sum(x => x.Value);
     }
 
     private static async Task<Dictionary<string, ServiceFacts>> LoadServiceFactsAsync(
@@ -982,15 +1039,28 @@ public sealed partial class OperationalReportRepository(string connectionString)
         WalkInFacts walkIns,
         ManagementMetricEngine engine)
     {
-        var growth = engine.Growth(facts.TySales, facts.LySales);
+        var partial = PartialNote(periodName, facts.TyPartial, facts.LyPartial);
+        var growth = partial is null ? engine.Growth(facts.TySales, facts.LySales) : new CalculatedMetric(null, MetricAvailability.MissingSource, partial);
         var denominator = new ProductivityRule(DsrMetricPolicy, TransactionDenominator.InvoiceCount);
         var upt = engine.UnitsPerTransaction(facts.TyUnits, facts.TyInvoices, denominator);
         var atv = engine.AverageTransactionValue(facts.TySales, facts.TyInvoices, denominator);
         var conversion = engine.Conversion(facts.TyInvoices, walkIns.MissingDays==0?walkIns.Value:null);
         return new(periodName, store, period.Current.Start, period.Current.End, facts.TySales, facts.LySales,
-            growth.Value, growth.Availability.ToString(), facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
-            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards, facts.SourceCoversTo);
+            growth.Value, partial is null ? growth.Availability.ToString() : "Partial", facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
+            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards, facts.SourceCoversTo, partial);
     }
+
+    /// <summary>
+    /// Decision 68 #4: the plain note for a period the sales export covers only in part, or null. For example
+    /// "Partial: the sales export covers only part of LY MTD". The figure is shown; growth is blank.
+    /// </summary>
+    internal static string? PartialNote(string periodName, bool thisYear, bool lastYear) => (thisYear, lastYear) switch
+    {
+        (true, true) => $"Partial: the sales export covers only part of {periodName} and LY {periodName}",
+        (true, false) => $"Partial: the sales export covers only part of {periodName}",
+        (false, true) => $"Partial: the sales export covers only part of LY {periodName}",
+        _ => null
+    };
 
     private static DsrFacts Combine(IEnumerable<DsrFacts> facts)
     {
@@ -999,7 +1069,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return new(Complete(values.Select(x => x.TySales)), Complete(values.Select(x => x.LySales)),
             Complete(values.Select(x => x.TyUnits)), Complete(values.Select(x => x.LyUnits)),
             values.Length>0&&values.All(x => x.TyInvoices is not null) ? values.Sum(x => x.TyInvoices!.Value) : null, values.Length>0&&values.All(x => x.LyInvoices is not null) ? values.Sum(x => x.LyInvoices!.Value) : null,
-            Complete(values.Select(x => x.TyGiftCards)), Complete(values.Select(x => x.LyGiftCards)));
+            Complete(values.Select(x => x.TyGiftCards)), Complete(values.Select(x => x.LyGiftCards)))
+        { TyPartial = values.Any(x => x.TyPartial), LyPartial = values.Any(x => x.LyPartial) };
     }
 
     private static decimal? SumNullable(IEnumerable<decimal?> values)
@@ -1033,7 +1104,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     internal const string GiftCardRowLabel = "GIFT CARD";
     internal const string GiftCardDsrNote = "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE";
     /// <summary>SourceCoversTo: the last day a current R025 file covers for the store (null when none), named when the period is not covered (RA-SALES-01).</summary>
-    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null, DateOnly? SourceCoversTo = null);
+    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null, DateOnly? SourceCoversTo = null, bool TyPartial = false, bool LyPartial = false);
 
     /// <summary>Entered walk-ins for a period; <see cref="Value"/> is null when nothing was entered (missing is not zero).</summary>
     internal sealed record WalkInFacts(decimal? Value, int MissingDays)

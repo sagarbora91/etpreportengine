@@ -199,7 +199,7 @@ internal static class DsrPhonePage
             var target = r.Targets.FirstOrDefault(x => string.Equals(x.StoreCode, store.StoreCode, StringComparison.OrdinalIgnoreCase));
             lines.Add(new($"Month {DsrDisplay.Currency(month?.TyValue)} · " + (target is not { MonthlyTarget: not null } ? "target not set" : $"{DsrDisplay.Percent(target.Achievement).TrimStart('+')} of target"), 13));
             var evening = r.EveningSheets.FirstOrDefault(x => string.Equals(x.StoreCode, store.StoreCode, StringComparison.OrdinalIgnoreCase));
-            if (evening is { RequiredAds: { } needed }) lines.Add(new($"Needed per day {DsrDisplay.Currency(needed)} (incl. today)", 13));
+            if (evening is { RequiredAds: { } needed }) lines.Add(new($"Needed per day {DsrDisplay.Currency(needed)} (days after today)", 13));
         }
         if (r.Service.Total is not null || r.Service.PeriodTotals.GetValueOrDefault("MTD") is not null)
         {

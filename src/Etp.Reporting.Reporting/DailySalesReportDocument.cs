@@ -4,7 +4,8 @@ namespace Etp.Reporting.Reporting;
 
 public sealed record DsrPeriodFact(string Period, string StoreCode, decimal? TySales, decimal? LySales,
     decimal? TyUnits, decimal? LyUnits, int? TyInvoices, int? LyInvoices, decimal? Upt, decimal? Atv,
-    decimal? WalkIns, decimal? ConversionPercent, decimal? TyGiftCards = null, decimal? LyGiftCards = null);
+    decimal? WalkIns, decimal? ConversionPercent, decimal? TyGiftCards = null, decimal? LyGiftCards = null,
+    string? PartialNote = null);
 
 public sealed record DsrServiceFact(string Period, string StoreCode, decimal? Cash, decimal? Card,
     decimal? Upi, decimal? Total, decimal? LastYearTotal);
@@ -88,10 +89,10 @@ public static class DailySalesReportBuilder
         var combinedWalkIns = storeCards.All(x => x.FtdWalkIns is not null) ? combinedFtd?.WalkIns : null;
         var conversion = engine.Conversion(combinedFtd?.TyInvoices, combinedWalkIns);
         return new(businessDate, "Daily Sales Report (DSR)", "Executive summary · " + string.Join(" + ", definitions.Select(x=>x.Name)),
-            combinedFtd?.TySales, engine.Growth(combinedFtd?.TySales, combinedFtd?.LySales), combinedFtd?.TyUnits,
+            combinedFtd?.TySales, Growth(engine, combinedFtd), combinedFtd?.TyUnits,
             combinedWalkIns, combinedFtd?.TyInvoices, conversion, combinedMtd?.TySales,
             Achievement(combinedMtd?.TySales, combinedTarget), combinedYtd?.TySales,
-            engine.Growth(combinedYtd?.TySales, combinedYtd?.LySales), storeCards, serviceSummary, targets, metricPolicy)
+            Growth(engine, combinedYtd), storeCards, serviceSummary, targets, metricPolicy)
         { CombinedFtdGiftCards = combinedFtd?.TyGiftCards };
     }
 
@@ -138,15 +139,40 @@ public static class DailySalesReportBuilder
             ? stores.Sum(x => x.Periods[0].TyValue!.Value) : null);
         var units = document.Units ?? (stores.Length > 0 && stores.All(x => x.Periods.Count > 0 && x.Periods[0].TyQuantity is not null)
             ? stores.Sum(x => x.Periods[0].TyQuantity!.Value) : null);
+        // 1.12.1 (money gap #16): what the combined FTD feeds is recomputed too, so the tile, the growth, the invoice count,
+        // the conversion and the COMBINED matrix agree. Each only where it was unknown and every store is now known.
+        var engine = new ManagementMetricEngine();
+        var combinedLy = stores.Length > 0 && stores.All(x => x.Periods.Count > 0 && x.Periods[0].LyValue is not null)
+            ? stores.Sum(x => x.Periods[0].LyValue!.Value) : (decimal?)null;
+        var growth = document.CombinedFtd is null && combinedFtd is not null ? engine.Growth(combinedFtd, combinedLy) : document.CombinedFtdGrowth;
+        var storeSheets = sheets.Where(x => x.StoreCode != "COMBINED").ToArray();
+        decimal? StoreSum(string metric) => storeSheets.Length > 0 && storeSheets.All(x => x.Rows.Any(r => r.Metric == metric && r.Ftd is not null))
+            ? storeSheets.Sum(x => x.Rows.First(r => r.Metric == metric).Ftd!.Value) : null;
+        var invoices = document.CombinedInvoices ?? (StoreSum("INVOICE") is { } invoiceSum ? (int?)invoiceSum : null);
+        var conversion = document.CombinedInvoices is null && invoices is not null && document.WalkIns is not null
+            ? engine.Conversion(invoices, document.WalkIns) : document.Conversion;
+        sheets = sheets.Select(sheet => sheet.StoreCode != "COMBINED" ? sheet : sheet with
+        {
+            Rows = sheet.Rows.Select(row => NoSaleZeroMetrics.Contains(row.Metric) && row.Ftd is null && StoreSum(row.Metric) is { } sum
+                ? row with { Ftd = sum, Growth = engine.Growth(sum, row.Ly).Value } : row).ToArray()
+        }).ToArray();
         return document with
         {
             Stores = stores,
             CombinedFtd = combinedFtd,
+            CombinedFtdGrowth = growth,
             Units = units,
+            CombinedInvoices = invoices,
+            Conversion = conversion,
             EveningSheets = sheets,
             NoSaleDays = applied.OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray()
         };
     }
+
+    /// <summary>Value growth of a period, blank (with the note) when the sales export covers it only in part (decision 68 #4).</summary>
+    private static CalculatedMetric Growth(ManagementMetricEngine engine, DsrPeriodFact? row) => row?.PartialNote is { } partial
+        ? new(null, MetricAvailability.MissingSource, partial)
+        : engine.Growth(row?.TySales, row?.LySales);
 
     public static CalculatedMetric Achievement(decimal? actual, decimal? target)
     {
@@ -167,9 +193,12 @@ public static class DailySalesReportBuilder
                 ? firstImportedSalesDate is { } first && lyMonthStart is { } lyStart && lyStart < first
                     ? $"Last-year period starts before the first import ({first:dd MMM yyyy})"
                     : "LY MTD source required"
-                : null;
+                : row?.PartialNote;
+            // Decision 68 #4: a partly covered period shows its figures, marked partial, with both growth figures blank.
+            var partial = row?.PartialNote is not null;
             return new DsrPeriodComparison(period, row?.TySales, row?.TyUnits, row?.LySales, row?.LyUnits,
-                engine.Growth(row?.TySales, row?.LySales), engine.Growth(row?.TyUnits, row?.LyUnits), missing);
+                partial ? new(null, MetricAvailability.MissingSource, row!.PartialNote!) : engine.Growth(row?.TySales, row?.LySales),
+                partial ? new(null, MetricAvailability.MissingSource, row!.PartialNote!) : engine.Growth(row?.TyUnits, row?.LyUnits), missing);
         }).ToArray();
         var ftd = Find(rows, code, "FTD"); var mtd = Find(rows, code, "MTD"); var ytd = Find(rows, code, "YTD");
         var operational = new[]
