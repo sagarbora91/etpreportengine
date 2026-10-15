@@ -28,4 +28,17 @@ public sealed class F1MoneyRulesTests
         Assert.Null(OperationalReportRepository.RequiredDailySales(5_000m, new DateOnly(2026, 8, 31)));
         Assert.Null(OperationalReportRepository.RequiredDailySales(null, new DateOnly(2026, 8, 25)));
     }
+
+    [Fact]
+    public void Tender_documents_pass_within_one_rupee_and_keep_their_variance()
+    {
+        // Invoice 1,129.40 paid 1,129.00 cash: variance 0.40, Passed (Failed before 1.12.1). 1,130.01 vs 1,129.00: 1.01, Failed.
+        var result = new InvoiceTenderReconciliationService().Reconcile(
+            [new("S1", "D1", 1129.40m), new("S1", "D2", 1130.01m)],
+            [new("S1", "D1", "CASH", 1129.00m, true), new("S1", "D2", "CASH", 1129.00m, true)],
+            RetailReportingPolicy.Tender);
+        Assert.Equal((0.40m, ReconciliationStatus.Passed), (result.Documents[0].Variance, result.Documents[0].Status));
+        Assert.Equal((1.01m, ReconciliationStatus.Failed), (result.Documents[1].Variance, result.Documents[1].Status));
+        Assert.Equal(ReconciliationStatus.Failed, result.Status);
+    }
 }

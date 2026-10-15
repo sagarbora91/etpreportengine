@@ -21,6 +21,7 @@ public static class RetailReportingPolicy
 
     public static ApprovedSalesReportingPolicy Sales { get; } = new(Version,
         new HashSet<ReportingTransactionType>([ReportingTransactionType.Sale, ReportingTransactionType.Return]));
-    public static ApprovedControlRule Tender { get; } = new(Version, 0m);
+    /// <summary>Decision 68 #7 (1.12.1): a document's revenue and tenders may differ by up to Rs 1 (rounding) and still pass; the variance is kept.</summary>
+    public static ApprovedControlRule Tender { get; } = new(Version, 1m);
     public static ApprovedStockControlRule Stock { get; } = new(Version, 0m);
 }
