@@ -139,11 +139,31 @@ public static class DailySalesReportBuilder
             ? stores.Sum(x => x.Periods[0].TyValue!.Value) : null);
         var units = document.Units ?? (stores.Length > 0 && stores.All(x => x.Periods.Count > 0 && x.Periods[0].TyQuantity is not null)
             ? stores.Sum(x => x.Periods[0].TyQuantity!.Value) : null);
+        // 1.12.1 (money gap #16): what the combined FTD feeds is recomputed too, so the tile, the growth, the invoice count,
+        // the conversion and the COMBINED matrix agree. Each only where it was unknown and every store is now known.
+        var engine = new ManagementMetricEngine();
+        var combinedLy = stores.Length > 0 && stores.All(x => x.Periods.Count > 0 && x.Periods[0].LyValue is not null)
+            ? stores.Sum(x => x.Periods[0].LyValue!.Value) : (decimal?)null;
+        var growth = document.CombinedFtd is null && combinedFtd is not null ? engine.Growth(combinedFtd, combinedLy) : document.CombinedFtdGrowth;
+        var storeSheets = sheets.Where(x => x.StoreCode != "COMBINED").ToArray();
+        decimal? StoreSum(string metric) => storeSheets.Length > 0 && storeSheets.All(x => x.Rows.Any(r => r.Metric == metric && r.Ftd is not null))
+            ? storeSheets.Sum(x => x.Rows.First(r => r.Metric == metric).Ftd!.Value) : null;
+        var invoices = document.CombinedInvoices ?? (StoreSum("INVOICE") is { } invoiceSum ? (int?)invoiceSum : null);
+        var conversion = document.CombinedInvoices is null && invoices is not null && document.WalkIns is not null
+            ? engine.Conversion(invoices, document.WalkIns) : document.Conversion;
+        sheets = sheets.Select(sheet => sheet.StoreCode != "COMBINED" ? sheet : sheet with
+        {
+            Rows = sheet.Rows.Select(row => NoSaleZeroMetrics.Contains(row.Metric) && row.Ftd is null && StoreSum(row.Metric) is { } sum
+                ? row with { Ftd = sum, Growth = engine.Growth(sum, row.Ly).Value } : row).ToArray()
+        }).ToArray();
         return document with
         {
             Stores = stores,
             CombinedFtd = combinedFtd,
+            CombinedFtdGrowth = growth,
             Units = units,
+            CombinedInvoices = invoices,
+            Conversion = conversion,
             EveningSheets = sheets,
             NoSaleDays = applied.OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray()
         };
