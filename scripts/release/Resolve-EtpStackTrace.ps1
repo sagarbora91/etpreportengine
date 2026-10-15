@@ -66,13 +66,16 @@ begin {
             if ($line -notmatch '^(?<left>.+?)\s+->\s+(?<right>\S.*)$') { continue }
             $left = $Matches['left'].Trim(); $right = $Matches['right'].Trim()
             if ($section -eq 'ignore') { continue }
-            if ($section -eq 'types' -or ($section -eq '' -and $left -notmatch '::')) {
+            # Real Obfuscar 2.2.50 output (checked 15 Oct 2026 on a probe assembly): member lines sit directly inside the type's
+            # { } block, with no "Renamed Methods:" heading, as  [asm]Ns.Type::Name[arity]( [asm]T1, [asm]T2 ) -> a.
+            # So a '::' line is a member wherever it appears; a line without '::' in a types section is a type.
+            if ($left -notmatch '::' -and ($section -eq 'types' -or $section -eq '')) {
                 $old = ConvertTo-EtpTypeKey $left
                 $new = ConvertTo-EtpTypeKey $right
                 if ($old -and $new) { $types[$new] = $old; $currentOldType = $old }
                 continue
             }
-            if ($section -eq 'methods' -or $section -eq 'properties' -or $section -eq 'events') {
+            if ($left -match '::' -or $section -eq 'methods' -or $section -eq 'properties' -or $section -eq 'events') {
                 $leftNoAsm = [regex]::Replace($left, '^\[[^\]]*\]', '')
                 $typePart = $currentOldType; $memberPart = $leftNoAsm
                 $split = $leftNoAsm.IndexOf('::')
@@ -85,6 +88,8 @@ begin {
                     $inside = $memberPart.Substring($paren + 1).TrimEnd(')').Trim()
                     $parameters = if ($inside -eq '') { 0 } else { ($inside -split ',').Count }
                 }
+                # Obfuscar writes the generic arity / parameter count as Name[1]; the trace shows plain Name.
+                $name = [regex]::Replace($name.Trim(), '\[\d+\]$', '')
                 $newName = [regex]::Replace($right, '^\[[^\]]*\]', '')
                 $newName = ($newName -split '[\s(]')[0]
                 if (-not $typePart -or -not $name -or -not $newName) { continue }

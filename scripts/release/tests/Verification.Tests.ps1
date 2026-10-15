@@ -212,6 +212,40 @@ Etp.Reporting.Reporting.PublicThing -> Etp.Reporting.Reporting.PublicThing
     Assert-True ($map.Types['Etp.Reporting.Reporting.A'] -ceq 'Etp.Reporting.Reporting.StockReconciliationService') 'mapping: a renamed type is read'
     Assert-True ($map.Types['Etp.Reporting.Reporting.B+a'] -ceq 'Etp.Reporting.Reporting.Helpers+Inner') 'mapping: nested types use + like stack traces'
     Assert-True (-not $map.Types.ContainsKey('Etp.Reporting.Reporting.PublicThing')) 'mapping: skipped (unrenamed) sections are ignored'
+
+    # The shape real Obfuscar 2.2.50 writes (captured from a probe assembly at integration, 15 Oct 2026): members inline in
+    # the type block, [assembly] prefixes, Name[arity], renamed namespaces, 'skipped:' lines without an arrow.
+    $realShape = @'
+Renamed Types:
+
+[Etp.Probe]Etp.Probe.Helper -> [Etp.Probe]A.A
+{
+	[Etp.Probe]Etp.Probe.Helper::Describe[1]( [System.Runtime]System.Int32 ) -> A
+}
+
+[Etp.Probe]Etp.Probe.Outer/Inner -> [Etp.Probe]A.a/A
+{
+	[Etp.Probe]Etp.Probe.Outer/Inner::Twice[1]( [System.Runtime]System.Int32 ) -> A
+	[Etp.Probe]Etp.Probe.Outer/Inner::ToString[0]( ) skipped:  external base class or interface
+}
+
+[Etp.Probe]Etp.Probe.Outer -> [Etp.Probe]A.a
+{
+}
+
+Skipped Types:
+
+[Etp.Probe]Etp.Probe.PublicService skipped:  KeepPublicApi option in configuration
+{
+	[Etp.Probe]Etp.Probe.PublicService::Run[1]( [System.Runtime]System.Int32 ) skipped:  KeepPublicApi option in configuration
+}
+'@
+    $real = ConvertFrom-EtpObfuscarMapping ($realShape -split "\r?\n")
+    Assert-True ($real.Types['A.A'] -ceq 'Etp.Probe.Helper' -and $real.Types['A.a+A'] -ceq 'Etp.Probe.Outer+Inner' -and $real.Types['A.a'] -ceq 'Etp.Probe.Outer') 'real map: renamed types (namespace renamed too, nested with +, A and a distinct)'
+    Assert-True ($real.Types.Count -eq 3) 'real map: member lines are not read as types'
+    Assert-True ((Resolve-EtpMethodName $real 'Etp.Probe.Helper' 'A' 1) -ceq 'Describe' -and (Resolve-EtpMethodName $real 'Etp.Probe.Outer+Inner' 'A' 1) -ceq 'Twice') 'real map: inline members resolve, [arity] stripped'
+    $realTrace = Resolve-EtpTraceText $real "   at A.a+A.A(Int32 n)`r`n   at A.A.A(Int32 n)"
+    Assert-True ($realTrace.Text -match 'Etp\.Probe\.Outer\+Inner\.Twice' -and $realTrace.Text -match 'Etp\.Probe\.Helper\.Describe') 'real map: a protected-build trace is translated back'
     $trace = @'
 System.InvalidOperationException: boom
    at Etp.Reporting.Reporting.A.a(DateTime d, String s) in x
