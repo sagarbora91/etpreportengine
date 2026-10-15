@@ -1,5 +1,68 @@
 # Changelog
 
+## [1.12.1] - unreleased
+
+The known leftovers of 1.12.0 (lanes P1-P8), the money rules Sagar decided on 15 Oct 2026 (decisions 68 and 69, lanes F1 and F2), the import decisions (decision 66, lane P6) and new money tests (lanes M1-M4). No new migration (0070 was not needed); the database changes are object files only.
+
+**Money rules (decisions 68 and 69)**
+
+- Staff/CRO, Sales summary, Brand-wise and Customer-wise totals now leave out gift cards and line types that are not a sale, return or cancellation, like the DSR, so every store total matches the DSR VALUE.
+- A bill cancelled the same day is no longer counted as a CRO bill or a Management Trend invoice (as on the DSR), so CRO average bill value and units per bill match the DSR.
+- A bill where only some items were cancelled the same day still counts as one invoice.
+- When the sales export covers only part of a period (for example last year's month before the first history file), the DSR shows the figure marked "Partial" and leaves growth blank.
+- Required daily sales now divides by the days left after today; on the last day of the month it is blank.
+- The Service WDC figure on the DSR now counts only the Service shop, matching the Service total.
+- Tender check: a bill whose payments differ from its value by Rs 1 or less now passes; the difference is still shown. Counted cash at close is still compared exactly.
+- On a day marked "no sales" for one shop, the combined growth, bill count and combined table now fill in instead of showing "—".
+- Closing Stock, Slow Stock, Brand Stock and the daily pack now say "N items have no cost price; stock value leaves them out" (with the count per store and brand, also in the Excel/PDF notes) instead of silently showing a shorter value.
+
+**Imports (decision 66)**
+
+- Importing the same stock file again under a corrected date retires the earlier import by itself, with the reason "re-dated". Its rows are archived, nothing is deleted, and it is refused if that day is finalised. Re-import the Helios R010 file once to retire the 29 Sep copy (import 26).
+- One dating rule for Closing Stock and BinWise exports: made from 12:00 noon, an export is that day's closing; made before noon, it is the previous day's. When Closing Stock falls back to BinWise, it counts the retail bin only.
+- Imports > History: an empty export now says it is listed under its export day, because an empty file does not say which days it covers.
+- Import failure register: IF-021 and IF-025 verified; IF-028 and IF-032 fixed; IF-029, IF-030 and IF-031 closed as decided.
+
+**Service Centres (P1, P8)**
+
+- With two or more Service Centres, every Service screen has a "Service Centre" choice beside its title. Choosing one shows that centre's jobs, pending board, claims, jobs waiting for parts, parts invoices and closing stock. The choice carries to the other Service screens, and the exports name the centre. Money, goods in transit and file dates stay for all Service Centres, and the screen says so.
+- A choice "Not matched to any centre" shows the jobs whose number starts with none of the centres' prefixes, and the invoices and stock rows that name no centre. The centres and this choice add up to "All Service Centres".
+- A Service Centre store saved without a job-number prefix is now placed the same way by the store list and by the Service screens: JO plus its code. A code with characters such as "_" no longer matches other job numbers by accident.
+
+**Collections (P2)**
+
+- Settings > Collections setup > Settlement rules (Owner): when money should arrive, per payment mode, store and provider, with start and end dates. A Cash rule's "Overdue after" marks old deposits in transit as Overdue. Without a rule nothing is overdue. Rules never match payments.
+- Reports > Collections: Export to Excel. The Owner's file has the bank columns (credited on, bank reference); Store Managers' and Viewers' files have none (decision 67).
+- Deposits in transit (Owner): Record by hand when the bank credited a deposit that has no bank line in ETP, and a "Marked as credited" list to withdraw a mistake with a reason. Both are audited; nothing is deleted.
+
+**Morning and daily screens (P4)**
+
+- Morning: a shop card's Fix button now opens the problem of that one file for that shop and day, not the whole Problems list (decision 64).
+- Close day: staff-target From/To dates the Owner chose are kept when the business date changes, even when they equal the month's default. Clear both to let them follow the date again.
+- No-sale day: marking an inactive shop is refused with a plain sentence that says the shop is inactive.
+
+**Live shops only (P7, decision 51)**
+
+- Shops that are not live yet are no longer reported missing: a small shop-live.json gives each shop's first sending day. The Workpc receive task, the Today checklist, the Morning screen and health check DATA-01 all follow it. Without the file everything is expected, as before.
+
+**Start-up, update and scheduled tasks (P3)**
+
+- If ETP is checking the database at start-up and it takes more than half a second, a small "Checking the database..." window now says so.
+- The scheduled backup and the monthly recovery drill now wait up to two minutes for SQL Server after a reboot instead of failing at once.
+- ETP no longer installs an update while it cannot read the database: it says it could not check whether an import or a backup is running and asks you to try again in a minute.
+
+**Tally and installer (P5)**
+
+- Tally: reading back from Tally is now allowed only on the test PC named for the company, like sending.
+- Tally: one connection is used per send instead of two.
+- Installer: old database object files are removed on upgrade so renamed objects do not leave a duplicate.
+
+**Tests (M1-M4)**
+
+- Cross-report money consistency (DSR against Management Trend, Staff/CRO, Sales summary, Brand-wise and Customer-wise) on gift-card days, same-day cancellations and partly cancelled bills; DSR money unchanged by a re-import and by an overlapping wider sales file.
+- DSR periods, targets and display: partly covered periods, leap February and month-end targets, combined and last-year productivity, period boundaries, rupee rounding, the 25 Aug tie-out totals.
+- Cash book across a month end with cash sales, a refund and an adjustment; tender tolerance; Service money with WDC and S004 UPI; stock value with an uncosted line; physical count variance.
+
 ## [1.12.0] - 2026-10-15
 
 Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on top of them, the no-sale day, the startup wait and the G: backup copy (migrations 0067-0069; 0070 was not needed). Wave 2 is listed first.
