@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.12.0] - unreleased (wave 1 gated 13 Oct 2026; wave 2 integrated 13 Oct 2026, not gated)
+## [1.12.0] - 2026-10-15
 
 Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on top of them, the no-sale day, the startup wait and the G: backup copy (migrations 0067-0069; 0070 was not needed). Wave 2 is listed first.
 
@@ -124,6 +124,10 @@ Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on
 **Docs**
 
 - Update flow, shop results, Tally test setup, collections statement, gate split (`docs/operations`).
+
+**Gate**
+
+- Gate (15 Oct 2026, elevated, on 8c634449, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 6,091 tests, 0 failed, 3 skipped. Earlier runs: wave 1 passed on 359560a (13 Oct, 5,347 tests); wave 2 try 1 on b17f279c failed 5 SQL integration tests (all test-side, fixed in 7614c7a0, 558de000, 8ded588a, 8f4ccb11, bafd0a9e); the installer publish of 8f4ccb11 failed the NuGet audit on System.Security.Cryptography.Pkcs 8.0.1/10.0.0 (GHSA-2fmv-rv2c-59x7, GHSA-846f-f764-76mx) - pinned to 10.0.13 in 8c634449. Installer SHA-256 7D638DC82F96529C156C13BE4E571FB57DFE03D26950B9D2EF9CABE50DA6175B (`Installers\ETP Reporting Engine 1.12.0\`).
 
 ## [1.11.4] - 2026-10-13
 
