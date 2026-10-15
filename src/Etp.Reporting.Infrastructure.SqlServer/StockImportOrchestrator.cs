@@ -33,6 +33,10 @@ public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
         _=ApprovedImportProfileRegistry.Resolve(accepted.ProfileIdentity);
         var parsed=new StockWorkbookParser().Parse(accepted);
         if(parsed.HasBlockers) throw new StockImportBlockedException(parsed.Diagnostics);
+        // IF-032: an evening Closing Stock export is that day's closing, whatever its Date column says (ImportScope,
+        // StockSnapshotDayRule). The landed source row keeps the column as exported; the snapshot facts take the day.
+        if(accepted.Scope.ClosingStockColumnDate is not null)
+            parsed=parsed with {Snapshots=parsed.Snapshots.Select(x=>x with {SnapshotDate=accepted.Scope.ClosingStockDayOf(x.SnapshotDate)}).ToArray()};
         var batchId=Guid.NewGuid();
         var dates=parsed.Movements.Select(x=>x.DocumentDate).Concat(parsed.Snapshots.Select(x=>x.SnapshotDate)).ToArray();
         var stores=parsed.Movements.Select(x=>x.StoreCode).Concat(parsed.Snapshots.Select(x=>x.StoreCode)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

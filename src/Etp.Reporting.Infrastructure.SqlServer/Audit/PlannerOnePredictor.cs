@@ -62,6 +62,11 @@ public sealed class PlannerOnePredictor(IPlannerOneState state, string connectio
         var keys = SqlServerTransactionalImportStore.ContentKeys(accepted, registered.BusinessDate);
         var previous = await CurrentFilesAsync(registered.StoreCode!, registered.Profile.ReportCode, start!.Value, finish!.Value, cancellationToken).ConfigureAwait(false);
         previous = SqlServerTransactionalImportStore.SharingSnapshotDates(previous, keys.Values, null);
+        // IF-028: the import retires a current copy of the same stock file under another date, so it never weighs it.
+        if (SqlServerTransactionalImportStore.RetiresRedatedCopies(PersistenceValidation.ResolveReportCode(registered)))
+            previous = SqlServerTransactionalImportStore.WithoutRedatedCopies(previous, previous
+                .Where(old => string.Equals(old.Hash, registered.SourceSha256, StringComparison.OrdinalIgnoreCase) && (old.Start != start || old.End != finish))
+                .Select(old => old.Id).ToArray());
         bool duplicateContent;
         try
         {

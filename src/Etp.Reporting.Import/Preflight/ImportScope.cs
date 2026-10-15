@@ -31,6 +31,21 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
     public bool AwaitsSiblingDate { get; init; }
 
     /// <summary>
+    /// IF-032: the Closing Stock Date-column value that <see cref="StockSnapshotDayRule"/> replaced with the export's
+    /// business day (the period); null when the column date stands. Every row of that column date is stored under the
+    /// period's date (<see cref="ClosingStockDayOf"/>); the landed source row keeps the column as exported.
+    /// </summary>
+    public DateOnly? ClosingStockColumnDate { get; init; }
+
+    /// <summary>The date a Closing Stock row of Date-column value <paramref name="columnDate"/> is stored under.</summary>
+    public DateOnly ClosingStockDayOf(DateOnly columnDate) =>
+        ClosingStockColumnDate == columnDate && PeriodEnd is { } day ? day : columnDate;
+
+    /// <summary>The message of <c>SNAPSHOT_DATED_BY_EXPORT_TIME</c>; the catalogue keeps exactly this text.</summary>
+    public const string DatedByExportTimeMessage =
+        "The snapshot date was set by the export time: an export made from noon is that day's closing stock, one made before noon the previous day's.";
+
+    /// <summary>
     /// True for a family whose rows hold no date of their own (R010, R023, SOR_AGEING): each row is a reading of the
     /// snapshot date of its block, so that date is part of the row's identity (planner 1 content keys).
     /// </summary>
@@ -103,6 +118,14 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
         {
             // Planner 1 holds one closing-stock snapshot per file; P5 splits a multi-date file into one snapshot per date.
             var snapshotDates = profile.ReportCode == "CLOSING_STOCK" ? dates.Distinct().Order().ToArray() : [];
+            // IF-032: an evening export is that day's closing, whatever its Date column says (StockSnapshotDayRule).
+            if (snapshotDates.Length == 1 && StockSnapshotDayRule.ClosingStockDay(snapshotDates[0], workbook.FileName) is { } closingDay)
+                return new(detectedStore, closingDay, closingDay)
+                {
+                    ClosingStockColumnDate = snapshotDates[0],
+                    Diagnostics = [new(ImportCodes.SnapshotDatedByExportTime, ImportDiagnosticSeverity.Information, DatedByExportTimeMessage,
+                        dataSheet?.Name, ColumnName: family.PrimaryDateHeader)]
+                };
             return new(detectedStore, dates.Min(), dates.Max())
             {
                 Diagnostics = snapshotDates.Length > 1
@@ -124,6 +147,19 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
             var diagnostics = dating.NoTierDated
                 ? dating.Diagnostics.Where(diagnostic => diagnostic.Code != ImportCodes.SnapshotDateUnknown).ToArray()
                 : dating.Diagnostics;
+            // IF-032: a raw BinWise export dated by its export name is dated as Closing Stock is: by the time of day it was
+            // made. Contract, Info-block, coverage and folder dates are stated dates and stay as they are.
+            if (StockSnapshotDayRule.Applies(profile.ReportCode) && dating.Basis == SnapshotDateBasis.ExportName
+                && StockSnapshotDayRule.ClosingDayOf(workbook.FileName) is { } day && day != dating.From)
+            {
+                var blocks = dating.Blocks.Select(block => block with { SnapshotDate = day }).ToArray();
+                return new(detectedStore, day, day)
+                {
+                    SnapshotBlocks = blocks,
+                    Diagnostics = [.. diagnostics, new(ImportCodes.SnapshotDatedByExportTime, ImportDiagnosticSeverity.Information,
+                        DatedByExportTimeMessage, sheet.Name)]
+                };
+            }
             return new(detectedStore, dating.From, dating.To)
                 { SnapshotBlocks = dating.Blocks, Diagnostics = diagnostics, AwaitsSiblingDate = dating.NoTierDated };
         }

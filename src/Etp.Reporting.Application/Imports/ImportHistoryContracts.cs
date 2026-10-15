@@ -25,6 +25,15 @@ public static class ImportHistoryMessages
     public const string Failed = "Import failed. Review the selected diagnostics and correct the source before retrying.";
     public const string Persisted = "Persisted import outcome. Counts describe source rows; a source row can produce multiple database facts.";
 
+    /// <summary>
+    /// IF-031 (decision 66: WONTFIX, wording only): an empty raw export has no dated rows, so it is listed under the day
+    /// it was exported, not the days it was asked to cover. Say so, so nobody reads it as "that window was checked".
+    /// </summary>
+    public const string EmptyExport = "Empty export: the file has no rows. It is listed under the day it was exported, because an empty file does not say which days it covers.";
+
+    public static bool IsEmptyExport(string? status) =>
+        string.Equals(status, ImportAttemptOutcomes.EmptyExport, StringComparison.OrdinalIgnoreCase);
+
     public static bool IsDuplicate(string? status) =>
         string.Equals(status, ImportAttemptOutcomes.DuplicateContent, StringComparison.OrdinalIgnoreCase)
         || string.Equals(status, ImportAttemptOutcomes.Duplicate, StringComparison.OrdinalIgnoreCase);
@@ -37,6 +46,7 @@ public static class ImportHistoryMessages
         failure is not null ? failure.SafeMessage
         : conflicts > 0 ? Conflicts(conflicts)
         : IsDuplicate(status) ? AlreadyImported
+        : IsEmptyExport(status) ? EmptyExport
         : string.Equals(status, ImportAttemptOutcomes.Failed, StringComparison.Ordinal) ? Failed
         : Persisted;
 }

@@ -130,6 +130,9 @@ public sealed class ImportHistoryView : UserControl
     public static DateTime ToLocal(DateTime recordedUtc) =>
         recordedUtc.Kind == DateTimeKind.Local ? recordedUtc : DateTime.SpecifyKind(recordedUtc, DateTimeKind.Utc).ToLocalTime();
 
+    /// <summary>IF-031: the Verdict of an empty export (the Period column shows the day it was exported).</summary>
+    public const string EmptyExportVerdict = "Empty export - no rows; dated by its export day, the days it covers are not known";
+
     /// <summary>One plain line per saved outcome: what happened to the file and what to do about it.</summary>
     public static string Verdict(EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result)
     {
@@ -137,6 +140,8 @@ public sealed class ImportHistoryView : UserControl
         if (result.Failed || result.Failure is not null) return "Refused - " + ImportProblems.NextStep(result);
         if (result.ConflictRows > 0) return $"{result.ConflictRows:N0} rows conflict with data already saved - check Problems";
         if (ImportHistoryMessages.IsDuplicate(result.Status)) return "Already imported - nothing changed";
+        // IF-031: the Period of an empty export is its export day, not the window it was asked for.
+        if (ImportHistoryMessages.IsEmptyExport(result.Status)) return EmptyExportVerdict;
         return result.NewRows > 0 ? $"Imported - {result.NewRows:N0} new rows" : "Imported - no new rows";
     }
 
