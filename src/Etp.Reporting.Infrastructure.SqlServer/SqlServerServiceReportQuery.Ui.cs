@@ -10,7 +10,9 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// freshness colours) are the pure classes of ServiceUiRules.cs, so each screen reads its rows once and the unit tests
 /// pin the arithmetic. No statement names a phone, e-mail or address column. v_service_job is migration 0056's (1.11.1):
 /// customer_name is the job's most recent reading for Owner and Store Manager and NULL for a Viewer (decided in the view,
-/// per caller; the cached rows are per connection string, i.e. per signed-in Windows user of this process).
+/// per caller; the cached rows are per connection string, i.e. per signed-in Windows user of this process, and per Service
+/// Centre scope, 1.12.1 P1). On a scoped query Today, Pending, the Jobs list, the claims and the jobs waiting for parts are the
+/// centre's; Job history opens any job number it is given.
 /// </summary>
 public sealed partial class SqlServerServiceReportQuery
 {
@@ -21,6 +23,11 @@ public sealed partial class SqlServerServiceReportQuery
         "tat_days,tat_repair_days,age_days,days_in_stage,is_overdue,is_open,last_reading_date,as_at,claim_date,closed_date";
 
     internal const string AllJobsSql = "SELECT " + JobColumns + " FROM dbo.v_service_job ORDER BY job_order_number;";
+
+    // 1.12.1 P1: one Service Centre's jobs. service_store_code is 0067's last column of v_service_job (the centre whose
+    // job-number prefix starts the job number, else the only centre); a job no centre's prefix matches while there are
+    // several centres has none and is shown under "All Service Centres" only.
+    internal const string CentreJobsSql = "SELECT " + JobColumns + " FROM dbo.v_service_job WHERE service_store_code=@centre ORDER BY job_order_number;";
 
     internal const string OneJobSql = "SELECT " + JobColumns + " FROM dbo.v_service_job WHERE job_order_number=@job;";
 
@@ -94,7 +101,7 @@ public sealed partial class SqlServerServiceReportQuery
 
     /// <summary>Every SQL statement of the 1.10 contract, for the text tests (views only, no privacy column).</summary>
     internal static IReadOnlyList<string> UiStatements { get; } =
-        [AllJobsSql, OneJobSql, JobRevisionSql, TimelineSql, ClaimsSql, JobClaimsSql, ClaimReadingsSql, GprcCoverageSql, PartsSql, TransitSql, S004RangeSql, StockSql, FreshnessSql];
+        [AllJobsSql, CentreJobsSql, OneJobSql, JobRevisionSql, TimelineSql, ClaimsSql, JobClaimsSql, ClaimReadingsSql, GprcCoverageSql, PartsSql, TransitSql, S004RangeSql, StockSql, FreshnessSql];
 
     public async Task<ServiceToday> LoadTodayAsync(DateOnly? businessDate = null, CancellationToken cancellationToken = default)
     {
@@ -119,7 +126,7 @@ public sealed partial class SqlServerServiceReportQuery
         var s004 = await ReadAsync(S004RangeSql, Range, reader =>
             new ServiceS004TenderAmount(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), Money(reader, 2)), cancellationToken);
         var manual = await ReadAsync(ManualMoneySql, Range, ManualEntry, cancellationToken);
-        var claims = await ReadAsync(ClaimsSql, Range, ClaimLine, cancellationToken);
+        var claims = OfCentreJobs(await ReadAsync(ClaimsSql, Range, ClaimLine, cancellationToken), jobs);
         return ServiceBoard.Today(date, asAt, jobs, s004, manual, claims);
     }
 
@@ -167,7 +174,10 @@ public sealed partial class SqlServerServiceReportQuery
         if (JobCache.TryGetValue(JobCacheKey, out var cached) && cached.Revision == revision
             && DateTime.UtcNow - cached.ReadUtc < JobCacheLifetime)
             return cached.Rows;
-        var rows = await ReadJobsAsync(AllJobsSql, _ => { }, cancellationToken);
+        var rows = serviceStoreCode is null
+            ? await ReadJobsAsync(AllJobsSql, _ => { }, cancellationToken)
+            : await ReadJobsAsync(CentreJobsSql, command =>
+                command.Parameters.Add("@centre", System.Data.SqlDbType.VarChar, MaxStoreCodeLength).Value = serviceStoreCode, cancellationToken);
         JobCache[JobCacheKey] = new JobCacheEntry(revision, DateTime.UtcNow, rows);
         return rows;
     }
@@ -191,9 +201,9 @@ public sealed partial class SqlServerServiceReportQuery
             command.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = a is { } x ? x.ToDateTime(TimeOnly.MinValue) : DBNull.Value;
             command.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = b is { } y ? y.ToDateTime(TimeOnly.MinValue) : DBNull.Value;
         }
-        var lines = await ReadAsync(ClaimsSql, command => Range(command, from, to), ClaimLine, cancellationToken);
-        var jobs = (await LoadJobSummariesAsync(cancellationToken))
-            .Where(job => job.Stage is ServiceStages.DcIssued or ServiceStages.RaIssued).ToArray();
+        var centreJobs = await LoadJobSummariesAsync(cancellationToken);
+        var lines = OfCentreJobs(await ReadAsync(ClaimsSql, command => Range(command, from, to), ClaimLine, cancellationToken), centreJobs);
+        var jobs = centreJobs.Where(job => job.Stage is ServiceStages.DcIssued or ServiceStages.RaIssued).ToArray();
         var readings = (await ReadAsync(ClaimReadingsSql, _ => { }, reader => (Gprc: Date(reader, 0), DcRa: Date(reader, 1), AsAt: Date(reader, 2)), cancellationToken)).Single();
         var hole = await GprcHoleAsync(cancellationToken);
         // R-UI-11: "raised this month" is the as-at month by the one rule, whatever range the screen shows.
@@ -203,12 +213,28 @@ public sealed partial class SqlServerServiceReportQuery
             var monthStart = new DateOnly(asAt.Year, asAt.Month, 1);
             var monthLines = (from is null || from <= monthStart) && (to is null || to >= asAt)
                 ? lines
-                : await ReadAsync(ClaimsSql, command => Range(command, monthStart, asAt), ClaimLine, cancellationToken);
+                : OfCentreJobs(await ReadAsync(ClaimsSql, command => Range(command, monthStart, asAt), ClaimLine, cancellationToken), centreJobs);
             month = ServiceClaimRules.RaisedInMonth(monthLines, asAt);
         }
         return new ServiceClaims(ServiceClaimRules.Summarise(lines), lines, ServiceClaimRules.NotYetClaimed(jobs),
             ServiceClaimRules.GprcGap(readings.Gprc, readings.DcRa) || hole is not null, readings.Gprc, readings.DcRa, readings.AsAt,
             hole?.From, hole?.To, month);
+    }
+
+    /// <summary>
+    /// 1.12.1 P1: on a query scoped to one Service Centre, the claim lines of that centre's jobs only (a line with no job
+    /// number cannot be placed and is left out); unscoped, every line.
+    /// </summary>
+    private IReadOnlyList<ServiceClaimLine> OfCentreJobs(IReadOnlyList<ServiceClaimLine> lines, IReadOnlyList<ServiceJobSummary> centreJobs) =>
+        serviceStoreCode is null ? lines : ClaimLinesOfJobs(lines, centreJobs);
+
+    /// <summary>The claim lines whose job number is one of <paramref name="jobs"/> (trimmed, ignoring case, as the job keys are).</summary>
+    internal static IReadOnlyList<ServiceClaimLine> ClaimLinesOfJobs(IReadOnlyList<ServiceClaimLine> lines, IReadOnlyList<ServiceJobSummary> jobs)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        ArgumentNullException.ThrowIfNull(jobs);
+        var keys = jobs.Select(job => job.JobOrderNumber.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return lines.Where(line => !string.IsNullOrWhiteSpace(line.JobOrderNumber) && keys.Contains(line.JobOrderNumber.Trim())).ToArray();
     }
 
     private async Task<(DateOnly From, DateOnly To)?> GprcHoleAsync(CancellationToken cancellationToken)

@@ -8,9 +8,37 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// call requires application access (CanView), as <see cref="SqlServerImportHistoryQuery"/> does. The views choose rows
 /// by snapshot date (design section 4), so nothing here depends on the import order. No query selects a phone,
 /// e-mail or address column: the views expose none.
+/// 1.12.1 P1: a query made with a Service Centre store code (<see cref="ForServiceCentre"/>) reads only that centre's jobs
+/// (<c>v_service_job.service_store_code</c>, the centre whose job-number prefix starts the job number) and the claim lines
+/// of those jobs. File dates, S004 money, the manual entries, parts invoices, goods in transit and closing stock carry no
+/// Service Centre, so they stay for all Service Centres (the screens say so).
 /// </summary>
 public sealed partial class SqlServerServiceReportQuery(string connectionString) : IServiceReportQuery
 {
+    /// <summary>The longest store code (<c>dbo.stores.store_code varchar(30)</c>).</summary>
+    internal const int MaxStoreCodeLength = 30;
+
+    private readonly string? serviceStoreCode;
+
+    /// <summary>A query over one Service Centre (its store code), or over all of them when the code is null or blank.</summary>
+    public SqlServerServiceReportQuery(string connectionString, string? serviceStoreCode) : this(connectionString) =>
+        this.serviceStoreCode = NormaliseStoreCode(serviceStoreCode);
+
+    /// <summary>The Service Centre this query reads, or null for all Service Centres.</summary>
+    public string? ServiceStoreCode => serviceStoreCode;
+
+    /// <summary>The same database, scoped to one Service Centre (null or blank = all Service Centres).</summary>
+    public SqlServerServiceReportQuery ForServiceCentre(string? storeCode) => new(connectionString, storeCode);
+
+    internal static string? NormaliseStoreCode(string? storeCode)
+    {
+        var code = storeCode?.Trim();
+        if (string.IsNullOrEmpty(code)) return null;
+        if (code.Length > MaxStoreCodeLength)
+            throw new ArgumentException($"A store code has at most {MaxStoreCodeLength} characters.", nameof(storeCode));
+        return code;
+    }
+
     internal const string RefreshesSql = """
         SELECT report_code,snapshot_date,row_count,import_file_id,imported_utc
         FROM dbo.v_service_readings
@@ -163,8 +191,8 @@ public sealed partial class SqlServerServiceReportQuery(string connectionString)
         if (!access.CanView) throw new UnauthorizedAccessException("Application access is required.");
     }
 
-    /// <summary>The key of the shared job rows (R-SQL-15): one database, one principal.</summary>
-    private string JobCacheKey => connectionString;
+    /// <summary>The key of the shared job rows (R-SQL-15): one database, one principal, one Service Centre scope.</summary>
+    private string JobCacheKey => serviceStoreCode is null ? connectionString : connectionString + "|centre:" + serviceStoreCode;
 
     private async Task<SqlConnection> OpenAsync(CancellationToken token)
     {
