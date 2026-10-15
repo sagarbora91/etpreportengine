@@ -65,6 +65,55 @@ public sealed class MerchantIdEdit
     };
 }
 
+/// <summary>1.12.1 P2: the settlement rule form (D20). Numbers are text so the model can say what is wrong with them; the dates
+/// are picked. A rule with no store applies to every store; with no provider, to the whole payment mode.</summary>
+public sealed class PolicyEdit
+{
+    public int? Id { get; set; }
+    public string Mode { get; set; } = "Cash";
+    public string StoreCode { get; set; } = string.Empty;
+    public string ProviderKey { get; set; } = string.Empty;
+    public string SettlementWindowDays { get; set; } = string.Empty;
+    public string OverdueAfterDays { get; set; } = string.Empty;
+    public string CashTolerance { get; set; } = string.Empty;
+    public DateOnly? EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
+    public string Reason { get; set; } = string.Empty;
+
+    public static PolicyEdit From(CollectionPolicyRow row) => new()
+    {
+        Id = row.Id, Mode = row.Mode, StoreCode = row.StoreCode ?? string.Empty, ProviderKey = row.ProviderKey ?? string.Empty,
+        SettlementWindowDays = row.SettlementWindowDays?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        OverdueAfterDays = row.OverdueAfterDays?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        CashTolerance = row.CashTolerance?.ToString("0.##", CultureInfo.InvariantCulture) ?? string.Empty,
+        EffectiveFrom = row.EffectiveFrom, EffectiveTo = row.EffectiveTo
+    };
+
+    /// <summary>The draft, or the first thing wrong with the numbers or dates as a plain sentence.</summary>
+    public CollectionPolicyDraft ToDraft()
+    {
+        var window = Days(SettlementWindowDays, "The settlement window");
+        var overdue = Days(OverdueAfterDays, "Overdue after");
+        decimal? tolerance = null;
+        if (!string.IsNullOrWhiteSpace(CashTolerance))
+        {
+            if (!decimal.TryParse(CashTolerance.Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var parsed))
+                throw new ArgumentException("Enter the cash tolerance as rupees, for example 10 or 0.50.");
+            tolerance = parsed;
+        }
+        if (EffectiveFrom is not { } from) throw new ArgumentException("Choose the date the rule starts.");
+        return new(Id, string.IsNullOrWhiteSpace(StoreCode) ? null : StoreCode, Mode, string.IsNullOrWhiteSpace(ProviderKey) ? null : ProviderKey,
+            window, overdue, tolerance, from, EffectiveTo);
+    }
+
+    private static int? Days(string text, string label)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        return int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var days)
+            ? days : throw new ArgumentException($"{label} must be a whole number of days.");
+    }
+}
+
 /// <summary>The file layout form. The header signature is read from a sample file, never typed (see <see cref="CollectionsSetupModel.ReadSampleAsync"/>).</summary>
 public sealed class LayoutEdit
 {
@@ -137,7 +186,7 @@ public sealed class TenderEdit
 /// <summary>
 /// Settings > Collections setup (Form template; plan U4). Pure presentation logic over <see cref="ICollectionsSetupService"/>:
 /// bank accounts (last four digits only), providers, merchant ids, payment codes, file layouts with "Test on this file", and
-/// the statement folder. Owner only: any other role gets one sentence and no data, and every action re-checks the role.
+/// the statement folder, and (1.12.1 P2) the settlement rules. Owner only: any other role gets one sentence and no data, and every action re-checks the role.
 /// Each save needs a reason (the service audits it). Drafts are checked with <see cref="CollectionsSetupRules"/> first, so
 /// the screen shows the rule's plain sentence rather than a database error.
 /// </summary>
@@ -149,12 +198,15 @@ public sealed class CollectionsSetupModel
     public const string ProviderMappingExample = "{\n  \"txn_datetime\": \"Txn Date Time\",\n  \"merchant_id\": \"MID\",\n  \"txn_reference\": \"RRN\",\n  \"gross\": \"Gross Amount\",\n  \"net\": \"Net Amount\",\n  \"settlement_date\": \"Settlement Date\",\n  \"datetime_format\": \"dd/MM/yyyy HH:mm:ss\"\n}";
     private readonly Func<ICollectionsSetupService> service;
     private readonly ICollectionsDialogs dialogs;
+    private readonly Func<DateOnly> today;
 
-    public CollectionsSetupModel(Func<ICollectionsSetupService> service, ShellAccess access, ICollectionsDialogs dialogs)
+    public CollectionsSetupModel(Func<ICollectionsSetupService> service, ShellAccess access, ICollectionsDialogs dialogs, Func<DateOnly>? today = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         Access = access ?? throw new ArgumentNullException(nameof(access));
         this.dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+        this.today = today ?? (() => DateOnly.FromDateTime(DateTime.Today));
+        Policy = new PolicyEdit { EffectiveFrom = this.today() };
     }
 
     public ShellAccess Access { get; }
@@ -170,6 +222,7 @@ public sealed class CollectionsSetupModel
     public MerchantIdEdit Merchant { get; private set; } = new();
     public LayoutEdit Layout { get; private set; } = new();
     public TenderEdit Tender { get; private set; } = new();
+    public PolicyEdit Policy { get; private set; } = new();
     public string EvidenceRoot { get; set; } = string.Empty;
     public string EvidenceReason { get; set; } = string.Empty;
 
@@ -219,6 +272,16 @@ public sealed class CollectionsSetupModel
     public void NewMerchant() { Merchant = new MerchantIdEdit(); Changed?.Invoke(); }
     public void EditMerchant(MerchantIdRow row) { Merchant = MerchantIdEdit.From(row); Changed?.Invoke(); }
     public void EditTender(TenderProviderRow row) { Tender = TenderEdit.From(row); Changed?.Invoke(); }
+    public void NewPolicy() { Policy = new PolicyEdit { EffectiveFrom = today() }; Changed?.Invoke(); }
+    public void EditPolicy(CollectionPolicyRow row) { Policy = PolicyEdit.From(row); Changed?.Invoke(); }
+
+    /// <summary>A rule's state in words for its chip: in force today, ended, or starting later.</summary>
+    public string PolicyState(CollectionPolicyRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var now = today();
+        return CollectionPolicyResolver.InForce(row, now) ? "In force" : row.EffectiveFrom > now ? "Starts later" : "Ended";
+    }
 
     public void NewLayout(string kind = "BANK")
     {
@@ -258,6 +321,17 @@ public sealed class CollectionsSetupModel
         await service().SaveMerchantIdAsync(draft, reason, cancellationToken).ConfigureAwait(true);
         return $"Saved the merchant id for store {draft.StoreCode}.";
     }, () => Merchant = new MerchantIdEdit(), cancellationToken);
+
+    /// <summary>1.12.1 P2: saves a settlement rule. The rules first (CollectionsSetupRules), then an overlap with a rule of the same
+    /// scope is refused before SQL is asked (SQL refuses it again, THROW 52000). To change a rule from a date on, give the old
+    /// rule an end date and add a new one; a rule is never deleted (its history is in collections_setup_history).</summary>
+    public Task<bool> SavePolicyAsync(CancellationToken cancellationToken = default) => SaveAsync(Policy.Reason, async reason =>
+    {
+        var draft = CollectionsSetupRules.Normalise(Policy.ToDraft());
+        if (CollectionPolicyResolver.Overlaps(Setup?.Policies ?? [], draft) is not null) throw new ArgumentException(CollectionPolicyResolver.OverlapText);
+        await service().SavePolicyAsync(draft, reason, cancellationToken).ConfigureAwait(true);
+        return $"Saved the {draft.Mode} settlement rule for {(draft.StoreCode is null ? "all stores" : "store " + draft.StoreCode)}.";
+    }, () => Policy = new PolicyEdit { EffectiveFrom = today() }, cancellationToken);
 
     public Task<bool> SaveTenderAsync(CancellationToken cancellationToken = default) => SaveAsync(Tender.Reason, async reason =>
     {

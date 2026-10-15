@@ -1,4 +1,5 @@
 using Etp.Reporting.Desktop.Modules.Collections;
+using Etp.Reporting.Desktop.Modules.Reports;
 using Etp.Reporting.Infrastructure.SqlServer.Collections;
 
 namespace Etp.Reporting.Desktop.Composition;
@@ -12,7 +13,9 @@ public sealed partial class DesktopCompositionRoot
         Setup: () => new SqlServerCollectionsSetupService(CurrentConnections()),
         Import: () => new SqlServerCollectionsImportService(CurrentConnections()),
         Deposits: () => new SqlServerCashDepositService(CurrentConnections()),
-        Statement: () => new SqlServerCollectionsStatementQuery(CurrentConnections()));
+        Statement: () => new SqlServerCollectionsStatementQuery(CurrentConnections()),
+        // 1.12.1 P2: the statement's Excel export goes through the report exporter, like the Service screens' exports.
+        Export: (path, metadata, data) => new ReportExportCoordinator().ExportReportExcelAsync(path, metadata, data, null));
 
     partial void RegisterCollections(ScreenRegistry registry) => RegisterCollectionScreens(registry);
 
@@ -38,7 +41,7 @@ public sealed partial class DesktopCompositionRoot
         });
 
         registry.Register(CollectionsScreens.StatementTask, request =>
-            new CollectionsStatementView(new CollectionsStatementModel(services.Statement, request.Access, request.StoreCode, request.BusinessDate)));
+            new CollectionsStatementView(new CollectionsStatementModel(services.Statement, request.Access, request.StoreCode, request.BusinessDate), services.Export));
 
         registry.Register(CollectionsScreens.DepositsTask, request =>
         {

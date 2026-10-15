@@ -1,5 +1,6 @@
 extern alias EtpApplication;
 
+using System.Globalization;
 using Etp.Reporting.Reporting;
 using EtpApplication::Etp.Reporting.Application.Collections;
 
@@ -70,6 +71,10 @@ public sealed class CollectionsStatementModel
     public const string TotalsOnlyNoticeBody = "UPI and card figures compare the day's total with the provider's settlement total. Payments are not matched one by one yet.";
     public const string NoLinesText = "Nothing to show for these dates. Import the daily sheets, or bank and settlement files, first.";
     public const string HiddenReferencesText = "Bank references are not shown for your role.";
+    public const string ExportReportName = "Collections: expected vs evidence";
+    public const string ExportRuleVersion = "collections-statement-1";
+    public const string ExportWithoutBankColumnsText = "The bank columns (credited on, bank reference) are for the Owner and are not in this file.";
+    private const string MoneyFormat = "#,##0.00";
     public const int MaximumDays = 366;
     private readonly Func<ICollectionsStatementQuery> query;
     private readonly Func<DateOnly> today;
@@ -144,6 +149,66 @@ public sealed class CollectionsStatementModel
         {
             if (mine == revision) Fail(CollectionsScreens.Sentence(exception));
         }
+    }
+
+    // ---- 1.12.1 P2: Export to Excel ---------------------------------------------------------------------------------------
+
+    /// <summary>The bank columns ("Credited on", "Bank reference") go into the file for the Owner only. A Store Manager's file has
+    /// no bank columns; a Viewer's has none either (the Viewer's statement carries no bank reference at all, and a Viewer never
+    /// gets more than a Store Manager).</summary>
+    public bool ExportIncludesBankColumns => CollectionsScreens.CanSetUp(Access) && statement is { WithoutBankReferences: false };
+
+    public bool CanExport => IsAllowed && statement is not null && Rows.Count > 0;
+
+    public string ExportDisabledReason => !IsAllowed ? RefusalText ?? string.Empty : statement is null ? "Load the statement first." : Rows.Count == 0 ? "There are no lines to export." : string.Empty;
+
+    public string ExportFileName => string.Create(CultureInfo.InvariantCulture, $"Collections_expected_vs_evidence_{From:yyyyMMdd}_{To:yyyyMMdd}.xlsx");
+
+    /// <summary>The file's columns in order: the screen's, then the Age in days, then (Owner only) the bank columns.</summary>
+    public IReadOnlyList<ExcelReportColumn> ExportColumns
+    {
+        get
+        {
+            List<ExcelReportColumn> columns =
+            [
+                new("Store"), new("Business date"), new("Mode"), new("Provider"),
+                new(IndianFormat.MoneyHeader("Expected"), MoneyFormat), new(IndianFormat.MoneyHeader("Evidence"), MoneyFormat),
+                new(IndianFormat.MoneyHeader("Difference"), MoneyFormat), new(IndianFormat.MoneyHeader("Cash tenders"), MoneyFormat),
+                new("Status"), new("Detail"), new("Age (days)", "#,##0")
+            ];
+            if (ExportIncludesBankColumns) columns.AddRange([new("Credited on"), new("Bank reference")]);
+            return columns;
+        }
+    }
+
+    /// <summary>The rows on screen (the mode filter applies), as values: dates as dates, money as numbers, a missing figure as an
+    /// empty cell (the writer shows its dash), the state as its word. Nothing the role may not see is put in a cell.</summary>
+    public ExcelReportData BuildExportData()
+    {
+        var bank = ExportIncludesBankColumns;
+        var rows = Rows.Select(row =>
+        {
+            var line = row.Line;
+            List<object?> cells =
+            [
+                line.StoreCode, line.BusinessDate, line.Mode, line.ProviderKey, line.Expected, line.Evidence, line.Difference, line.TenderTotal,
+                row.StatusWord, row.Detail, line.AgeDays
+            ];
+            if (bank) cells.AddRange([line.CreditedDate, line.BankReference]);
+            return (IReadOnlyList<object?>)cells;
+        }).ToList();
+        return new ExcelReportData(ExportColumns, rows);
+    }
+
+    /// <summary>The file's header block: the report, the dates, "Totals only, not matched yet", the scope and what the role's
+    /// file leaves out.</summary>
+    public ExcelReportMetadata BuildExportMetadata(DateTimeOffset generatedUtc)
+    {
+        var message = TotalsOnlyNoticeTitle + ". " + TotalsOnlyNoticeBody
+            + (ExportIncludesBankColumns ? string.Empty : " " + (WithoutBankReferences ? HiddenReferencesText + " " : string.Empty) + ExportWithoutBankColumnsText)
+            + (modeFilter == AllModes ? string.Empty : $" Only the {modeFilter} lines.");
+        return new ExcelReportMetadata(ExportReportName, From, To, TotalsOnlyNoticeTitle, ExportRuleVersion, message, generatedUtc,
+            StoreCode is null ? "All stores" : "Store " + StoreCode);
     }
 
     private void Fail(string text)

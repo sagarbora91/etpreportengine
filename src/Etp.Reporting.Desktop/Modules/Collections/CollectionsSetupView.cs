@@ -14,6 +14,9 @@ namespace Etp.Reporting.Desktop.Modules.Collections;
 /// exists (six rows at most), the fields, a reason (always last, InputWide) and one Save. Bank accounts take the last four
 /// digits only. A layout's header comes from "Read header from a file" and "Test on this file" shows what the layout reads,
 /// without saving anything. A role other than Owner gets one sentence and no data.
+/// 1.12.1 P2: a "Settlement rules" section (D20): per payment mode, optionally per store and provider, the settlement window,
+/// "Overdue after" and (cash) a tolerance, each from a start date to an optional end date. A Cash rule's "Overdue after" makes
+/// Deposits in transit say "Overdue"; without a rule nothing is ever overdue. Rules never match payments (decision 61).
 /// </summary>
 public sealed class CollectionsSetupView : UserControl
 {
@@ -27,6 +30,7 @@ public sealed class CollectionsSetupView : UserControl
     private readonly DataGrid merchantGrid = CollectionsUi.Grid("Merchant ids");
     private readonly DataGrid tenderGrid = CollectionsUi.Grid("Payment codes");
     private readonly DataGrid layoutGrid = CollectionsUi.Grid("File layouts");
+    private readonly DataGrid policyGrid = CollectionsUi.Grid("Settlement rules");
     private readonly DataGrid testGrid = CollectionsUi.Grid("Test on this file: first lines");
     private readonly TextBlock headersText = CollectionsUi.Text(string.Empty, "CaptionText");
     private readonly TextBlock testText = CollectionsUi.Text(string.Empty, "BodyText");
@@ -51,6 +55,7 @@ public sealed class CollectionsSetupView : UserControl
         sections.Children.Add(MerchantSection());
         sections.Children.Add(TenderSection());
         sections.Children.Add(LayoutSection());
+        sections.Children.Add(PolicySection());
         sections.Children.Add(EvidenceSection());
         frame.Body = sections;
         Content = frame;
@@ -241,6 +246,45 @@ public sealed class CollectionsSetupView : UserControl
              ("New provider layout", () => { model.NewLayout("PROVIDER"); return Task.FromResult(true); }, false)]);
     }
 
+    private UIElement PolicySection()
+    {
+        var edit = () => model.Policy;
+        CollectionsUi.AddText(policyGrid, "Mode", nameof(PolicyRow.Mode), minWidth: 110);
+        CollectionsUi.AddText(policyGrid, "Store", nameof(PolicyRow.Store), minWidth: 90);
+        CollectionsUi.AddText(policyGrid, "Provider", nameof(PolicyRow.Provider), minWidth: 130);
+        CollectionsUi.AddText(policyGrid, "Settles within (days)", nameof(PolicyRow.Window), number: true, minWidth: 150);
+        CollectionsUi.AddText(policyGrid, "Overdue after (days)", nameof(PolicyRow.Overdue), number: true, minWidth: 150);
+        CollectionsUi.AddText(policyGrid, IndianFormat.MoneyHeader("Cash tolerance"), nameof(PolicyRow.Tolerance), number: true, minWidth: 140);
+        CollectionsUi.AddText(policyGrid, "From", nameof(PolicyRow.From), minWidth: 110);
+        CollectionsUi.AddText(policyGrid, "To", nameof(PolicyRow.To), minWidth: 110, star: true);
+        CollectionsUi.AddChip(policyGrid, "Status", row => ((PolicyRow)row).State switch
+        {
+            "In force" => ("In force", StatusTone.Success),
+            "Starts later" => ("Starts later", StatusTone.Information),
+            var other => (other, StatusTone.Neutral)
+        }, minWidth: 120);
+        policyGrid.SelectionChanged += (_, _) => { if (!rendering && policyGrid.SelectedItem is PolicyRow row) model.EditPolicy(row.Source); };
+
+        var fields = new WrapPanel();
+        fields.Children.Add(CollectionsUi.Field("Mode", Combo(model.Modes, () => edit().Mode, value => edit().Mode = value)));
+        fields.Children.Add(CollectionsUi.Field("Store (blank for all)", Text(() => edit().StoreCode, value => edit().StoreCode = value, "InputNarrow", 30)));
+        var policyProvider = new ComboBox { Width = DesignTokens.Value("InputMedium") };
+        policyProvider.SetResourceReference(FrameworkElement.MinHeightProperty, "ActiveTargetHeight");
+        policyProvider.SelectionChanged += (_, _) => { if (!rendering) edit().ProviderKey = policyProvider.SelectedItem as string ?? string.Empty; };
+        pulls.Add(() => { policyProvider.ItemsSource = new[] { string.Empty }.Concat(model.Setup?.Providers.Select(provider => provider.ProviderKey) ?? []).ToList(); policyProvider.SelectedItem = edit().ProviderKey; });
+        fields.Children.Add(CollectionsUi.Field("Provider (blank for the whole mode)", policyProvider));
+        fields.Children.Add(CollectionsUi.Field("Settles within (days)", Text(() => edit().SettlementWindowDays, value => edit().SettlementWindowDays = value, "InputNarrow", 3)));
+        fields.Children.Add(CollectionsUi.Field("Overdue after (days)", Text(() => edit().OverdueAfterDays, value => edit().OverdueAfterDays = value, "InputNarrow", 3)));
+        fields.Children.Add(CollectionsUi.Field("Cash tolerance (₹)", Text(() => edit().CashTolerance, value => edit().CashTolerance = value, "InputNarrow", 10)));
+        fields.Children.Add(CollectionsUi.Field("From", Date(() => edit().EffectiveFrom, value => edit().EffectiveFrom = value)));
+        fields.Children.Add(CollectionsUi.Field("To (blank for no end)", Date(() => edit().EffectiveTo, value => edit().EffectiveTo = value)));
+        fields.Children.Add(CollectionsUi.Field("Reason", Text(() => edit().Reason, value => edit().Reason = value, "InputWide", 500)));
+        return Section("Settlement rules", PolicyCaption, policyGrid, fields,
+            [("Save", async () => await model.SavePolicyAsync(), true), ("New rule", () => { model.NewPolicy(); return Task.FromResult(true); }, false)]);
+    }
+
+    internal const string PolicyCaption = "When money should have arrived. A Cash rule's \"Overdue after\" marks old deposits in transit as overdue. Without a rule nothing is ever overdue. To change a rule from a date on, give it an end date and add a new one.";
+
     private UIElement EvidenceSection()
     {
         var fields = new WrapPanel();
@@ -304,6 +348,15 @@ public sealed class CollectionsSetupView : UserControl
         return box;
     }
 
+    private DatePicker Date(Func<DateOnly?> get, Action<DateOnly?> set)
+    {
+        var picker = new DatePicker { Width = DesignTokens.Value("InputMedium") };
+        picker.SetResourceReference(FrameworkElement.MinHeightProperty, "ActiveTargetHeight");
+        picker.SelectedDateChanged += (_, _) => { if (!rendering) set(picker.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null); };
+        pulls.Add(() => picker.SelectedDate = get()?.ToDateTime(TimeOnly.MinValue));
+        return picker;
+    }
+
     private StackPanel Check(string label, Func<bool> get, Action<bool> set)
     {
         var box = new CheckBox { Content = label };
@@ -336,6 +389,7 @@ public sealed class CollectionsSetupView : UserControl
             Fill(merchantGrid, setup.MerchantIds.Select(row => new MerchantRow(row)).ToList());
             Fill(tenderGrid, setup.TenderCodes.Select(row => new TenderRow(row)).ToList());
             Fill(layoutGrid, setup.Layouts.Select(row => new LayoutRow(row, setup)).ToList());
+            Fill(policyGrid, setup.Policies.Select(row => new PolicyRow(row, model.PolicyState(row))).ToList());
 
             accountChoice.ItemsSource = new[] { new IdChoice(null, "No account") }.Concat(setup.BankAccounts.Select(account => new IdChoice(account.Id, CollectionsScreens.MaskDigits(account.DisplayName)))).ToList();
             accountChoice.DisplayMemberPath = nameof(IdChoice.Name);
@@ -405,6 +459,20 @@ public sealed class CollectionsSetupView : UserControl
         public string Code => Source.SourceTenderCode;
         public string Mode => Source.Mode;
         public string TillCash => Source.IsTillCash ? "Yes" : "No";
+    }
+
+    private sealed class PolicyRow(CollectionPolicyRow source, string state)
+    {
+        public CollectionPolicyRow Source { get; } = source;
+        public string State { get; } = state;
+        public string Mode => Source.Mode;
+        public string Store => Source.StoreCode ?? "All";
+        public string Provider => Source.ProviderKey ?? "Any";
+        public string Window => Source.SettlementWindowDays?.ToString(PresentationCulture.Indian) ?? CollectionsScreens.MissingValue;
+        public string Overdue => Source.OverdueAfterDays?.ToString(PresentationCulture.Indian) ?? CollectionsScreens.MissingValue;
+        public string Tolerance => IndianFormat.MoneyCell(Source.CashTolerance);
+        public string From => IndianFormat.Date(Source.EffectiveFrom);
+        public string To => Source.EffectiveTo is { } end ? IndianFormat.Date(end) : "No end";
     }
 
     private sealed class LayoutRow(StatementLayoutRow source, CollectionsSetup setup)
