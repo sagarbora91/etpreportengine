@@ -17,6 +17,8 @@ versions in each project file):
     BouncyCastle.Cryptography  MIT-style licence (installed with MimeKit)
   Microsoft.Data.SqlClient   MIT licence   (Microsoft)
   PDFsharp                   MIT licence   (empira Software)
+  System.Security.Cryptography.Pkcs  MIT licence (Microsoft; pinned to a patched
+                             version, normally installed by MailKit and PDFsharp)
 
 Indirect packages (installed by the packages above) are MIT or Apache-2.0
 licensed Microsoft and .NET Foundation components. The complete list for any
