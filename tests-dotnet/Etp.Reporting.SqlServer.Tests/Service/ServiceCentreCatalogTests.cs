@@ -202,7 +202,9 @@ public sealed class ServiceCentreCatalogTests
     {
         var view = SchemaSourceText.Current("dbo.v_service_job").Replace("\r\n", "\n");
         Assert.DoesNotContain("AW330", view, StringComparison.Ordinal);
-        Assert.Contains("WHERE u.unit_kind='SERVICE' AND s.service_job_prefix IS NOT NULL", view, StringComparison.Ordinal);
+        // Review m-1: a Service Centre without a saved prefix uses 'JO'+store code, as the C# catalogue suggests.
+        Assert.Contains("COALESCE(s.service_job_prefix,CONVERT(varchar(20),'JO'+UPPER(LTRIM(RTRIM(s.store_code))))) service_job_prefix", view, StringComparison.Ordinal);
+        Assert.Contains("WHERE u.unit_kind='SERVICE'\n), only_centre AS (", view, StringComparison.Ordinal);
         Assert.Contains("a.job_order_number LIKE CONVERT(nvarchar(20),c.service_job_prefix)+N'%'", view, StringComparison.Ordinal);
         Assert.Contains("ORDER BY LEN(c.service_job_prefix) DESC", view, StringComparison.Ordinal);
         Assert.Contains("ELSE jc.store_code END pending_at", view, StringComparison.Ordinal);

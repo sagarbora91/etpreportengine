@@ -97,15 +97,26 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     /// <summary>
     /// 1.12 U2 (wave plan C-d): the staff-target period follows the header date: From = the first day of its month, To = the
-    /// last day. Called at start and whenever the business date changes.
+    /// last day. Called at start and whenever the business date changes. Review m-7: a period the user typed is kept; the
+    /// fields are only re-defaulted while they are empty or still hold the previous default.
     /// </summary>
     private void ApplyStaffTargetPeriodDefaults()
     {
         if (BusinessDateInput.SelectedDate is not { } header) return;
-        var (from, to) = TargetCopy.DefaultPeriod(DateOnly.FromDateTime(header));
-        StaffTargetFromInput.SelectedDate = from.ToDateTime(TimeOnly.MinValue);
-        StaffTargetToInput.SelectedDate = to.ToDateTime(TimeOnly.MinValue);
+        if (!ShouldReplaceStaffTargetPeriod(StaffTargetFromInput.SelectedDate, StaffTargetToInput.SelectedDate, lastStaffTargetDefault)) return;
+        var period = TargetCopy.DefaultPeriod(DateOnly.FromDateTime(header));
+        lastStaffTargetDefault = period;
+        StaffTargetFromInput.SelectedDate = period.From.ToDateTime(TimeOnly.MinValue);
+        StaffTargetToInput.SelectedDate = period.To.ToDateTime(TimeOnly.MinValue);
     }
+
+    private (DateOnly From, DateOnly To)? lastStaffTargetDefault;
+
+    /// <summary>Review m-7 (tests): true when the staff-target fields are empty or still hold the last default period.</summary>
+    internal static bool ShouldReplaceStaffTargetPeriod(DateTime? from, DateTime? to, (DateOnly From, DateOnly To)? lastDefault) =>
+        lastDefault is not { } previous
+        || (from is null && to is null)
+        || (from is { } f && to is { } t && DateOnly.FromDateTime(f) == previous.From && DateOnly.FromDateTime(t) == previous.To);
 
     public Func<Task>? DashboardRefreshRequestedAsync { get; set; }
 

@@ -201,6 +201,7 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
             INSERT dbo.manual_operational_inputs(store_code,business_date,field_code,numeric_value,entered_by,modified_by,change_reason)
              VALUES('ZN005','20260821','WALK_INS',0,'test','test','A zero entry does not stop the mark');
             INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc) VALUES('ZN004','20260821','LOCKED','test',SYSUTCDATETIME());
+            INSERT dbo.stores(store_code,store_name,is_active) VALUES('ZN008',N'Synthetic inactive store',0);
             """);
         var service = new SqlServerNoSaleDayService(new TestConnections(database.ConnectionString));
 
@@ -216,6 +217,9 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
             await Refused(() => service.MarkAsync("ZN006", DateOnly.FromDateTime(DateTime.Today).AddDays(2), NoSaleDayText.ClosedHoliday, "Synthetic")));
         Assert.Equal("Choose a shop that ETP knows and a business date.",
             await Refused(() => service.MarkAsync("ZN999", Day, NoSaleDayText.ClosedHoliday, "Synthetic")));
+        // Review m-2: an inactive Retail store is refused the same way (no OPEN day row is created for it).
+        Assert.Equal("Choose a shop that ETP knows and a business date.",
+            await Refused(() => service.MarkAsync("ZN008", Day, NoSaleDayText.ClosedHoliday, "Synthetic")));
         Assert.Equal("This day is not marked as a no-sale day, so there is nothing to withdraw.",
             await Refused(() => service.WithdrawAsync("ZN006", Day, "Synthetic")));
 
@@ -225,7 +229,9 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
             await Refused(() => service.MarkAsync("ZN005", Day, NoSaleDayText.OpenNoSale, "Synthetic")));
 
         // Nothing was written for the refused store-days.
-        Assert.Equal(0, Convert.ToInt32(await ScalarAsync("SELECT COUNT(*) FROM dbo.no_sale_days WHERE store_code IN('ZN002','ZN003','ZN004','ZN006')"),
+        Assert.Equal(0, Convert.ToInt32(await ScalarAsync("SELECT COUNT(*) FROM dbo.no_sale_days WHERE store_code IN('ZN002','ZN003','ZN004','ZN006','ZN008')"),
+            System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(0, Convert.ToInt32(await ScalarAsync("SELECT COUNT(*) FROM dbo.daily_reporting_days WHERE store_code='ZN008'"),
             System.Globalization.CultureInfo.InvariantCulture));
     }
 

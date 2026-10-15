@@ -1,6 +1,6 @@
 -- 1.12 lane N1 (decision 52; decision 55 = Q1 option a): marks one store-day as a day with no sales. Owner or Store Manager.
 -- Refused (plain text, THROW 51980-51989) when: the caller is not Owner / Store Manager; the reason is missing or its code
--- unknown; the store does not exist; the date is after today; the day is finalised (LOCKED: reopen first); ETP already
+-- unknown; the store does not exist or is an inactive Retail store (review m-2); the date is after today; the day is finalised (LOCKED: reopen first); ETP already
 -- holds a sales invoice for the store-day; a daily entry other than zero is saved for it; it is already marked.
 -- Writes, in one transaction: the OPEN daily_reporting_days row when there is none (so the day can be finalised later),
 -- the mark (a withdrawn row is marked again in place), its history row (table trigger) and the NoSaleDayMarked audit row.
@@ -15,7 +15,9 @@ BEGIN
  SET @reason=NULLIF(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(@reason,CHAR(9),' '),CHAR(10),' '),CHAR(13),' '))),'');
  IF @reason IS NULL OR @reason_code IS NULL OR @reason_code NOT IN('CLOSED_HOLIDAY','CLOSED_OTHER','OPEN_NO_SALE')
   THROW 51981,'Choose why there were no sales and write a short reason.',1;
- IF @store IS NULL OR @date IS NULL OR NOT EXISTS(SELECT 1 FROM dbo.stores WHERE store_code=@store)
+ -- Review m-2: an active shop or a Service Centre (an inactive Retail store gets no day row).
+ IF @store IS NULL OR @date IS NULL OR NOT EXISTS(SELECT 1 FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
+     WHERE s.store_code=@store AND (s.is_active=1 OR u.unit_kind='SERVICE'))
   THROW 51986,'Choose a shop that ETP knows and a business date.',1;
  IF @date>CAST(SYSDATETIME() AS date)
   THROW 51982,'A no-sale day cannot be marked for a date after today.',1;

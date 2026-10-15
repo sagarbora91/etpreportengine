@@ -213,8 +213,10 @@ WITH live AS (
 ), snap AS (
   SELECT MAX(snapshot_date) as_at FROM live
 ), centres AS (
-  SELECT s.store_code,s.service_job_prefix FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
-  WHERE u.unit_kind='SERVICE' AND s.service_job_prefix IS NOT NULL
+  -- Review m-1: a Service Centre with no saved prefix uses 'JO'+store code, as the C# catalogue suggests (ServiceCentreRules).
+  SELECT s.store_code,COALESCE(s.service_job_prefix,CONVERT(varchar(20),'JO'+UPPER(LTRIM(RTRIM(s.store_code))))) service_job_prefix
+  FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
+  WHERE u.unit_kind='SERVICE'
 ), only_centre AS (
   SELECT CASE WHEN COUNT(*)=1 THEN MIN(store_code) END store_code FROM centres
 )

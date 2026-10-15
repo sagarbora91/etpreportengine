@@ -61,6 +61,18 @@ public sealed class DailyWorkflowVerdictBandTests
     }
 
     [Fact]
+    public void A_staff_target_period_the_user_typed_survives_a_business_date_change()
+    {
+        // Review m-7: re-default only empty fields or fields still holding the previous default.
+        (DateOnly From, DateOnly To) october = (new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.True(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 9, 3), new DateTime(2026, 9, 9), null));
+        Assert.True(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(null, null, october));
+        Assert.True(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 1), new DateTime(2026, 10, 31), october));
+        Assert.False(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 5), new DateTime(2026, 10, 31), october));
+        Assert.False(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 1), null, october));
+    }
+
+    [Fact]
     public void Finalise_is_in_the_verdict_band_and_the_root_still_has_nineteen_children()
     {
         RunSta(() =>

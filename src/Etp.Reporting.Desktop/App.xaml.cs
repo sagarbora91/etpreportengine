@@ -76,7 +76,8 @@ public partial class App : Application
         // Same path as a rejected configuration: recorded, one message, exit 2, no window and no mutex left behind.
         if (!headless && await compositionRoot.CheckObjectsUpToDateAsync() is { } objectsRefusal)
         {
-            DesktopDiagnostics.Record(new InvalidOperationException(objectsRefusal), "Startup", "STARTUP_CONFIGURATION_REJECTED", DesktopDiagnosticSeverity.Critical);
+            // Review m-5: its own event id, so the Error register tells it apart from a rejected connection string.
+            DesktopDiagnostics.Record(new InvalidOperationException(objectsRefusal), "Startup", "STARTUP_OBJECTS_PENDING", DesktopDiagnosticSeverity.Critical);
             MessageBox.Show("ETP Reporting Engine cannot start yet. " + objectsRefusal,
                 "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
