@@ -75,6 +75,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         };
         ((Panel)SaveStockCountButton.Parent).Children.Add(brandEntry);
         BusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        TrackStaffTargetPeriodEdits();
         ApplyStaffTargetPeriodDefaults();
         InitializeStaffTargetCopy();
         RefreshAccessState();
@@ -98,25 +99,49 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     /// <summary>
     /// 1.12 U2 (wave plan C-d): the staff-target period follows the header date: From = the first day of its month, To = the
     /// last day. Called at start and whenever the business date changes. Review m-7: a period the user typed is kept; the
-    /// fields are only re-defaulted while they are empty or still hold the previous default.
+    /// fields are only re-defaulted while they are empty or still hold the previous default. 1.12.1 P4: a date the Owner
+    /// picked or typed counts as typed even when it equals the default (choosing 1-31 Oct and then moving the header to
+    /// November keeps October), until both fields are cleared.
     /// </summary>
     private void ApplyStaffTargetPeriodDefaults()
     {
         if (BusinessDateInput.SelectedDate is not { } header) return;
-        if (!ShouldReplaceStaffTargetPeriod(StaffTargetFromInput.SelectedDate, StaffTargetToInput.SelectedDate, lastStaffTargetDefault)) return;
+        if (!ShouldReplaceStaffTargetPeriod(StaffTargetFromInput.SelectedDate, StaffTargetToInput.SelectedDate, lastStaffTargetDefault,
+                staffTargetPeriodTyped)) return;
         var period = TargetCopy.DefaultPeriod(DateOnly.FromDateTime(header));
         lastStaffTargetDefault = period;
-        StaffTargetFromInput.SelectedDate = period.From.ToDateTime(TimeOnly.MinValue);
-        StaffTargetToInput.SelectedDate = period.To.ToDateTime(TimeOnly.MinValue);
+        settingStaffTargetDefault = true;
+        try
+        {
+            StaffTargetFromInput.SelectedDate = period.From.ToDateTime(TimeOnly.MinValue);
+            StaffTargetToInput.SelectedDate = period.To.ToDateTime(TimeOnly.MinValue);
+        }
+        finally { settingStaffTargetDefault = false; }
+        staffTargetPeriodTyped = false;
     }
 
     private (DateOnly From, DateOnly To)? lastStaffTargetDefault;
+    private bool settingStaffTargetDefault;
+    private bool staffTargetPeriodTyped;
 
-    /// <summary>Review m-7 (tests): true when the staff-target fields are empty or still hold the last default period.</summary>
-    internal static bool ShouldReplaceStaffTargetPeriod(DateTime? from, DateTime? to, (DateOnly From, DateOnly To)? lastDefault) =>
+    /// <summary>1.12.1 P4 (review m-7): any change of From or To that ETP did not make itself is the Owner's.</summary>
+    private void TrackStaffTargetPeriodEdits()
+    {
+        StaffTargetFromInput.SelectedDateChanged += (_, _) => { if (!settingStaffTargetDefault) staffTargetPeriodTyped = true; };
+        StaffTargetToInput.SelectedDateChanged += (_, _) => { if (!settingStaffTargetDefault) staffTargetPeriodTyped = true; };
+    }
+
+    /// <summary>Whether the Owner changed the staff-target period since ETP last set it (tests read it).</summary>
+    internal bool StaffTargetPeriodTyped => staffTargetPeriodTyped;
+
+    /// <summary>
+    /// Review m-7 (tests): true when the staff-target fields are empty, or ETP set them (<paramref name="typed"/> false) and
+    /// they still hold the last default period. Never true for a period the Owner picked or typed, unless both are empty.
+    /// </summary>
+    internal static bool ShouldReplaceStaffTargetPeriod(DateTime? from, DateTime? to, (DateOnly From, DateOnly To)? lastDefault, bool typed = false) =>
         lastDefault is not { } previous
         || (from is null && to is null)
-        || (from is { } f && to is { } t && DateOnly.FromDateTime(f) == previous.From && DateOnly.FromDateTime(t) == previous.To);
+        || (!typed && from is { } f && to is { } t && DateOnly.FromDateTime(f) == previous.From && DateOnly.FromDateTime(t) == previous.To);
 
     public Func<Task>? DashboardRefreshRequestedAsync { get; set; }
 
