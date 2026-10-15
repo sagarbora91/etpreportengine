@@ -265,17 +265,26 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
     public async Task U4_bank_files_screen_to_deposit_proposal_to_credited_statement_with_the_role_views()
     {
         var evidence = await PrepareAsync("COLU");
+        // Gate fix 1 (1.12.0 wave 2): the class shares one database, and the COLA test imports bank-two-columns.csv under its own
+        // layout. That file's header would then match two layouts here (the screen rightly asks "Which account?") and its
+        // SHA-256 is already imported. This test reads its own copy, with its own header ("Balance") and so its own bytes.
+        var ownFiles = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpCollectionsU4_" + Guid.NewGuid().ToString("N"))).FullName;
+        var bankFile = Path.Combine(ownFiles, "bank-u4.csv");
+        await File.WriteAllTextAsync(bankFile, (await File.ReadAllTextAsync(Fixture("bank-two-columns.csv")))
+            .Replace("Withdrawal Amt.,Deposit Amt.,Closing Balance", "Withdrawal Amt.,Deposit Amt.,Balance", StringComparison.Ordinal));
+        var columns = TwoColumns.Replace("\"running_balance\":\"Closing Balance\"", "\"running_balance\":\"Balance\"", StringComparison.Ordinal);
+        Assert.NotEqual(TwoColumns, columns);
         try
         {
             var connections = new TestConnections(database.ConnectionString);
             var setup = new SqlServerCollectionsSetupService(connections);
             var account = await setup.SaveBankAccountAsync(new(null, "SYN_COLU", "Synthetic COLU account", "Synthetic Bank", "0002", "COLU", true, true), "Synthetic test account");
-            var header = await setup.ReadSampleHeaderAsync(Fixture("bank-two-columns.csv"), null, 3);
-            await setup.SaveLayoutAsync(new(null, "SYN_COLU_CSV", "Synthetic COLU CSV", "BANK", account, null, header.HeaderSignatureSha256, null, 3, 1, TwoColumns, true), "Synthetic layout");
+            var header = await setup.ReadSampleHeaderAsync(bankFile, null, 3);
+            await setup.SaveLayoutAsync(new(null, "SYN_COLU_CSV", "Synthetic COLU CSV", "BANK", account, null, header.HeaderSignatureSha256, null, 3, 1, columns, true), "Synthetic layout");
 
             // The screen's model drives the real service: one layout matches, so the file is ready; Import gives the service's sentence.
             var files = new BankFilesModel(() => new SqlServerCollectionsImportService(connections), Etp.Reporting.Desktop.ShellAccess.Owner);
-            await files.AddFilesAsync([Fixture("bank-two-columns.csv")]);
+            await files.AddFilesAsync([bankFile]);
             var item = Assert.Single(files.Items);
             Assert.Equal(BankFileState.Ready, item.State);
             Assert.Equal(1, await files.ImportReadyAsync());
@@ -285,7 +294,7 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
 
             // The same file again is "already imported", with the service's own sentence; nothing is added.
             var again = new BankFilesModel(() => new SqlServerCollectionsImportService(connections), Etp.Reporting.Desktop.ShellAccess.Owner);
-            await again.AddFilesAsync([Fixture("bank-two-columns.csv")]);
+            await again.AddFilesAsync([bankFile]);
             await again.ImportReadyAsync();
             Assert.Equal(BankFileState.AlreadyImported, Assert.Single(again.Items).State);
             Assert.Equal("Already imported: this exact file was imported before.", again.Items[0].Message);
@@ -353,7 +362,7 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
             Assert.Equal(CollectionsScreens.DepositsRefusedText, viewerDeposits.StatusText);
             Assert.Empty(viewerDeposits.Rows);
         }
-        finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); }
+        finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); if (Directory.Exists(ownFiles)) Directory.Delete(ownFiles, true); }
     }
 
     private async Task<string> PrepareAsync(string store)
