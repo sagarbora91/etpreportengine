@@ -21,7 +21,7 @@ public sealed partial class SqlServerServiceReportQuery(string connectionString)
     private readonly string? serviceStoreCode;
 
     /// <summary>A query over one Service Centre (its store code), or over all of them when the code is null or blank.</summary>
-    public SqlServerServiceReportQuery(string connectionString, string? serviceStoreCode) : this(connectionString) =>
+    public SqlServerServiceReportQuery(string connection, string? serviceStoreCode) : this(connection) =>
         this.serviceStoreCode = NormaliseStoreCode(serviceStoreCode);
 
     /// <summary>The Service Centre this query reads, or null for all Service Centres.</summary>

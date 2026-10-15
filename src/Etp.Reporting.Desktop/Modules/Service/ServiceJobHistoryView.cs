@@ -84,6 +84,12 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
         return searched.Length == 0 ? "Enter a job number and select Show history." : null;
     }
 
+    /// <summary>1.12.1 P1: a job number names its own job, whichever Service Centre it belongs to.</summary>
+    protected override string CentreScopeNote(string centreName) => JobHistoryScopeNote;
+
+    /// <summary>The line under the title while one Service Centre is chosen.</summary>
+    public const string JobHistoryScopeNote = "Job history opens any job number you enter, whichever Service Centre it belongs to.";
+
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
         var detail = await source.LoadJobAsync(searched);

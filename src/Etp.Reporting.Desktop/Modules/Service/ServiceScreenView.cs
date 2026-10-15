@@ -6,6 +6,8 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using ServiceCentre = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentre;
+using ServiceCentreRules = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules;
 using ServiceFreshnessChip = EtpApplication::Etp.Reporting.Application.Service.ServiceFreshnessChip;
 using Etp.Reporting.Desktop.Modules.Reports;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
@@ -37,7 +39,9 @@ public sealed record ServiceGridRow(object Source, IReadOnlyList<object?> Cells)
 /// a title, the Service Centre's catalogue name (1.12 A4), the "Service data as at" line with the freshness strip under it (one chip per
 /// family group, design 3.7), a filter bar, an optional summary panel (cards), one grid and Export.
 /// Every activation re-queries; a slower earlier load never overwrites a newer one (revision counter).
-/// Service has no store picker, so the shell's store selection is ignored.
+/// The shell's store selection is ignored. 1.12.1 P1: with two or more Service Centres a "Service Centre" picker beside the
+/// title (All Service Centres, then each centre) scopes the query to one centre; the choice is shared by every Service screen
+/// (<see cref="ServiceCentreServices.SelectedStoreCode"/>), and a line under the title says what the choice does not cover.
 /// </summary>
 public abstract class ServiceScreenView : UserControl
 {
@@ -56,6 +60,11 @@ public abstract class ServiceScreenView : UserControl
     private readonly TextBlock asAt = ServiceUi.Text("", "BodyText");
     private readonly TextBlock centreCaption = ServiceUi.Caption(DefaultCentreLabel + ReadOnlySuffix);
     private const string ReadOnlySuffix = " · read only";
+    /// <summary>The caption beside the picker (the picker names the centre itself).</summary>
+    private const string ReadOnlyText = "read only";
+    private readonly ComboBox centrePicker = new() { MinWidth = 220, Visibility = Visibility.Collapsed };
+    private readonly TextBlock scopeNote = ServiceUi.Caption("");
+    private bool fillingCentres;
     private readonly WrapPanel freshnessSummary = new() { Orientation = Orientation.Horizontal };
     private readonly WrapPanel freshnessStrip = new() { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
     private readonly Button allGroupsLink = ServiceUi.MakeButton("All groups", "QuietButton");
@@ -100,6 +109,12 @@ public abstract class ServiceScreenView : UserControl
         var titleLeft = new StackPanel { Orientation = Orientation.Horizontal };
         titleLeft.Children.Add(titleBlock);
         titleLeft.Children.Add(ServiceUi.InfoMark(intro));
+        // 1.12.1 P1: the Service Centre picker (shown only with two or more centres) sits before the read-only caption.
+        AutomationProperties.SetName(centrePicker, "Service Centre");
+        centrePicker.VerticalAlignment = VerticalAlignment.Center;
+        centrePicker.Margin = ServiceUi.Gap(ServiceUi.S12, 0, 0, 0);
+        centrePicker.SelectionChanged += async (_, _) => await OnCentreChosenAsync();
+        titleLeft.Children.Add(centrePicker);
         var centre = centreCaption;
         centre.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
         centre.VerticalAlignment = VerticalAlignment.Center; centre.Margin = ServiceUi.Gap(ServiceUi.S12, 0, 0, 0);
@@ -108,6 +123,12 @@ public abstract class ServiceScreenView : UserControl
         titleRow.Children.Add(actions);
         titleRow.Children.Add(titleLeft);
         heading.Children.Add(titleRow);
+        // 1.12.1 P1: while one centre is chosen, what the choice does not cover (shown under the title).
+        scopeNote.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+        scopeNote.TextWrapping = TextWrapping.Wrap;
+        scopeNote.Margin = ServiceUi.Gap(0, 0, 0, space4);
+        scopeNote.Visibility = Visibility.Collapsed;
+        heading.Children.Add(scopeNote);
 
         // Band 2: one freshness line (SVC-01): the as-at text, a summary chip, only the chips that need a look, and a link to all groups.
         AutomationProperties.SetName(freshnessSummary, "Service data freshness summary");
@@ -287,8 +308,7 @@ public abstract class ServiceScreenView : UserControl
             // 1.12 A4: the name beside the title comes from the store catalogue (no store code in a title).
             var centres = await ServiceCentreServices.LoadOrEmptyAsync();
             if (current != revision) return;
-            ShowCentre(ServiceCentreServices.Label(centres));
-            var source = query();
+            var source = ScopeToChosenCentre(query(), centres);
             var refreshes = await source.LoadRefreshesAsync();
             if (current != revision) return;
             HasData = refreshes.Count > 0;
@@ -326,6 +346,73 @@ public abstract class ServiceScreenView : UserControl
         finally { if (current == revision) IsLoading = false; }
     }
 
+    /// <summary>
+    /// 1.12.1 P1: fills the picker (two or more centres and a query that can be scoped) and returns the query scoped to the
+    /// chosen centre, or the query itself for all centres. Sets the label beside the title and the line under it.
+    /// </summary>
+    private ServiceReportQuery ScopeToChosenCentre(ServiceReportQuery source, IReadOnlyList<ServiceCentre> centres)
+    {
+        var canScope = centres.Count >= 2 && ServiceCentreServices.Scope(source, centres[0].StoreCode) is not null;
+        var chosen = canScope ? ServiceCentreServices.Chosen(centres, ServiceCentreServices.SelectedStoreCode) : null;
+        var scoped = chosen is null ? null : ServiceCentreServices.Scope(source, chosen.StoreCode);
+        if (scoped is null) chosen = null;
+        FillCentrePicker(canScope ? ServiceCentreServices.Choices(centres) : [], chosen?.StoreCode);
+        ChosenCentreCode = chosen?.StoreCode;
+        ShowCentre(chosen is null ? ServiceCentreServices.Label(centres) : ServiceCentreRules.DisplayName(chosen));
+        ShowScopeNote(chosen is null ? "" : CentreScopeNote(CentreLabel));
+        return scoped ?? source;
+    }
+
+    private void FillCentrePicker(IReadOnlyList<ServiceListChoice> choices, string? code)
+    {
+        fillingCentres = true;
+        try
+        {
+            centrePicker.ItemsSource = choices;
+            centrePicker.SelectedItem = choices.FirstOrDefault(choice => string.Equals(choice.Code, code, StringComparison.OrdinalIgnoreCase))
+                ?? choices.FirstOrDefault();
+            centrePicker.Visibility = choices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally { fillingCentres = false; }
+    }
+
+    private async Task OnCentreChosenAsync()
+    {
+        if (fillingCentres || centrePicker.SelectedItem is not ServiceListChoice choice) return;
+        if (string.Equals(choice.Code, ChosenCentreCode, StringComparison.OrdinalIgnoreCase)) return;
+        ServiceCentreServices.SelectedStoreCode = choice.Code;
+        await ActivateAsync();
+    }
+
+    private void ShowScopeNote(string text)
+    {
+        scopeNote.Text = text;
+        scopeNote.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>The store code of the Service Centre this screen shows, or null for all of them (1.12.1 P1).</summary>
+    public string? ChosenCentreCode { get; private set; }
+
+    /// <summary>True while the Service Centre picker is offered (two or more centres and a query that can be scoped).</summary>
+    public bool CentrePickerVisible => centrePicker.Visibility == Visibility.Visible;
+
+    /// <summary>The picker's choices in order (empty while it is hidden).</summary>
+    public IReadOnlyList<ServiceListChoice> CentreChoices =>
+        CentrePickerVisible && centrePicker.ItemsSource is IReadOnlyList<ServiceListChoice> choices ? choices : [];
+
+    /// <summary>Chooses a Service Centre as the picker does (null = all) and reloads; a test may call it.</summary>
+    public Task ChooseCentreAsync(string? storeCode)
+    {
+        ServiceCentreServices.SelectedStoreCode = string.IsNullOrWhiteSpace(storeCode) ? null : storeCode.Trim();
+        return ActivateAsync();
+    }
+
+    /// <summary>The line under the title while one centre is chosen; empty for all centres.</summary>
+    public string CentreScopeText => scopeNote.Text;
+
+    /// <summary>What the centre choice covers on this screen (the Money check and Job history say their own).</summary>
+    protected virtual string CentreScopeNote(string centreName) => ServiceCentreServices.ScopeNote(centreName);
+
     /// <summary>The Service Centre this screen names beside its title and in its exports' scope (1.12 A4).</summary>
     public string CentreLabel { get; private set; } = DefaultCentreLabel;
 
@@ -333,7 +420,8 @@ public abstract class ServiceScreenView : UserControl
     public void ShowCentre(string label)
     {
         CentreLabel = string.IsNullOrWhiteSpace(label) ? DefaultCentreLabel : label.Trim();
-        centreCaption.Text = CentreLabel + ReadOnlySuffix;
+        // 1.12.1 P1: the picker names the centre itself, so the caption beside it only says "read only".
+        centreCaption.Text = CentrePickerVisible ? ReadOnlyText : CentreLabel + ReadOnlySuffix;
     }
 
     /// <summary>The export rule version of every 1.10.0 Service export (R-UI-20).</summary>
