@@ -8,12 +8,18 @@
 #                              tells Claude/Sagar which checkpoints exist if it matches nothing.
 #   -SkipWait                  do not wait for the chain log.
 # Stages: 1 Upgrade (restores the checkpoint, asks YES) -> 2 ServiceUi -> 3 HealthNightOne -> 4 Release113 (read-only checks + manual 1130 checklist).
-# The acceptance helper (Run-VM-Acceptance-1.13.0.ps1) is produced by the integrator beside the 1.12.0 one; until then -Helper points at the 1.12.0 helper.
+# 1.13.0 integration (15 Oct 2026): the helper is Run-VM-Acceptance-1.13.0.ps1 (git copy: ops\pipeline\harness\, business-figure-free); there is NO
+# fallback to the 1.12.0 helper (it has no Release113 stage and no required -CheckpointName). -CheckpointName is required: no placeholder default.
+#   -RecordPerfBaseline        adds stage 0: Release113 -RecordPerfBaseline on the restored 1.12.x checkpoint BEFORE the upgrade (113-VM-HELPER-NOTE.md step 1).
+#   -PublisherThumbprint <SHA-1 from the paper card>, -TrustExpected Trusted|Untrusted|Either: passed to stage 4 (Release113).
 [CmdletBinding()]
 param(
     [ValidateSet('From112x')][string]$Path = 'From112x',
     [string]$CheckpointName,
     [switch]$SkipWait,
+    [switch]$RecordPerfBaseline,
+    [ValidatePattern('^([A-Fa-f0-9]{40})?$')][string]$PublisherThumbprint,
+    [ValidateSet('Either', 'Trusted', 'Untrusted')][string]$TrustExpected = 'Either',
     [string]$Helper = 'E:\ETP\Reference\Work in progress 2026-10-04 (CONTAINS BUSINESS DATA)\Run-VM-Acceptance-1.13.0.ps1'
 )
 $log = 'E:\ETP\Migration 2026-10-04\vm-1.13.0-sequence.log'
@@ -23,8 +29,16 @@ $chain = 'E:\ETP\Migration 2026-10-04\chain-1.13.0.log'
 $instDir = Split-Path $inst -Parent
 $stagesFile = 'E:\ETP\Migration 2026-10-04\vm-1.13.0-stages.txt'
 $h = $Helper
-if (-not (Test-Path -LiteralPath $h)) { $h = 'E:\ETP\Reference\Work in progress 2026-10-04 (CONTAINS BUSINESS DATA)\Run-VM-Acceptance-1.12.0.ps1' }
+if (-not (Test-Path -LiteralPath $h)) {
+  Write-Host "VM acceptance helper not found: $h (copy ops\pipeline\harness\Run-VM-Acceptance-1.13.0.ps1 there). Not falling back to 1.12.0." -ForegroundColor Red
+  Stop-Transcript | Out-Null; Read-Host 'Press Enter to close'; exit 1
+}
 $vmName = 'ETP-Acceptance-186'
+if (-not $CheckpointName) {
+  Write-Host "Pass -CheckpointName with the 1.12.x checkpoint to upgrade from (no default). Checkpoints of ${vmName}:" -ForegroundColor Red
+  Get-VMSnapshot -VMName $vmName -ErrorAction SilentlyContinue | Sort-Object CreationTime | Format-Table Name, CreationTime -AutoSize | Out-String | Write-Host
+  Stop-Transcript | Out-Null; Read-Host 'Press Enter to close'; exit 1
+}
 if (-not $SkipWait) {
   Write-Host "Waiting for the 1.13.0 gate and installer ($chain)..." -ForegroundColor Cyan
   $lastBeat = Get-Date
@@ -80,9 +94,6 @@ Write-Host 'release.json records obfuscation and Authenticode signing; no symbol
 Write-Host "Installer ready. Checkpoints on ${vmName}:" -ForegroundColor Green
 Get-VMSnapshot -VMName $vmName | Sort-Object CreationTime | Format-Table Name, CreationTime -AutoSize | Out-String | Write-Host
 $pattern = $CheckpointName
-if (-not $pattern) {
-  $pattern = 'VM112x*'   # PLACEHOLDER: the checkpoint taken after the 1.12.x acceptance; pass -CheckpointName with the real name
-}
 if (-not (Get-VMSnapshot -VMName $vmName | Where-Object Name -like $pattern)) {
   Write-Host "No checkpoint matching '$pattern' - stopping. Tell Claude which checkpoint to use (or pass -CheckpointName)." -ForegroundColor Red
   "ABORT no checkpoint '$pattern' $(Get-Date -Format s)" | Add-Content $stagesFile
@@ -97,8 +108,12 @@ $stages = @(
   @{ Name = '1/4 Upgrade to 1.13.0 from the 1.12.x checkpoint';  Args = @('-Scenario','Upgrade','-Stage','Install','-UpgradeFrom','Checkpoint','-CheckpointName',$pattern) },
   @{ Name = '2/4 Service UI checks and timings';          Args = @('-Scenario','Rehearsal','-Stage','ServiceUi') },
   @{ Name = '3/4 Night-one health check';                 Args = @('-Scenario','Rehearsal','-Stage','HealthNightOne') },
-  @{ Name = '4/4 1.13.0 read-only checks and checklist';   Args = @('-Scenario','Upgrade','-UpgradeFrom','Checkpoint','-Stage','Release113') }
+  @{ Name = '4/4 1.13.0 read-only checks and checklist';   Args = @('-Scenario','Upgrade','-UpgradeFrom','Checkpoint','-Stage','Release113','-TrustExpected',$TrustExpected) + $(if ($PublisherThumbprint) { @('-PublisherThumbprint',$PublisherThumbprint) } else { @() }) }
 )
+if ($RecordPerfBaseline) {
+  # Stage 0 (113-VM-HELPER-NOTE.md step 1): timings on the 1.12.x checkpoint before the upgrade; restores the checkpoint and asks YES.
+  $stages = @(@{ Name = '0/4 Performance baseline on the 1.12.x checkpoint'; Args = @('-Scenario','Upgrade','-UpgradeFrom','Checkpoint','-Stage','Release113','-RecordPerfBaseline','-CheckpointName',$pattern) }) + $stages
+}
 foreach ($s in $stages) {
   Write-Host "`n===== $($s.Name) =====" -ForegroundColor Cyan
   $a = @($s.Args)

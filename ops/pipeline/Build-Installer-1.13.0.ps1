@@ -20,6 +20,8 @@ param(
     [switch]$NoSqlPayload,
     [switch]$Protect,
     [string]$PfxPath,
+    # Integration 15 Oct: build-windows-installer.ps1 refuses -PfxPath without a timestamp service (RFC 3161; needs internet during the build).
+    [uri]$TimestampServer = 'http://timestamp.digicert.com',
     [string]$SymbolsRoot = 'E:\ETP\Reference\Symbols',
     [string]$FixtureFolder = 'tests-dotnet\fixtures\etp-sample',
     [string]$InnoSetupCompiler = 'E:\Tools\Inno Setup 6',
@@ -44,7 +46,7 @@ if (-not $NoSqlPayload) {
     $payloadArg = "-SqlPayloadDirectory '$SqlPayloadDirectory'"
 }
 $protectArg = ''
-if ($Protect) { $protectArg = "-Protect -PfxPath '$PfxPath'" }
+if ($Protect) { $protectArg = "-Protect -PfxPath '$PfxPath' -TimestampServer '$($TimestampServer.AbsoluteUri)'" }
 $protectOn = if ($Protect) { '$true' } else { '$false' }
 $log = Join-Path $PSScriptRoot "installer-build-$Version"
 $cmd = @"
@@ -71,11 +73,10 @@ try {
         "SMOKE protected vs unprotected on `$db `$(Get-Date -Format s)" | Tee-Object -FilePath `$log -Append
         & .\scripts\release\Test-EtpProtectedBuild.ps1 -Protected `$relFull -Unprotected `$unprot -FixtureFolder '$FixtureFolder' -Database `$db *>&1 | Tee-Object -FilePath `$log -Append
         if (`$LASTEXITCODE) { throw "Protected-build smoke failed (exit `$LASTEXITCODE): the protected build differs from the unprotected one. NOT publishable." }
-        `$arch = Join-Path '$SymbolsRoot' "$Version-`$sha"
-        New-Item -ItemType Directory -Force `$arch | Out-Null
-        Copy-Item -Path (Join-Path `$sym '*') -Destination `$arch -Recurse -Force
-        if (-not (Test-Path -LiteralPath (Join-Path `$arch 'Mapping.txt'))) { throw "Symbol archive incomplete: no Mapping.txt in `$arch" }
-        "SYMBOLS archived to `$arch (private; never copy to Installers, USB-KIT or the update feed)" | Tee-Object -FilePath `$log -Append
+        # Integration 15 Oct: O1's archive script (SHA256SUMS + read-back, map checked against release.json, never overwrites,
+        # refuses Installers/OneDrive/the release folder) instead of a plain copy. It names the folder <version>-<sha7> from release.json.
+        & .\scripts\release\Archive-EtpSymbols.ps1 -SymbolsDirectory `$sym -ReleaseDirectory `$relFull -ArchiveRoot '$SymbolsRoot' *>&1 | Tee-Object -FilePath `$log -Append
+        if (-not `$?) { throw "Symbol archive failed: the map of this build is not safely archived. NOT publishable." }
     }
 } catch { ('FAILED: ' + `$_.Exception.Message) | Tee-Object -FilePath `$log -Append; exit 1 }
 "@

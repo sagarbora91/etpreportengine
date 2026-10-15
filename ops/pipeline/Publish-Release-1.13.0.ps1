@@ -63,10 +63,18 @@ $forbidden = @(Get-ChildItem -LiteralPath $relDir, $src.FullName -Recurse -File 
     Where-Object { $_.Extension -in '.pdb', '.map' -or $_.Name -in 'Mapping.txt', 'obfuscation-report.json' })
 if ($forbidden.Count) { throw ("Refusing to publish: symbol or obfuscation-map files are inside the release/installer folder: " + (($forbidden | Select-Object -First 10 | ForEach-Object { $_.FullName }) -join "; ")) }
 $symbolsDir = "$relDir-symbols"
-$obfuscated = Test-Path -LiteralPath (Join-Path $symbolsDir 'Mapping.txt')
-if (-not $obfuscated -and -not $AllowUnprotected) { throw "No Mapping.txt in ${symbolsDir}: this is not a protected (obfuscated) build. Pass -AllowUnprotected only for a deliberate test publish." }
+# Integration 15 Oct: the map alone is not proof; the publish folder's own release.json (written by build-windows-release.ps1 -Protect)
+# must say obfuscated, and the unprotected comparison folder's marker must never be in the publish folder.
+$relReceipt = $null
+try { $relReceipt = Get-Content -LiteralPath (Join-Path $relDir 'release.json') -Raw | ConvertFrom-Json } catch { $relReceipt = $null }
+$obfuscated = (Test-Path -LiteralPath (Join-Path $symbolsDir 'Mapping.txt')) -and $null -ne $relReceipt -and $null -ne $relReceipt.protection -and $relReceipt.protection.obfuscated -eq $true
+if (Test-Path -LiteralPath (Join-Path $relDir 'NOT-FOR-RELEASE.txt')) { throw "Refusing to publish: $relDir is the unprotected comparison build (NOT-FOR-RELEASE.txt)." }
+if (-not $obfuscated -and -not $AllowUnprotected) { throw "No Mapping.txt in ${symbolsDir}, or $relDir\release.json does not record protection.obfuscated=true: this is not a protected (obfuscated) build. Pass -AllowUnprotected only for a deliberate test publish." }
 $sig = Get-AuthenticodeSignature -LiteralPath $setup.FullName
 $signed = $null -ne $sig.SignerCertificate
+if ($signed -and $sig.Status -notin @([System.Management.Automation.SignatureStatus]::Valid, [System.Management.Automation.SignatureStatus]::UnknownError, [System.Management.Automation.SignatureStatus]::NotTrusted)) {
+    throw "Refusing to publish: the installer's signature status is $($sig.Status) (changed after signing?)."
+}
 $protNote = 'Build protection: obfuscation=' + $(if ($obfuscated) { 'Obfuscar (Mapping.txt archived under Reference\Symbols, not shipped)' } else { 'NONE' }) +
     '; Authenticode=' + $(if ($signed) { "signed, signer thumbprint $($sig.SignerCertificate.Thumbprint), status $($sig.Status)" } else { 'NOT SIGNED' }) +
     '; pdb-in-release=none.'
