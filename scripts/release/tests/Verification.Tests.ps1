@@ -178,6 +178,16 @@ namespace A
     $fakeTool = Join-Path $root 'tools\ilspycmd.exe'
     [void](New-Item -ItemType Directory -Path (Split-Path -Parent $fakeTool) -Force); [IO.File]::WriteAllText($fakeTool, 'not a tool')
     Assert-True ((Invoke-Child 'Compare-EtpDecompilation.ps1' @('-Protected', (Join-Path $root 'p'), '-Unprotected', (Join-Path $root 'u'), '-IlSpyCmd', $fakeTool)) -eq 2 -and $script:LastOutput -match 'not the pinned version') 'an ilspycmd that is not the pinned version is refused'
+    # The installed tool (read-only pin check; never installs anything).
+    $installedIlSpy = if ($env:ETP_ILSPYCMD) { $env:ETP_ILSPYCMD } else { 'E:\Tools\ilspycmd\ilspycmd.exe' }
+    if (Test-Path -LiteralPath $installedIlSpy -PathType Leaf) {
+        $pinnedIlSpy = '11.1.0.9782'
+        $ilspyError = $null
+        try { Assert-EtpIlSpy $installedIlSpy $pinnedIlSpy } catch { $ilspyError = $_.Exception.Message }
+        Assert-True ($null -eq $ilspyError) "installed ilspycmd at $installedIlSpy is the pinned $pinnedIlSpy $(if ($ilspyError) { "($ilspyError)" })"
+        Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $releaseFolder 'Compare-EtpDecompilation.ps1')).Contains("'$pinnedIlSpy'")) 'Compare-EtpDecompilation.ps1 pins the same ilspycmd version'
+    }
+    else { Write-Host "SKIP  installed-tool check: ilspycmd is not installed at $installedIlSpy (install it pinned, see docs\security\VERIFICATION.md)" }
 
     # ---------------------------------------------------------------- Resolve-EtpStackTrace
     $mapping = @'

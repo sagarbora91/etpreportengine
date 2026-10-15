@@ -118,6 +118,14 @@ try {
     $exe = Get-EtpObfuscarTool -ObfuscarRoot $tools -ExpectedSha256 $fakeHash
     Assert-True ($exe -eq (Join-Path $toolDir 'obfuscar.console.exe')) 'Pinned version with the recorded hash: accepted'
 
+    # ---- The installed tool (read-only check; never runs it, never installs it) ----
+    $installedRoot = if ($env:ETP_OBFUSCAR_ROOT) { $env:ETP_OBFUSCAR_ROOT } else { 'E:\Tools\Obfuscar' }
+    if (Test-Path -LiteralPath (Join-Path $installedRoot "$v\obfuscar.console.exe") -PathType Leaf) {
+        $message = Get-Thrown { $null = Get-EtpObfuscarTool -ObfuscarRoot $installedRoot }
+        Assert-True ($null -eq $message) "installed Obfuscar $v under $installedRoot matches the recorded package SHA-256 $(if ($message) { "($message)" })"
+    }
+    else { Write-Host "SKIP  installed-tool check: Obfuscar $v is not installed under $installedRoot (install it pinned, see docs\security\RELEASE-PROTECTION.md section 3)" }
+
     # ---- Folders: symbols never inside the release folder ----
     Assert-True (-not (Test-EtpPathInside -Child 'C:\a\rel-symbols' -Parent 'C:\a\rel')) '<out>-symbols is not inside <out>'
     Assert-True (-not (Test-EtpPathInside -Child 'C:\a\rel-unprotected' -Parent 'C:\a\rel')) '<out>-unprotected is not inside <out>'

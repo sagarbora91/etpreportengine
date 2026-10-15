@@ -69,7 +69,7 @@ Options (only with `-Protect`):
 | Tool | Obfuscar.GlobalTool 2.2.50 (stable line; MIT; https://github.com/obfuscar/obfuscar). 3.0.0-beta.x only if 2.2.50 fails the smoke |
 | Location | `E:\Tools\Obfuscar\2.2.50\obfuscar.console.exe` (a `dotnet tool install --tool-path` folder) |
 | Pin | `$script:EtpObfuscarVersion` and `$script:EtpObfuscarPackageSha256` in `scripts\release\Invoke-EtpObfuscation.ps1` |
-| Package SHA-256 | **not yet recorded** - the lanes have no internet. The integrator fills it in at install time (below) |
+| Package SHA-256 | `D20AEE4F26A2A81D1348F687D0D069DDC8346F8ECDDEE04C7FCBBA89A29B6904` (`obfuscar.globaltool.2.2.50.nupkg`, installed 15 Oct 2026 with Sagar's approval; also in `E:\Tools\TOOLS-SHA256.txt`) |
 | Runtime | 2.2.x targets an older .NET than the SDK on Workpc; the script sets `DOTNET_ROLL_FORWARD=Major` for the one call |
 
 ### Installing the tool (integrator, once per version)

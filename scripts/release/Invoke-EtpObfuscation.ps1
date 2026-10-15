@@ -52,7 +52,7 @@ $script:EtpObfuscarPackageId = 'obfuscar.globaltool'
 $script:EtpObfuscarVersion = '2.2.50'
 # SHA-256 of obfuscar.globaltool.<version>.nupkg as installed under <ObfuscarRoot>\<version>\.store. Lanes have no internet,
 # so the integrator records it at install time (RELEASE-PROTECTION.md "Installing the tool"). Empty = refuse.
-$script:EtpObfuscarPackageSha256 = ''
+$script:EtpObfuscarPackageSha256 = 'D20AEE4F26A2A81D1348F687D0D069DDC8346F8ECDDEE04C7FCBBA89A29B6904'
 
 # The seven ETP assemblies. The six non-UI ones get the full treatment; Desktop is handled by -DesktopObfuscation.
 $script:EtpLibraryModules = @(

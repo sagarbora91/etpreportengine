@@ -8,7 +8,7 @@ Findings, not claims: the report states numbers and the honest limits. With -Str
 fails the thresholds below; without it, exit 0 means "the report was written".
 
 ilspycmd is NOT downloaded here. Install it once by hand, pinned (plan 4.3.4 pattern, like Inno Setup):
-    dotnet tool install ilspycmd --version 11.1.0 --tool-path E:\Tools\ilspycmd
+    dotnet tool install ilspycmd --version 11.1.0.9782 --tool-path E:\Tools\ilspycmd
 and the script refuses if E:\Tools\ilspycmd\ilspycmd.exe is missing or is not the pinned version.
 
 Counted per assembly, before (unprotected) and after (protected):
@@ -33,7 +33,7 @@ param(
     [string]$Unprotected,
     [string]$OutputFile,
     [string]$IlSpyCmd = 'E:\Tools\ilspycmd\ilspycmd.exe',
-    [string]$PinnedVersion = '11.1.0',
+    [string]$PinnedVersion = '11.1.0.9782',   # NuGet needs the 4-part version
     [string[]]$Assemblies = @('Etp.Reporting.Domain', 'Etp.Reporting.Application', 'Etp.Reporting.Import', 'Etp.Reporting.Infrastructure.SqlServer', 'Etp.Reporting.Infrastructure.Http', 'Etp.Reporting.Reporting', 'Etp.Reporting.Desktop'),
     [string[]]$StrictAssemblies = @('Etp.Reporting.Reporting', 'Etp.Reporting.Infrastructure.SqlServer'),
     [int]$MaxReadablePercent = 10,
