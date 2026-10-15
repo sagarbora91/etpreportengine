@@ -84,6 +84,8 @@ On supported reports, expand Filters, set query criteria and Apply. The applied 
 
 **Stock.** Closing, Brand, Slow / Exception and Physical stock use each store's latest closing-stock snapshot on or before the chosen date, and say "Snapshot of <date> (latest on or before <date>)". They are Blocked, naming the store, only when no earlier snapshot exists. Stock Variance, the daily pack and Enter stock by brand still need the snapshot of the same day; import the Closing Stock export for that date. Stock Variance over several stores gives each store's own result first.
 
+**Which day a stock export counts for (1.12.1).** A Closing Stock or BinWise export made from 12:00 is the closing stock of the day it was made; one made before 12:00 is the closing stock of the previous day, whatever the date inside the file says (ETP reads the time from the file name, so keep the name ETP gave it). Export Closing Stock after the last bill of the day, or next morning before the first bill. When a day has no Closing Stock and ETP uses the BinWise export instead, it counts the retail bin only, as Closing Stock does. If a stock file was stored under a wrong date, import the same file again: ETP stores it under the right day and retires the earlier copy by itself, recording the reason "re-dated"; nothing is deleted.
+
 **Exports.** Export to Excel or PDF from the current result. The Save dialog starts in `Documents\ETP Reporting Engine\Exports`, the folder that **Open export folder** opens, and the file is named after the report (for example "Combined Sales Summary"). If the file is open in Excel, close it and export again.
 
 ## Daily inputs sheet and the shop evening routine
