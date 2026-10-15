@@ -5,6 +5,12 @@ param(
     [string]$OutputDirectory = "artifacts/installer",
     [string]$CertificateThumbprint,
     [uri]$TimestampServer,
+    # Code protection S1 (decision D5). The ETP code-signing PFX on a USB stick, instead of -CertificateThumbprint. The
+    # passphrase is asked once at a hidden prompt. Signs the exe, the Etp.*.dll files, every .ps1/.psm1 and the installer.
+    [string]$PfxPath,
+    [switch]$AllowFixedDrive,
+    # Code protection O1/G1. Passed to build-windows-release.ps1 (obfuscation). Not passed unless set.
+    [switch]$Protect,
     # P4-11. Supply the Microsoft SQL Server Express media to build an installer that
     # can install it. Omit it and setup shows no database option at all, rather than
     # offering one it cannot honour.
@@ -57,8 +63,16 @@ if (Test-Path -LiteralPath $output) { throw "Installer output already exists. Ch
 # release still builds; what it loses is the guarantee of who produced it.
 # Partial credentials are a mistake, not a choice: supplying one and not the other
 # used to throw, and must not now degrade silently into an unsigned release.
-if ([bool]$CertificateThumbprint -ne [bool]$TimestampServer) { throw 'Supply both a signing certificate and a timestamp service, or neither.' }
-$signRelease = [bool]$CertificateThumbprint -and [bool]$TimestampServer
+if ($PfxPath -and $CertificateThumbprint) { throw 'Use -PfxPath or -CertificateThumbprint, not both.' }
+if ([bool]($CertificateThumbprint -or $PfxPath) -ne [bool]$TimestampServer) { throw 'Supply both a signing certificate and a timestamp service, or neither.' }
+$signWithPfx = [bool]$PfxPath
+$signRelease = [bool]($CertificateThumbprint -or $PfxPath) -and [bool]$TimestampServer
+$pfxPassphrase = $null
+if ($signWithPfx) {
+    # Fail early (wrong drive, missing file) before the long build; ask the passphrase once.
+    if (-not (Test-Path -LiteralPath $PfxPath -PathType Leaf)) { throw "The signing certificate file was not found: $PfxPath" }
+    $pfxPassphrase = Read-Host -AsSecureString 'Code-signing key passphrase'
+}
 # Check the SQL media before anything is built, so media that cannot work stops here and
 # not after a full release build. Setup installs, from exactly these files, the engine,
 # ODBC Driver 17, then Sqlcmd; see Get-EtpSqlClientInstallPlan in bootstrap.
@@ -78,7 +92,19 @@ if ($SqlPayloadDirectory) {
 # after the whole build and test gate had run.
 $compiler = Resolve-EtpInnoSetupCompiler -Requested $InnoSetupCompiler
 Write-Host "Using Inno Setup compiler: $compiler"
-if (-not $SkipReleaseBuild) { & (Join-Path $PSScriptRoot "build-windows-release.ps1") -Configuration $Configuration -OutputDirectory $ReleaseDirectory -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
+if (-not $SkipReleaseBuild) {
+    # With -PfxPath the release build is left unsigned on purpose: this script signs everything itself afterwards, in one
+    # pass, from the USB key (so the PFX path never reaches the release build).
+    $releaseArguments = @{ Configuration = $Configuration; OutputDirectory = $ReleaseDirectory }
+    if ($CertificateThumbprint) { $releaseArguments.CertificateThumbprint = $CertificateThumbprint; $releaseArguments.TimestampServer = $TimestampServer }
+    if ($Protect) { $releaseArguments.Protect = $true }
+    & (Join-Path $PSScriptRoot "build-windows-release.ps1") @releaseArguments
+}
+# Code protection 4.2: debug symbols never ship. Symbols belong in <ReleaseDirectory>-symbols, outside the folder that is packed.
+$symbolFiles = @(Get-ChildItem -LiteralPath $release -Recurse -File -Include '*.pdb','Mapping.txt','obfuscation-report.json' -ErrorAction SilentlyContinue)
+if ($symbolFiles.Count -gt 0) {
+    throw ("The release folder contains debug symbols or obfuscation maps and cannot be packed: " + (($symbolFiles | Select-Object -First 5 | ForEach-Object { $_.FullName.Substring($release.Length).TrimStart('') }) -join ', ') + $(if ($symbolFiles.Count -gt 5) { " and $($symbolFiles.Count - 5) more" }) + ". Move them to the symbols folder first.")
+}
 [xml]$props = Get-Content -LiteralPath (Join-Path $repoRoot "Directory.Build.props")
 $version = $props.SelectSingleNode('/Project/PropertyGroup/VersionPrefix').InnerText
 $executable = Join-Path $release "Etp.Reporting.Desktop.exe"
@@ -88,7 +114,30 @@ if (($embedded.ProductVersion -split '\+')[0] -ne $version) { throw "Release exe
 $receipt = Get-Content -Raw -LiteralPath (Join-Path $release "release.json") | ConvertFrom-Json
 if ($receipt.version -ne $version) { throw "Release receipt version does not match installer version $version." }
 $payloads = @($executable) + @(Get-ChildItem -LiteralPath (Join-Path $release 'scripts') -Filter '*.ps1' -File -Recurse | ForEach-Object FullName)
-if ($signRelease) {
+if ($signWithPfx) {
+    # Everything ETP ships that Windows can check: the exe, the ETP assemblies (Microsoft's are already signed), all scripts.
+    $pfxPayloads = @($executable) +
+        @(Get-ChildItem -LiteralPath $release -Filter 'Etp.*.dll' -File -Recurse | ForEach-Object FullName) +
+        @(Get-ChildItem -LiteralPath $release -Include '*.ps1','*.psm1' -File -Recurse | ForEach-Object FullName)
+    $pfxPayloads = @($pfxPayloads | Select-Object -Unique)
+    $signArguments = @{ Paths = $pfxPayloads; PfxPath = $PfxPath; Passphrase = $pfxPassphrase; TimestampServer = $TimestampServer }
+    if ($AllowFixedDrive) { $signArguments.AllowFixedDrive = $true }
+    & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') @signArguments
+    # The exe changed when it was signed: the release folder's checksum file must describe the signed exe.
+    $exeHash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
+    "$($exeHash.Hash)  $(Split-Path -Leaf $executable)" | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding ascii
+    # Refuse an unsigned payload: every file must now carry a signature from one single signer, with a timestamp.
+    $signers = @()
+    foreach ($payload in $pfxPayloads) {
+        $signature = Get-AuthenticodeSignature -LiteralPath $payload
+        if ("$($signature.Status)" -notin @('Valid', 'UnknownError', 'NotTrusted') -or $null -eq $signature.SignerCertificate -or $null -eq $signature.TimeStamperCertificate) {
+            throw "Every shipped executable, assembly and script must be signed before packaging; not signed: $([IO.Path]::GetFileName($payload))."
+        }
+        $signers += $signature.SignerCertificate.Thumbprint
+    }
+    if (@($signers | Select-Object -Unique).Count -ne 1) { throw 'The payload is signed by more than one certificate.' }
+}
+elseif ($signRelease) {
     foreach ($payload in $payloads) {
         $signature = Get-AuthenticodeSignature -LiteralPath $payload
         if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ine $CertificateThumbprint) {
@@ -106,6 +155,11 @@ else { Write-Warning 'Building without SQL media: setup will not offer to instal
 & $compiler @compilerArguments (Join-Path $repoRoot "installer\EtpReportingEngine.iss")
 if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed." }
 $installer = Get-Item -LiteralPath (Join-Path $output "EtpReportingEngine-Setup-$version-x64.exe")
-if ($signRelease) { & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') -Paths @($installer.FullName) -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
+if ($signWithPfx) {
+    $installerSignArguments = @{ Paths = @($installer.FullName); PfxPath = $PfxPath; Passphrase = $pfxPassphrase; TimestampServer = $TimestampServer }
+    if ($AllowFixedDrive) { $installerSignArguments.AllowFixedDrive = $true }
+    & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') @installerSignArguments
+}
+elseif ($signRelease) { & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') -Paths @($installer.FullName) -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
 Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $($installer.Name)" } | Set-Content (Join-Path $installer.DirectoryName "SHA256SUMS.txt") -Encoding ascii
 Write-Host "Windows installer created at $($installer.FullName)"
