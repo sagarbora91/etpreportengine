@@ -52,6 +52,47 @@ public sealed class F1MoneyRulesSqlTests(SqlDatabaseFixture database) : IClassFi
         Assert.Equal("I1", await database.ExecuteAsync($"SELECT STRING_AGG(document_number,',') FROM dbo.v_sales_cancelled_same_day WHERE store_code='{store}'"));
     }
 
+    // Decision 68 #1: gift cards, and line types the DSR does not count, are out of every store total. W9 = watch 3,000 +
+    // gift card (brand GC) 500, both CRO C9; G9 = a gift-card-only bill 1,000; X9 = a line of type NEW, 200, no CRO.
+    [SqlFact]
+    public async Task Staff_sales_summary_customer_wise_and_trend_give_the_dsr_value_on_a_gift_card_day()
+    {
+        const string store = "F1GIFT";
+        var day = new DateOnly(2033, 3, 9);
+        await SeedAsync(store,
+            new("W9", day, "INV", "WATCH9", "WB", 1, 3000, Cro: "C9"),
+            new("W9", day, "INV", "GCX9", "GC", 1, 500, Cro: "C9"),
+            new("G9", day, "INV", "GIFT CARD", "GC", 1, 1000),
+            new("X9", day, "NEW", "ITEMX", "WB", 1, 200));
+        var reports = new OperationalReportRepository(database.ConnectionString);
+        var scope = new ReportingQueryScope(day, day, [store]);
+
+        // DSR: VALUE 3,000, VOL 1, INVOICE 1 (W9), GIFT CARD 500 + 1,000 = 1,500.
+        var ftd = (await reports.LoadDsrAsync(day, [store])).Single(x => x.Period == "FTD" && x.Store == store);
+        Assert.Equal((3000m, 1m, 1, 1500m), (ftd.TySales, ftd.TyUnits, ftd.TyInvoices, ftd.TyGiftCards));
+
+        // Staff: canonical 3,000 (was 4,700 = 3,000 + 500 + 1,000 + 200), C9 3,000 / 1 unit / 1 bill (was 3,500 / 2 units), Passed.
+        var staff = await reports.LoadStaffPerformanceAsync(scope);
+        Assert.Equal((3000m, 3000m, 0m, ReconciliationStatus.Passed), (staff.CanonicalSales, staff.AttributedSales, staff.Variance, staff.Status));
+        var c9 = Assert.Single(staff.Rows);
+        Assert.Equal((3000m, 1m, 1, 3000m, 100m), (c9.NetSales, c9.NetQuantity, c9.Transactions, c9.Atv, c9.ContributionPercent));
+
+        // Sales summary (store and brand): 3,000 and 1 invoice (was 4,500 and 2; X9 was already skipped with a warning).
+        var executor = new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(database.ConnectionString),
+            RetailReportingPolicy.Mapping, RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
+        var byStore = Assert.Single((await executor.ExecuteSalesSummaryAsync(scope, SalesSummaryDimension.Store)).Rows);
+        Assert.Equal((3000m, 1), (byStore.SourceSignedNetAmount, byStore.Invoices));
+        Assert.Equal(3000m, (await executor.ExecuteSalesSummaryAsync(scope, SalesSummaryDimension.Brand)).Rows.Sum(x => x.SourceSignedNetAmount));
+
+        // Customer-wise: only W9, at 3,000 (was W9 3,500 + G9 1,000 + X9 200 = 4,700).
+        var customer = Assert.Single(await reports.LoadInvoiceSummaryAsync(scope));
+        Assert.Equal(("W9", "INV", 3000m, 1m), (customer.DocumentNumber, customer.TransactionTypes, customer.NetValue, customer.Quantity));
+
+        // Management Trend: 3,000 (already) and 1 invoice (was 2: G9 counted).
+        var trend = Assert.Single(await new Phase2OperationsRepository(database.ConnectionString).LoadManagementTrendAsync(day, day), x => x.StoreCode == store);
+        Assert.Equal((3000m, 1), (trend.NetSales, trend.Invoices));
+    }
+
     /// <summary>One synthetic sales line; <paramref name="Ref"/> is the R025 INVREFNO of a BC row (same day); <paramref name="Cro"/> adds a paired R013 row.</summary>
     private sealed record Line(string Doc, DateOnly Date, string Type, string Item, string Brand, decimal Qty, decimal Amount, string? Ref = null, string? Cro = null);
 

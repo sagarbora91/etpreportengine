@@ -364,7 +364,8 @@ public sealed class Phase2OperationsRepository(string connectionString)
     /// <summary>
     /// RA-OPS-17 (1.9.9): Management Trend net sales and units follow the DSR VALUE/VOL rule (owner decision 13): only
     /// INV/SR/BC lines count and gift-card lines add 0. The WHERE clause is unchanged, so a day whose only lines are gift
-    /// cards still has a row (reading 0); invoice and return counts are unchanged.
+    /// cards still has a row (reading 0). Decision 68 #1 (1.12.1): a bill counts as an invoice only with a merchandise INV
+    /// line, like DSR INVOICE, so a gift-card-only bill is not an invoice. The return count is unchanged.
     /// </summary>
     internal static readonly string ManagementTrendSalesLine =
         $"UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC') AND NOT {NonMerchandiseSql.SalesLine("l")}";
@@ -373,7 +374,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         SELECT i.transaction_date,i.store_code,
                 SUM(CASE WHEN {ManagementTrendSalesLine} THEN l.source_gross_amount ELSE 0 END) net_sales,
                 SUM(CASE WHEN {ManagementTrendSalesLine} THEN l.source_quantity ELSE 0 END) units,
-                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END) invoices,
+                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END) invoices,
                 COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type) IN('SR','BC') THEN i.sales_invoice_id END) returns
         """;
 

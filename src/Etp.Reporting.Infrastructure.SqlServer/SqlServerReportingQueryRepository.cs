@@ -11,6 +11,8 @@ public static class SqlReportingQueries
     // snapshot view for the (store, item) keys sold in the window (CTE latest_product), not by a TOP(1) probe per sales line.
     // Same rule as before: the latest snapshot day, then the latest row. Read-only check on live, Oct 2024 to Sep 2026:
     // identical rows (6,679), the lookup 2.6 s -> 0.04 s.
+    // Decision 68 #1: gift-card lines are left out (NonMerchandiseSql); lines of a type the policy does not map are skipped by
+    // SqlBackedReportingExecutor with a warning, so the Sales summary and Brand-wise totals are the DSR VALUE basis.
     public const string Sales = $"""
         WITH sold AS
         (
@@ -43,6 +45,8 @@ public static class SqlReportingQueries
           AND (@segmentsJson IS NULL OR COALESCE(l.brand_segment,p.cluster) IN (SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segmentsJson)))
           AND (@typesJson IS NULL OR l.source_transaction_type IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@typesJson)))
           AND (@itemsJson IS NULL OR l.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
+          -- Decision 68 #1 (1.12.1): gift cards are not in the store total, as on the DSR (Sales summary, Brand-wise).
+          AND NOT {NonMerchandiseSql.SalesLineOfL}
         ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
         """;
 

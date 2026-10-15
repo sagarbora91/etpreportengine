@@ -244,7 +244,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// AUDIT-4 spot 4: the names of the window are numbered once and joined, not probed per invoice; 0060 indexes etp_r024
     /// by date.
     /// </summary>
-    internal const string InvoiceSummarySql = """
+    internal static readonly string InvoiceSummarySql = $"""
         SELECT i.transaction_date,i.store_code,i.document_number,
                CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
                     THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED'))
@@ -270,6 +270,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
           ON customer.newest=1 AND customer.store_code=i.store_code AND customer.document_number=i.document_number AND customer.transaction_date=i.transaction_date
         WHERE i.transaction_date BETWEEN @from AND @to
           AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          -- Decision 68 #1: the DSR VALUE basis. Gift-card lines and lines of a type the DSR does not count are left out, so
+          -- a gift-card-only bill is not listed and the grand total equals the DSR VALUE.
+          AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC') AND NOT {NonMerchandiseSql.SalesLine("l")}
         GROUP BY i.transaction_date,i.store_code,i.document_number
         ORDER BY i.transaction_date,i.store_code,i.document_number;
         """;
@@ -432,6 +435,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
         LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
         WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+          AND NOT {NonMerchandiseSql.SalesLine("l")}
           AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
           AND e.source_cro_number IS NOT NULL
         GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(l.source_gross_amount) DESC;
@@ -443,6 +447,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
         JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
         WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+          AND NOT {NonMerchandiseSql.SalesLine("l")}
           AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
           AND e.source_cro_number IS NOT NULL
         GROUP BY e.store_code,e.source_cro_number;
@@ -453,10 +458,12 @@ public sealed partial class OperationalReportRepository(string connectionString)
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        const string totalSql = """
+        // Decision 68 #1: the store total is the DSR VALUE basis: INV/SR/BC lines only, gift cards left out.
+        var totalSql = $"""
             SELECT i.store_code,COALESCE(SUM(l.source_gross_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             WHERE i.transaction_date BETWEEN @from AND @to
+              AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC') AND NOT {NonMerchandiseSql.SalesLine("l")}
               AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
             GROUP BY i.store_code;
             """;
