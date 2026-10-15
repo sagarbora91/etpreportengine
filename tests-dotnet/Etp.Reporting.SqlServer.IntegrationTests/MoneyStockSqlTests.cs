@@ -92,7 +92,7 @@ public sealed class MoneyStockSqlTests
         try
         {
             await database.InitializeAsync();
-            await SeedSnapshot(database, new("ITEM-S", "LOT-1", 10m, 100m, 1000m));
+            await SeedSnapshot(database, new Line("ITEM-S", "LOT-1", 10m, 100m, 1000m));
             var counts = new OperationalCompletionRepository(database.ConnectionString);
             var reports = new OperationalReportRepository(database.ConnectionString);
 
@@ -128,7 +128,7 @@ public sealed class MoneyStockSqlTests
         try
         {
             await database.InitializeAsync();
-            await SeedSnapshot(database, new("ITEM-S", "LOT-1", 10m, 100m, 1000m));
+            await SeedSnapshot(database, new Line("ITEM-S", "LOT-1", 10m, 100m, 1000m));
             // Backstock left blank: the total is unknown, so no variance is computed (blank is never read as zero).
             await new OperationalCompletionRepository(database.ConnectionString)
                 .SaveManualStockCountAsync(Store, Day, "SAMPLE", 6, null, 0, 1, null, "Backstock not counted", "test", "Synthetic count");

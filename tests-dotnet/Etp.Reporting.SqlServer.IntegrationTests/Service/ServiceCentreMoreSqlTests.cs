@@ -3,6 +3,7 @@ using Etp.Reporting.Application.Service;
 using Etp.Reporting.Application.Stores;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Infrastructure.SqlServer.Connections;
+using Etp.Reporting.TestSupport.Service;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests.Service;
 

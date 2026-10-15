@@ -72,8 +72,8 @@ public sealed class ServiceCentreMoreTests
         Assert.Equal(Columns(SqlServerServiceReportQuery.PartsSql), Columns(SqlServerServiceReportQuery.PartsNotMatchedSql, "p."));
         Assert.Equal(Columns(SqlServerServiceReportQuery.StockSql), Columns(SqlServerServiceReportQuery.StockCentreSql));
         Assert.Equal(Columns(SqlServerServiceReportQuery.StockSql), Columns(SqlServerServiceReportQuery.StockNotMatchedSql));
-        Assert.Equal(SqlServerServiceReportQuery.AllJobsSql.Replace("ORDER BY", "WHERE service_store_code IS NULL ORDER BY"),
-            SqlServerServiceReportQuery.CentreJobsNotMatchedSql);
+        Assert.Equal(SqlServerServiceReportQuery.CentreJobsNotMatchedSql,
+            SqlServerServiceReportQuery.AllJobsSql.Replace("ORDER BY", "WHERE service_store_code IS NULL ORDER BY"));
         foreach (var sql in SqlServerServiceReportQuery.CentreStatements)
         {
             Assert.DoesNotMatch(@"mobile|phone(?!pe)|landline|e_?mail|address|contact", sql);

@@ -37,7 +37,7 @@ public sealed class F1MoneyRulesSqlTests(SqlDatabaseFixture database) : IClassFi
     {
         const string store = "F1NOBC";
         var day = new DateOnly(2033, 3, 8);
-        await SeedAsync(store, new("I1", day, "INV", "ITEMA", "WB", 1, 1000));
+        await SeedAsync(store, new Line("I1", day, "INV", "ITEMA", "WB", 1, 1000));
         await database.ExecuteAsync($"""
             DECLARE @batch uniqueidentifier=NEWID(),@file bigint;
             INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
