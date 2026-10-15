@@ -1178,6 +1178,8 @@ elseif ($ownerLoginAdministration -ceq 'UNKNOWN') {
 # 1.11.0 (design section 8, decision 33 Q4): the health check export folder, after the database
 # and its Owners are final. Nothing here stops setup: without the folder the nightly health check
 # still runs and is recorded, and only the export file is missing (the health check says so).
+# 1.12.1: set before the try, so the Updates folder below never reads an unset variable when the Owners could not be read.
+$ownerSids = @()
 try {
     $ownerIdentities = @(& $sqlcmdPath -x -S $ServerInstance -E -b -h -1 -W -d $Database -Q (New-EtpActiveOwnersSql))
     if ($LASTEXITCODE -ne 0) { throw 'the active Owners could not be read' }
@@ -1194,7 +1196,9 @@ catch {
 # Owners read and write; not the automation account. Best effort: without it the engine refuses
 # to stage and says setup has not prepared it.
 try {
-    $updateOwnerSids = if ($null -ne $ownerSids) { $ownerSids } else { @() }
+    # 1.12.1 (VM upgrade 15 Oct 2026): @() keeps ONE active Owner an array. "if ... { $ownerSids }" unrolled a 1-element array
+    # to a string, so .Count threw under StrictMode and the folder was never prepared.
+    $updateOwnerSids = @($ownerSids)
     $updatesFolder = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData 'EtpReporting\Updates') -Rules (Get-EtpHealthExportFolderRules -AutomationSid $null -OwnerSids $updateOwnerSids)
     Write-SetupLog "Software update folder ready at $updatesFolder (SYSTEM and Administrators full control; $($updateOwnerSids.Count) active Owner account(s) read and write; nobody else)."
 }

@@ -51,6 +51,10 @@ The known leftovers of 1.12.0 (lanes P1-P8), the money rules Sagar decided on 15
 - The scheduled backup and the monthly recovery drill now wait up to two minutes for SQL Server after a reboot instead of failing at once.
 - ETP no longer installs an update while it cannot read the database: it says it could not check whether an import or a backup is running and asks you to try again in a minute.
 
+**Setup**
+
+- Setup now prepares the software update folder when there is only one Owner.
+
 **Tally and installer (P5)**
 
 - Tally: reading back from Tally is now allowed only on the test PC named for the company, like sending.
