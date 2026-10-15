@@ -21,6 +21,8 @@ internal static class DiagnosticsIsolation
         Environment.SetEnvironmentVariable(DesktopDiagnostics.DirectoryVariable, LogDirectory);
         // 1.12 U1 saves the recent screens on every navigation: keep the walks out of the Owner's ui-preferences.json too.
         Environment.SetEnvironmentVariable(UiPreferenceStore.DirectoryVariable, Path.Combine(LogDirectory, "ui-preferences"));
+        // 1.12.1 P7: the readiness checks read the shop-live file; a test run must never see the Owner's real one.
+        Environment.SetEnvironmentVariable("ETP_SHOP_LIVE_FILE", Path.Combine(LogDirectory, "no-shop-live-file.json"));
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             try { Directory.Delete(LogDirectory, recursive: true); }

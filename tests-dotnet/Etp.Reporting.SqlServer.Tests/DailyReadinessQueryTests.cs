@@ -182,7 +182,7 @@ public sealed class DailyReadinessQueryTests
         {
             observed = date;
             return Task.FromResult(Facts(AllRetail("WLMHW"), AllInputs("WLMHW"), ["WLMHW"], ["WLMHW"], ["WLMHW"]));
-        });
+        }, () => ShopLiveSchedule.Empty);
 
         var result = await query.LoadAsync(new(Day, ["WLMHW"]));
 
@@ -217,7 +217,7 @@ public sealed class DailyReadinessQueryTests
     public async Task Constructor_refuses_a_missing_loader_and_a_null_request()
     {
         Assert.Throws<ArgumentNullException>(() => new SqlServerDailyReadinessQuery((Func<DateOnly, CancellationToken, Task<DailyReadinessFacts>>)null!));
-        var query = new SqlServerDailyReadinessQuery((_, _) => Task.FromResult(Facts()));
+        var query = new SqlServerDailyReadinessQuery((_, _) => Task.FromResult(Facts()), () => ShopLiveSchedule.Empty);
         await Assert.ThrowsAsync<ArgumentNullException>(() => query.LoadAsync(null!));
     }
 

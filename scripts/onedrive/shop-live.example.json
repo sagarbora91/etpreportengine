@@ -1,0 +1,7 @@
+{
+  "shops": [
+    { "role": "TITAN",   "storeCodes": ["WLMHW"], "sendingFrom": "2026-10-20" },
+    { "role": "HELIOS",  "storeCodes": ["HEMW"],  "sendingFrom": null },
+    { "role": "SERVICE", "storeCodes": ["AW330"], "sendingFrom": null }
+  ]
+}

@@ -71,6 +71,13 @@ public sealed record DailyReadinessResult(
     /// no-sale day. Their exports and daily entries are not asked for; their targets still are. Ordered, never null.
     /// </summary>
     public IReadOnlyList<string> NoSaleStoreCodes { get; init; } = [];
+
+    /// <summary>
+    /// 1.12.1 P7 (decision 51): the stores (Retail and Service Centres) the shop-live file says are not sending yet on this
+    /// date. Nothing is asked for them (not exports, entries or targets) and they are not in <see cref="StoreCodes"/>.
+    /// Ordered, never null.
+    /// </summary>
+    public IReadOnlyList<string> NotYetSendingStoreCodes { get; init; } = [];
 }
 
 /// <summary>

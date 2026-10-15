@@ -319,3 +319,61 @@ function Wait-EtpOneDriveUploaded {
     if ($null -ne $state -and @(4, 5, 6) -contains $state) { throw "OneDrive had not finished uploading '$Path' after $TimeoutMinutes minute(s) (status $state). Check that OneDrive is signed in and online, then run this again." }
     return 'Unknown'
 }
+
+# ---- Live shops (1.12.1 lane P7, decision 51) ----------------------------------------------------------------------
+# One small file says which shops are LIVE and from which business day, so a shop that is not sending yet is never reported
+# missing. ETP reads the same file (ShopLiveFile in the Application layer), so the receive script, the Today checklist,
+# DATA-01 and Morning agree. Format (all dates yyyy-MM-dd):
+#   { "shops": [ { "role": "TITAN",  "storeCodes": ["WLMHW"], "sendingFrom": "2026-10-20" },
+#                { "role": "HELIOS", "storeCodes": ["HEMW"],  "sendingFrom": null } ] }
+# A shop with no sendingFrom is not live yet. A role or store the file does not list is expected, and so is everything
+# when the file does not exist (the behaviour before 1.12.1). Environment variable ETP_SHOP_LIVE_FILE overrides the path.
+
+function Get-EtpShopLivePath {
+    param($Config)
+    $override = $env:ETP_SHOP_LIVE_FILE
+    if (-not [string]::IsNullOrWhiteSpace($override)) { return $override }
+    $fromConfig = [string](Get-EtpConfigValue $Config 'shopLiveFile' '')
+    if ($fromConfig) { return [Environment]::ExpandEnvironmentVariables($fromConfig) }
+    return (Join-Path $env:ProgramData 'EtpReporting\Operations\shop-live.json')
+}
+
+function ConvertTo-EtpLiveDay {
+    # ConvertFrom-Json in PowerShell 7 turns an ISO date string into a [datetime]; 5.1 keeps the string. Accept both.
+    param($Value, [string]$Role)
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [datetime]) { return $Value.Date }
+    $text = ([string]$Value).Trim()
+    if (-not $text) { return $null }
+    $parsed = [datetime]::MinValue
+    if (-not [datetime]::TryParseExact($text, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
+        throw "Shop live file: sendingFrom '$text' for $Role is not a date (use yyyy-MM-dd)."
+    }
+    return $parsed.Date
+}
+
+function Read-EtpShopLive {
+    # Returns @{ ROLE = [datetime] or $null } for the roles the file lists ($null = listed, not live yet). A missing file
+    # returns an empty table (every role expected). An unreadable or invalid file THROWS: guessing could hide a real gap.
+    param([Parameter(Mandatory)][string]$Path)
+    $table = @{}
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $table }
+    try { $doc = Get-Content -Raw -LiteralPath $Path -Encoding UTF8 | ConvertFrom-Json }
+    catch { throw "Shop live file '$Path' is not valid JSON: $($_.Exception.Message)" }
+    foreach ($shop in @(Get-EtpConfigValue $doc 'shops' @())) {
+        $role = ([string](Get-EtpConfigValue $shop 'role' '')).ToUpperInvariant()
+        if ($script:EtpValidRoles -notcontains $role) { throw "Shop live file: unknown role '$role' (use TITAN, HELIOS or SERVICE)." }
+        if ($table.ContainsKey($role)) { throw "Shop live file: role $role is listed twice." }
+        $table[$role] = ConvertTo-EtpLiveDay -Value (Get-EtpConfigValue $shop 'sendingFrom' $null) -Role $role
+    }
+    return $table
+}
+
+function Test-EtpRoleExpected {
+    # True when files from the role are expected for the business day.
+    param([hashtable]$Live, [string]$Role, [datetime]$Day)
+    if (-not $Live.ContainsKey($Role)) { return $true }
+    $from = $Live[$Role]
+    if ($null -eq $from) { return $false }
+    return ($Day.Date -ge ([datetime]$from).Date)
+}
