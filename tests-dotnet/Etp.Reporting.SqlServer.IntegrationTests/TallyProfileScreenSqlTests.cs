@@ -49,7 +49,9 @@ public sealed class TallyProfileScreenSqlTests(SqlDatabaseFixture database) : IC
                 "INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,is_final) " +
                 $"VALUES('{Store}','20260825',1,REPLICATE('a',64),N'{{}}',SUSER_SNAME(),1); " +
                 "INSERT dbo.accounting_batches(store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,created_by,tally_profile_id,batch_kind) " +
-                $"OUTPUT inserted.accounting_batch_id SELECT '{Store}','20260825',SCOPE_IDENTITY(),1,0,0,'DRAFT',SUSER_SNAME(),{saved.Id},'SALES_VOUCHERS';")));
+                $"SELECT store_code,business_date,daily_report_generation_id,1,0,0,'DRAFT',SUSER_SNAME(),{saved.Id},'SALES_VOUCHERS' FROM dbo.daily_report_generations WHERE store_code='{Store}'; " +
+                // No OUTPUT without INTO: the table has triggers (SQL refuses it), as in the other Tally tests.
+                "SELECT CONVERT(bigint,SCOPE_IDENTITY());")));
 
             // On the named PC the PC check passes, so the send stops at the next rule (the file was never written).
             var onTestPc = new SqlServerTallyConnectedService(database.ConnectionString, _ => throw new InvalidOperationException("no socket"),
