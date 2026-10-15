@@ -128,7 +128,7 @@ public sealed class ServiceCentreMoreTests
 
     private static string[] Columns(string sql, string alias = "") =>
         sql[sql.IndexOf("SELECT", StringComparison.Ordinal)..sql.IndexOf("FROM", StringComparison.Ordinal)]
-            .Replace("SELECT", "").Replace(alias, "").Split(',').Select(column => column.Trim()).ToArray();
+            .Replace("SELECT", "").Replace(alias.Length == 0 ? "SELECT" : alias, "").Split(',').Select(column => column.Trim()).ToArray();
 
     private static string RepositoryRoot()
     {

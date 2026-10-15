@@ -27,6 +27,9 @@ public sealed class PlannerOnePlanRulesAgreementTests
         ("(file.PeriodStart??file.BusinessDate)", "periodStart"),
         ("(file.PeriodEnd??file.BusinessDate)", "periodEnd"),
         ("file.SourceSha256", "sourceSha256"),
+        // 1.12.1 P6 (IF-028): the plan also carries the re-dated copies it retires; PlannerOnePredictor drops them before Decide.
+        ("returnnew(null,true,previous,keys){Redated=redated};", "returntrue;"),
+        ("returnnew(null,false,previous,keys){Redated=redated};", "returnfalse;"),
         ("returnnew(null,true,previous,keys);", "returntrue;"),
         ("returnnew(null,false,previous,keys);", "returnfalse;"),
     ];
@@ -34,7 +37,7 @@ public sealed class PlannerOnePlanRulesAgreementTests
     [Fact]
     public void PlanImportAsync_and_Decide_hold_the_same_decision_statement_for_statement()
     {
-        var planImport = Block(Source("PhaseOneImportPersistence.cs"), "var incoming=keys.Values.ToHashSet", "return new(null,false,previous,keys);");
+        var planImport = Block(Source("PhaseOneImportPersistence.cs"), "var incoming=keys.Values.ToHashSet", "return new(null,false,previous,keys){Redated=redated};");
         var decide = Block(Source("PlannerOnePlanRules.cs"), "var incoming = incomingKeys.ToHashSet", "return false;");
 
         foreach (var (from, to) in Renaming)

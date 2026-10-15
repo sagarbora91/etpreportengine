@@ -19,12 +19,12 @@ public static class UncostedStockNote
 
     public static int Total(IEnumerable<UncostedStockRecord> rows) => rows.Sum(x => x.Items);
 
-    /// <summary>"WLMHW 3, HEMW 1": one count per store, stores in code order.</summary>
+    /// <summary>"STORE1 3, STORE2 1": one count per store, stores in code order.</summary>
     public static string PerStore(IEnumerable<UncostedStockRecord> rows) =>
         string.Join(", ", rows.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
             .Select(x => $"{x.Key} {x.Sum(y => y.Items):N0}"));
 
-    /// <summary>"WLMHW: CASIO 2, SEIKO 1; HEMW: FOSSIL 1" per store and brand row.</summary>
+    /// <summary>"STORE1: BRANDA 2, BRANDB 1; STORE2: BRANDC 1" per store and brand row.</summary>
     public static string PerStoreBrand(IEnumerable<UncostedStockRecord> rows) =>
         string.Join("; ", rows.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
             .Select(store => $"{store.Key}: " + string.Join(", ", store.GroupBy(x => x.Brand, StringComparer.OrdinalIgnoreCase)

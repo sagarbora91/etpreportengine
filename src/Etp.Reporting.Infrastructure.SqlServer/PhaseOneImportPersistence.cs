@@ -46,7 +46,7 @@ public sealed partial class SqlServerTransactionalImportStore
 
     /// <summary>
     /// The current imports of the same file (SHA-256), store and report under another period: readings an earlier
-    /// importer dated wrongly (HEMW R010 29 Sep, now 7 Sep), or that the IF-032 rule now dates differently.
+    /// importer dated wrongly (the Helios R010 of 29 Sep, now 7 Sep), or that the IF-032 rule now dates differently.
     /// </summary>
     private static async Task<IReadOnlyList<long>> RedatedCopiesAsync(SqlConnection c,SqlTransaction t,ImportFileRegistration file,
         string reportCode,long? keep,CancellationToken token)
@@ -109,7 +109,7 @@ public sealed partial class SqlServerTransactionalImportStore
             if (await reader.ReadAsync(token))
             {
                 // The file is already stored under this date. A current copy still retires the wrongly dated ones
-                // (the 9 Oct HEMW case: the corrected 7 Sep import exists, the 29 Sep copy is still current).
+                // (the 9 Oct Helios case: the corrected 7 Sep import exists, the 29 Sep copy is still current).
                 var id = reader.GetInt64(0); var current = !reader.GetBoolean(1);
                 return new(id, true, [], new Dictionary<int,string>()) { Redated = current ? redated : [] };
             }

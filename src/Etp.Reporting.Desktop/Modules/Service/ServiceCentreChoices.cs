@@ -17,7 +17,8 @@ public static class ServiceCentreChoices
     public static IReadOnlyList<ServiceListChoice> WithNotMatched(IReadOnlyList<ServiceListChoice> choices, int centreCount)
     {
         ArgumentNullException.ThrowIfNull(choices);
-        return ServiceCentreScope.OffersNotMatched(centreCount) && choices.Count > 0
+        // Idempotent: ServiceCentreServices.Choices already appends it since the 1.12.1 integration.
+        return ServiceCentreScope.OffersNotMatched(centreCount) && choices.Count > 0 && !choices.Any(choice => ServiceCentreScope.IsNotMatched(choice.Code))
             ? [.. choices, new ServiceListChoice(ServiceCentreScope.NotMatchedCode, ServiceCentreScope.NotMatchedLabel)]
             : choices;
     }

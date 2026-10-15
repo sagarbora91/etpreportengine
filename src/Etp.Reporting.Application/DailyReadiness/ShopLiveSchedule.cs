@@ -13,7 +13,7 @@ public sealed record ShopLiveEntry(string Role, IReadOnlyList<string> StoreCodes
 /// 1.12.1 lane P7 (decision 51): which shops are LIVE. While only the Titan PC sends, Helios and the Service Centre are not
 /// expected, so Today, DATA-01 and Morning (all through <see cref="DailyReadinessEvaluator"/>) and the Workpc receive script
 /// (same file, <c>scripts/onedrive/OneDriveCommon.ps1</c>) never call them missing.
-/// <para>The file is <c>shop-live.json</c>: <c>{ "shops": [ { "role": "TITAN", "storeCodes": ["WLMHW"], "sendingFrom": "2026-10-20" } ] }</c>.
+/// <para>The file is <c>shop-live.json</c>: <c>{ "shops": [ { "role": "TITAN", "storeCodes": ["STORE1"], "sendingFrom": "2026-10-20" } ] }</c>.
 /// A shop without <c>sendingFrom</c> is not live yet. A store the file does not list is expected, and so is every store when
 /// there is no file or it cannot be read: the rule only ever waives what it names, so a broken file asks for more, never less.</para>
 /// </summary>

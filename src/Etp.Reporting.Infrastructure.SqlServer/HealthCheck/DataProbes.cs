@@ -213,7 +213,7 @@ public sealed class DataProbes : IHealthProbe
             fix, duration, readiness.Missing.Count, subs);
     }
 
-    /// <summary>1.12.1 P7 (decision 51): " (not sending yet: HEMW, AW330)" when the shop-live file waives stores; empty otherwise.</summary>
+    /// <summary>1.12.1 P7 (decision 51): " (not sending yet: STORE2, SVC1)" when the shop-live file waives stores; empty otherwise.</summary>
     internal static string NotYetSendingNote(IReadOnlyList<string>? stores) =>
         stores is { Count: > 0 } ? $" (not sending yet: {string.Join(", ", stores)})" : "";
 

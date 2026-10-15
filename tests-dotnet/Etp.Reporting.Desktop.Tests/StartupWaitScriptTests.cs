@@ -49,8 +49,8 @@ public sealed class StartupWaitScriptTests
             $probe = { param($s) $script:calls++; if ($script:calls -le 6) { [pscustomobject]@{ ExitCode = 1; Lines = @('Msg 4060, Level 11, State 1','Cannot open database') } } else { [pscustomobject]@{ ExitCode = 0; Lines = @() } } }
             $sleep = { param($n) $script:slept += $n; $script:clock += $n }
             $now = { $script:clock }
-            $log = { param($m) $script:log += $m }
-            Wait-EtpSqlReady -SqlCmd 'x' -ServerInstance '.\SQLEXPRESS' -Probe $probe -Sleep $sleep -Now $now -Log $log
+            $logger = { param($m) $script:log += $m }
+            Wait-EtpSqlReady -SqlCmd 'x' -ServerInstance '.\SQLEXPRESS' -Probe $probe -Sleep $sleep -Now $now -Log $logger
             # Each round tries the instance name and the lpc: form (2 probes); SQL answers on the 7th probe, so 3 sleeps happened.
             if (($script:slept -join ',') -ne '2,4,8') { throw "Backoff: $($script:slept -join ',')" }
             if ($script:log.Count -ne 3 -or -not $script:log[0].StartsWith('ETP-STARTUP-WAIT:')) { throw "Log: $($script:log -join ' | ')" }
