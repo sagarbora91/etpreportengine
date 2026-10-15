@@ -46,13 +46,18 @@ begin {
 
     # Parses Obfuscar's text mapping into: Types (new full name -> old full name), and Methods ("oldType|newName" -> list of @{Name;Parameters}).
     function ConvertFrom-EtpObfuscarMapping([string[]]$Lines) {
-        $types = @{}
-        $methods = @{}
+        # Ordinal: obfuscated names differ only by case (A and a are different types).
+        $types = New-Object System.Collections.Hashtable([StringComparer]::Ordinal)
+        $methods = New-Object System.Collections.Hashtable([StringComparer]::Ordinal)
         $section = ''
+        $sectionOutsideBlock = ''
         $currentOldType = ''
         foreach ($raw in $Lines) {
             $line = $raw.Trim()
-            if ($line -eq '' -or $line -eq '{' -or $line -eq '}') { continue }
+            if ($line -eq '') { continue }
+            # A type's member sections sit in { } after the type line; after the block, the enclosing section (types) resumes.
+            if ($line -eq '{') { $sectionOutsideBlock = $section; continue }
+            if ($line -eq '}') { $section = $sectionOutsideBlock; continue }
             if ($line -match '^(Renamed|Skipped|Retained|Not renamed)\s+(?<kind>[A-Za-z ]+?)\s*:?\s*$') {
                 $section = $Matches['kind'].Trim().ToLowerInvariant()
                 if ($line -match '^(Skipped|Retained|Not renamed)') { $section = 'ignore' }
