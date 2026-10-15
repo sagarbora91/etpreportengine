@@ -40,7 +40,7 @@ VersionInfoVersion={#AppVersion}
 VersionInfoProductTextVersion={#AppVersion}
 
 [Files]
-Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,Mapping.txt,obfuscation-report.json"
 ; P4-11. The SQL media travels inside the installer only when the build supplied
 ; it. Without it there is no option and no licence prompt, so setup never offers
 ; an installation it cannot perform.
