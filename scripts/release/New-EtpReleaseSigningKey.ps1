@@ -15,7 +15,7 @@ Losing both sticks (or the passphrase) means a new key: the next release carryin
 hand, as today. Keep the sticks in two places and the passphrase on paper, apart from the sticks.
 
 .EXAMPLE
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\release\New-EtpReleaseSigningKey.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& .\scripts\release\New-EtpReleaseSigningKey.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'"   (-Command, not -File: -File passes the two folders as one text)
 
 .PARAMETER AllowFixedDrive
 Review m-9 (decision 53): many USB SSDs and large sticks report themselves to Windows as Fixed, not Removable. With this

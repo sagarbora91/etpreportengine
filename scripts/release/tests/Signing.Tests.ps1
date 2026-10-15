@@ -38,7 +38,11 @@ try {
 
     # Ceremony refuses fixed/system drives and OneDrive (nothing is written)
     $a = Join-Path $root 'a'; $b = Join-Path $root 'b'
-    $code = Invoke-Ps $ceremony @('-UsbFolder', $a, $b)
+    # -File cannot pass a string array; -Command can (two folders, as Sagar's call does).
+    $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $Out = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '$ceremony' -UsbFolder '$a','$b'" 2>&1 | Out-String)
+    $code = $LASTEXITCODE; $ErrorActionPreference = $previous
+    if ($env:ETP_TEST_VERBOSE) { Write-Host $Out }
     Assert-True ($code -ne 0 -and $Out -match 'not on a removable drive|system drive') 'ceremony refuses fixed/system drive folders'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $a 'etp-codesign.pfx'))) 'ceremony wrote nothing after the refusal'
 

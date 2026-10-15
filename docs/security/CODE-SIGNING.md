@@ -21,7 +21,7 @@ a hidden prompt (SecureString) by Sagar, never passed on a command line, never l
 ## Ceremony (once, Sagar, about 20 minutes)
 
 1. Plug in both USB sticks. Open PowerShell in the repository.
-2. Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\release\New-EtpCodeSigningCertificate.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'`
+2. Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& .\scripts\release\New-EtpCodeSigningCertificate.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'"` (`-Command`, not `-File`: `-File` hands the two folders over as one text and the script refuses)
    (use your drive letters; add `-AllowFixedDrive` if Windows reports a stick as a fixed disk and you are sure it is a stick).
 3. Type a passphrase of 16+ characters twice. Write it on paper.
 4. The script writes the PFX, the public `.cer` and a fingerprint card to both sticks, reads each back, and prints the SHA-1

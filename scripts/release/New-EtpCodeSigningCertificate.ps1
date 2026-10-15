@@ -16,7 +16,9 @@ used to sign and verify a test value before the script ends. The script never re
 Losing both sticks (or the passphrase) means a new ceremony and the trust script again on every PC.
 
 .EXAMPLE
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\release\New-EtpCodeSigningCertificate.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& .\scripts\release\New-EtpCodeSigningCertificate.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'"
+(-File cannot pass two folders to -UsbFolder; use -Command as shown, or run it from an open PowerShell window. Works in Windows
+PowerShell 5.1 and in pwsh 7.)
 
 .PARAMETER AllowFixedDrive
 Same meaning as in New-EtpReleaseSigningKey.ps1: a USB drive that Windows reports as Fixed is accepted only after you type its
@@ -107,8 +109,15 @@ try {
     $notBefore = [DateTimeOffset]::UtcNow.AddDays(-1)
     $certificate = $request.CreateSelfSigned($notBefore, $notBefore.AddYears($Years))
 
-    # PFX protected by the passphrase. Windows PowerShell 5.1 (.NET Framework) takes the SecureString directly.
-    $pfxBytes = $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $first)
+    # PFX protected by the passphrase. Windows PowerShell 5.1 (.NET Framework) takes the SecureString directly. Under pwsh 7
+    # (.NET Core) the SecureString overload is not reliably bound, so the plain-string overload is used with a short-lived
+    # copy of the passphrase that is zeroed straight after.
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        $plainPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
+        try { $pfxBytes = $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Pfx, [Runtime.InteropServices.Marshal]::PtrToStringBSTR($plainPointer)) }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($plainPointer) }
+    }
+    else { $pfxBytes = $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $first) }
     $cerBytes = $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
     $sha1 = $certificate.Thumbprint
     $sha256 = (([Security.Cryptography.SHA256]::Create()).ComputeHash($cerBytes) | ForEach-Object { $_.ToString('X2') }) -join ''
@@ -135,7 +144,8 @@ foreach ($folder in $UsbFolder) {
 # Read each stick back with the passphrase and sign + verify a test value.
 foreach ($folder in $UsbFolder) {
     $path = Join-Path ([IO.Path]::GetFullPath($folder)) $PfxFileName
-    $check = New-Object Security.Cryptography.X509Certificates.X509Certificate2($path, $first)
+    # EphemeralKeySet: the read-back never writes the private key into the user's key container (works in 5.1 and pwsh 7).
+    $check = New-Object Security.Cryptography.X509Certificates.X509Certificate2($path, $first, [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
     try {
         if (-not $check.HasPrivateKey -or $check.Thumbprint -cne $sha1) { throw "The certificate on $folder did not read back correctly." }
         $data = [Text.Encoding]::UTF8.GetBytes('ETP code-signing check')

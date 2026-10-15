@@ -69,7 +69,7 @@ else {
 $expected = $certificate.Thumbprint
 $isPfx = $PSCmdlet.ParameterSetName -eq 'Pfx'
 try {
-    if (-not $certificate.HasPrivateKey -or $certificate.NotBefore -gt (Get-Date) -or $certificate.NotAfter -le (Get-Date) -or '1.3.6.1.5.5.7.3.3' -notin @($certificate.EnhancedKeyUsageList.ObjectId.Value)) { throw 'A current code-signing certificate with its private key is required.' }
+    if (-not $certificate.HasPrivateKey -or $certificate.NotBefore -gt (Get-Date) -or $certificate.NotAfter -le (Get-Date) -or '1.3.6.1.5.5.7.3.3' -notin @($certificate.Extensions | Where-Object { $_ -is [Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension] } | ForEach-Object { $_.EnhancedKeyUsages } | ForEach-Object { $_.Value })) { throw 'A current code-signing certificate with its private key is required.' }
     foreach ($path in $Paths) {
         $full = [IO.Path]::GetFullPath($path)
         if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw 'A signing input is missing.' }

@@ -44,7 +44,7 @@ if (-not $TestOnlySimulate) {
 $certificate = New-Object Security.Cryptography.X509Certificates.X509Certificate2($full)
 try {
     if ($certificate.HasPrivateKey) { throw 'This file contains a private key. Refusing. Use the public .cer only.' }
-    if ('1.3.6.1.5.5.7.3.3' -notin @($certificate.EnhancedKeyUsageList.ObjectId.Value)) { throw 'This certificate is not a code-signing certificate.' }
+    if ('1.3.6.1.5.5.7.3.3' -notin @($certificate.Extensions | Where-Object { $_ -is [Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension] } | ForEach-Object { $_.EnhancedKeyUsages } | ForEach-Object { $_.Value })) { throw 'This certificate is not a code-signing certificate.' }
     if ($certificate.Subject -cne $certificate.Issuer) { throw 'This certificate is not self-signed; refusing to add it as a trusted root.' }
     if ($certificate.NotAfter -le (Get-Date)) { throw 'This certificate has expired.' }
     $sha256 = (([Security.Cryptography.SHA256]::Create()).ComputeHash($certificate.RawData) | ForEach-Object { $_.ToString('X2') }) -join ':'

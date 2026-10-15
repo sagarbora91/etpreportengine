@@ -9,7 +9,7 @@ Plain-English guide to the in-app "Update available" flow. Engine checked agains
 
 ## One-time: make the signing key (Sagar, offline)
 1. Plug in **two USB sticks**. On Workpc run, in Windows PowerShell:
-   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\release\New-EtpReleaseSigningKey.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'`
+   `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& .\scripts\release\New-EtpReleaseSigningKey.ps1 -UsbFolder 'F:\ETP-Key','G:\ETP-Key'"` (`-Command`, not `-File`: `-File` hands the two folders over as one text and the script refuses)
    - The two folders must be on two different removable drives; the system drive, a network drive and OneDrive are refused.
    - Some USB sticks and USB SSDs tell Windows they are "fixed" disks. For those add `-AllowFixedDrive`; the script then asks you to type `FIXED <letter>` for each one, to confirm it is a stick you will unplug.
 2. Choose a passphrase of **at least 16 characters**, typed twice. Write it on paper and keep the paper apart from the sticks (never on Workpc or in OneDrive).
