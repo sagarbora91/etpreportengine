@@ -16,7 +16,9 @@
     with a .reason.txt beside them. Nothing bad reaches Inbound.
   - Good files leave OneDrive; the checked copies are kept in <work>\Archive\<ROLE>\<day>\ after the zip is in Inbound.
   - A file whose SHA-256 was already taken is not imported twice (the shop PC re-running its script is harmless).
-  - Roles with no manifest for the report day are reported as MISSING (file <work>\Logs\missing-<day>.txt, exit code 2).
+  - Roles with no manifest for the report day are reported as MISSING (file <work>\Logs\missing-<day>.txt, exit code 2),
+    unless the shop is not live yet for that day: shop-live.json (1.12.1, decision 51) gives each shop's "sendingFrom" day.
+    A not-live shop is never reported missing; if it sends anyway its files are still checked and taken.
   - Run it from the scheduled task that Register-WorkpcTasks.ps1 creates (Sagar's account, highest privileges): the
     Inbound folder is protected by ETP setup, and the OneDrive client runs only for Sagar. It refuses to run when
     OneDrive is not running (checkOneDriveClient). It never runs the import itself; ETP's scheduled import picks the
@@ -81,12 +83,17 @@ function Get-EtpReceiveSettings {
         if ($seen.ContainsKey($pcNames[$r])) { throw "pcNames gives the same PC ($($pcNames[$r])) for $($seen[$pcNames[$r]]) and $r. Each role must come from its own shop PC." }
         $seen[$pcNames[$r]] = $r
     }
+    # 1.12.1 P7 (decision 51): a shop that is not live yet is never reported missing (see Read-EtpShopLive).
+    $shopLivePath = Get-EtpShopLivePath -Config $config
+    $live = Read-EtpShopLive -Path $shopLivePath
     return [pscustomobject]@{
         Config        = $config
         Roles         = $roles
         ConfiguredRoot = $configuredRoot
         KeysFolder    = $keysFolder
         PcNames       = $pcNames
+        ShopLivePath  = $shopLivePath
+        Live          = $live
     }
 }
 
@@ -282,7 +289,9 @@ function Receive-EtpShopDailyFiles {
 
     # Missing-roles report for the report day: nothing received for it, today or on an earlier run.
     $missing = @()
+    $notYet = @()
     foreach ($role in $roles) {
+        if (-not (Test-EtpRoleExpected -Live $settings.Live -Role $role -Day $ReportDate.Date)) { $notYet += $role; continue }
         $has = $received.ContainsKey("$role|$reportDay") -or (@($taken.Values | Where-Object { $_.role -eq $role -and $_.day -eq $reportDay }).Count -gt 0)
         if (-not $has) { $missing += $role }
     }
@@ -297,6 +306,7 @@ function Receive-EtpShopDailyFiles {
         elseif (Test-Path -LiteralPath $summary) { Remove-Item -LiteralPath $summary -Force }
     }
     foreach ($p in $problems) { Write-Warning $p }
+    if ($notYet.Count -gt 0) { Write-Host "Not expected yet for ${reportDay} (not live, see $($settings.ShopLivePath)): $($notYet -join ', ')." }
     if ($problems.Count -eq 0) { Write-Host "All roles received for $reportDay." }
     if ($problems.Count -gt 0) { return 2 }
     return 0

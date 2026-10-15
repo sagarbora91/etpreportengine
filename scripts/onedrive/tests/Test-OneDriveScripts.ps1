@@ -26,6 +26,9 @@ function Invoke-Common($expression) {
 }
 
 try {
+    # The tests never read the real shop-live file of this PC: an absent file means "every role expected" (1.12.1 P7).
+    $noLiveFile = Join-Path $root 'no-shop-live-file.json'
+    $env:ETP_SHOP_LIVE_FILE = $noLiveFile
     $day = (Get-Date).ToString('yyyy-MM-dd')
     $oneDrive = Join-Path $root 'OneDrive'; $source = Join-Path $root 'exports'; $inputs = Join-Path $root 'inputs'
     foreach ($d in $oneDrive, $source, $inputs) { [void](New-Item -ItemType Directory -Path $d) }
@@ -126,6 +129,47 @@ try {
     $zip2 = Join-Path $inbound "TITAN-$day-r2.zip"
     $entries = [IO.Compression.ZipFile]::OpenRead($zip2); $names2 = @($entries.Entries | ForEach-Object { $_.FullName }); $entries.Dispose()
     Assert-True ($names2.Count -eq 1 -and $names2[0] -eq 'stock.csv') 'The not-yet-taken file goes in a second zip (-r2)'
+
+    # ---- Live shops only (1.12.1 P7, decision 51): a shop that is not live yet is never reported missing ----
+    $liveFile = Join-Path $root 'shop-live.json'
+    $liveInbound = Join-Path $root 'LiveInbound'; $liveWork = Join-Path $root 'LiveWork'; [void](New-Item -ItemType Directory -Path $liveInbound)
+    $liveConfig = Join-Path $root 'recv-live.json'
+    Write-Json $liveConfig @{ oneDriveRoot = $oneDrive; roles = @('SERVICE'); pcNames = @{ SERVICE = 'SERVICE-PC' }; shopKeysFolder = $wpKeys; inboundFolder = $liveInbound; workFolder = $liveWork; lookbackDays = 0; stableSeconds = 0; checkOneDriveClient = $false }
+    $reportDay = [datetime]::ParseExact($day, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+    $yesterdayText = $reportDay.AddDays(-1).ToString('yyyy-MM-dd'); $tomorrowText = $reportDay.AddDays(1).ToString('yyyy-MM-dd')
+    $missingFile = Join-Path $liveWork "Logs\missing-$day.txt"
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 2 -and (Get-Content -Raw $missingFile) -match 'SERVICE') 'No shop-live file: every configured role is expected (SERVICE named missing, exit 2)'
+    Write-Json $liveFile @{ shops = @(@{ role = 'TITAN'; storeCodes = @('WLMHW'); sendingFrom = $yesterdayText }, @{ role = 'SERVICE'; storeCodes = @('AW330'); sendingFrom = $null }) }
+    $env:ETP_SHOP_LIVE_FILE = $liveFile
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 0 -and -not (Test-Path $missingFile) -and $script:LastOutput -match 'Not expected yet' -and $script:LastOutput -match 'SERVICE') 'A listed shop with no sendingFrom is not live: not missing, exit 0, the output says so'
+    Write-Json $liveFile @{ shops = @(@{ role = 'SERVICE'; sendingFrom = $tomorrowText }) }
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 0 -and -not (Test-Path $missingFile)) 'A shop whose sendingFrom is after the report day is not expected'
+    Write-Json $liveFile @{ shops = @(@{ role = 'SERVICE'; sendingFrom = $day }) }
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 2 -and (Get-Content -Raw $missingFile) -match 'SERVICE') 'A shop is expected on its sendingFrom day itself'
+    Write-Json $liveFile @{ shops = @(@{ role = 'SERVICE'; sendingFrom = $yesterdayText }) }
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 2) 'A shop that is live since an earlier day is expected'
+    Write-Json $liveFile @{ shops = @(@{ role = 'TITAN'; sendingFrom = $yesterdayText }) }
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 2) 'A role the file does not list is still expected (the file only waives shops it names)'
+    Write-Json $liveFile @{ shops = @(@{ role = 'SERVICE'; sendingFrom = '15/10/2026' }) }
+    Assert-True ((Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)) -eq 1 -and $script:LastOutput -match 'yyyy-MM-dd') 'A sendingFrom that is not yyyy-MM-dd is an error (exit 1), not a guess'
+    Write-Json $liveFile @{ shops = @(@{ role = 'NOSUCH'; sendingFrom = $day }) }
+    Assert-True ((Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)) -eq 1) 'An unknown role in the shop-live file is an error (exit 1)'
+    [IO.File]::WriteAllText($liveFile, '{ not json', (New-Object Text.UTF8Encoding($false)))
+    Assert-True ((Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $liveConfig, '-ReportDate', $day)) -eq 1) 'An unreadable shop-live file is an error (exit 1)'
+    # A not-live shop that sends anyway is still checked and taken (its manifest is verified like any other).
+    Write-Json $liveFile @{ shops = @(@{ role = 'TITAN'; sendingFrom = $tomorrowText }) }
+    $titanLiveConfig = Join-Path $root 'recv-live-titan.json'
+    Write-Json $titanLiveConfig @{ oneDriveRoot = $oneDrive; roles = @('TITAN'); pcNames = @{ TITAN = $pc }; shopKeysFolder = $wpKeys; inboundFolder = $liveInbound; workFolder = $liveWork; lookbackDays = 0; stableSeconds = 0; checkOneDriveClient = $false }
+    [void](Invoke-Script 'Send-ShopDailyFiles.ps1' @('-ConfigPath', $sendConfig))
+    $code = Invoke-Script 'Receive-ShopDailyFiles.ps1' @('-ConfigPath', $titanLiveConfig, '-ReportDate', $day)
+    Assert-True ($code -eq 0 -and $script:LastOutput -match 'Not expected yet' -and @(Get-ChildItem $liveInbound -Filter 'TITAN-*.zip').Count -ge 1) 'A not-live shop that sends anyway still has its files verified and taken'
+    $env:ETP_SHOP_LIVE_FILE = $noLiveFile
 
     # ---- Backup encryption round trip ----
     $backups = Join-Path $root 'Backups'; [void](New-Item -ItemType Directory -Path $backups)

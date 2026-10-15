@@ -89,6 +89,9 @@ public sealed record DailyReadinessFacts(
 {
     public IReadOnlyList<string> ServiceCentres { get; init; } = [];
     public IReadOnlyCollection<string> NoSaleStores { get; init; } = [];
+
+    /// <summary>1.12.1 P7 (decision 51): which shops are live. A store that is not sending yet on the date is not asked for anything.</summary>
+    public ShopLiveSchedule ShopLive { get; init; } = ShopLiveSchedule.Empty;
 }
 
 /// <summary>
@@ -116,7 +119,12 @@ public static class DailyReadinessEvaluator
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(facts);
+        var live = facts.ShopLive ?? ShopLiveSchedule.Empty;
+        var notYetSending = new List<string>();
+        // Decision 51: a shop that is not live on the date is neither asked for files nor for targets.
         var stores = RetailStores(request, facts.ActiveRetailStores);
+        notYetSending.AddRange(stores.Where(store => !live.IsSending(store, request.BusinessDate)));
+        stores = stores.Where(store => live.IsSending(store, request.BusinessDate)).ToArray();
         var received = facts.ReceivedExports.Select(x => Key(x.StoreCode, x.ReportCode)).ToHashSet(Codes);
         var entered = facts.EnteredManualInputs.Select(x => Key(x.StoreCode, x.FieldCode)).ToHashSet(Codes);
         var monthly = facts.StoresWithMonthlyTarget.ToHashSet(Codes);
@@ -158,6 +166,11 @@ public static class DailyReadinessEvaluator
         {
             foreach (var service in ServiceCentres(facts))
             {
+                if (!live.IsSending(service, date))
+                {
+                    notYetSending.Add(service);
+                    continue;
+                }
                 if (noSale.Contains(service))
                 {
                     marked.Add(service);
@@ -170,7 +183,11 @@ public static class DailyReadinessEvaluator
             }
         }
 
-        return new(date, stores, missing) { NoSaleStoreCodes = marked.Distinct(Codes).Order(Codes).ToArray() };
+        return new(date, stores, missing)
+        {
+            NoSaleStoreCodes = marked.Distinct(Codes).Order(Codes).ToArray(),
+            NotYetSendingStoreCodes = notYetSending.Distinct(Codes).Order(Codes).ToArray()
+        };
     }
 
     /// <summary>The Service Centres of the catalogue, trimmed, distinct and ordered.</summary>

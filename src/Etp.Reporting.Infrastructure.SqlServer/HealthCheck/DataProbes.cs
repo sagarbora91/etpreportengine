@@ -189,7 +189,7 @@ public sealed class DataProbes : IHealthProbe
         var noSale = readiness.NoSaleStoreCodes?.Count ?? 0;
         if (readiness.IsComplete)
             return ImportDataProbeSupport.Make(HealthCheckId.Data01, HealthOutcome.Pass, "OK",
-                ImportDataProbeSupport.Text($"Everything expected for {ImportDataProbeSupport.Day(businessDate)} is in: exports, manual inputs and targets.{NoSaleNote(noSale)}"),
+                ImportDataProbeSupport.Text($"Everything expected for {ImportDataProbeSupport.Day(businessDate)} is in: exports, manual inputs and targets.{NoSaleNote(noSale)}{NotYetSendingNote(readiness.NotYetSendingStoreCodes)}"),
                 null, duration, 0);
 
         // Grouped by kind, in the order of the Today checklist; one sub-result per kind with codes and store codes only.
@@ -212,6 +212,10 @@ public sealed class DataProbes : IHealthProbe
             ImportDataProbeSupport.Text($"{ImportDataProbeSupport.Day(businessDate)} is not complete: {summary}."),
             fix, duration, readiness.Missing.Count, subs);
     }
+
+    /// <summary>1.12.1 P7 (decision 51): " (not sending yet: HEMW, AW330)" when the shop-live file waives stores; empty otherwise.</summary>
+    internal static string NotYetSendingNote(IReadOnlyList<string>? stores) =>
+        stores is { Count: > 0 } ? $" (not sending yet: {string.Join(", ", stores)})" : "";
 
     /// <summary>" (2 store-days marked no-sale)" when any store-day of the date is marked; empty otherwise.</summary>
     internal static string NoSaleNote(int count) => count switch

@@ -63,13 +63,20 @@ public sealed class SqlServerDailyReadinessQuery : IDailyReadinessQuery
     {
     }
 
-    internal SqlServerDailyReadinessQuery(Func<DateOnly, CancellationToken, Task<DailyReadinessFacts>> loadFacts) =>
+    private readonly Func<ShopLiveSchedule> loadShopLive;
+
+    internal SqlServerDailyReadinessQuery(Func<DateOnly, CancellationToken, Task<DailyReadinessFacts>> loadFacts, Func<ShopLiveSchedule>? loadShopLive = null)
+    {
         this.loadFacts = loadFacts ?? throw new ArgumentNullException(nameof(loadFacts));
+        // 1.12.1 P7 (decision 51): the shop-live file, read on every load so an edit counts at the next refresh.
+        this.loadShopLive = loadShopLive ?? (() => ShopLiveFile.Load());
+    }
 
     public async Task<DailyReadinessResult> LoadAsync(DailyReadinessRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         var facts = await loadFacts(request.BusinessDate, cancellationToken).ConfigureAwait(false);
+        if (facts.ShopLive.Entries.Count == 0) facts = facts with { ShopLive = loadShopLive() };
         return DailyReadinessEvaluator.Evaluate(request, facts);
     }
 
