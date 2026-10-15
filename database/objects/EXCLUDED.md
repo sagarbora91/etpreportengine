@@ -22,7 +22,7 @@ CHECK constraints use (it is on the live database at 0048).
 `scripts/Export-EtpSchemaObjects.ps1` rewrites the section between the markers. Do not edit it by hand.
 
 <!-- BEGIN GENERATED EXCLUSIONS -->
-Exported from a scratch database on 2026-10-13.
+Exported from a scratch database on 2026-10-15.
 
 | Object | Why |
 |---|---|
