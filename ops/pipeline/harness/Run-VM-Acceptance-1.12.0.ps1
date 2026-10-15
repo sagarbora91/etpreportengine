@@ -2,8 +2,8 @@
 Run-VM-Acceptance-1.12.0.ps1
 
 VM acceptance of ETP Reporting Engine 1.12.0 on the Hyper-V VM "ETP-Acceptance-186" (Workpc). 1.12.0 = 1.12.0 + 1.12 wave 1 (release/1.12.0: objects as files and DB-07, one connection
-layer, shop results, Tally engine with port 9000 / test PC, collections first slice, update engine); 66 migrations in all: the 61 of 1.12.0 plus 0062 schema objects journal, 0063 collections contracts,
-0064 cash deposit confirmations, 0065 update settings, 0066 tally test machine. From the 1.12.0 VM (61) an upgrade adds 5; from 1.9.6-1.9.9 (48) it adds 18 (0049-0066); from 'Rehearsal base' (1.9.2, 37) it adds 29.
+layer, shop results, Tally engine with port 9000 / test PC, collections first slice, update engine); 69 migrations in all (released 1.12.0 = v1.12.0, 8c634449): the 61 of 1.11.4 plus 0062 schema objects journal, 0063 collections contracts,
+0064 cash deposit confirmations, 0065 update settings, 0066 tally test machine, 0067 stores service as data, 0068 no sale days, 0069 import source locations. From the 1.11.4 VM (61) an upgrade adds 8; from 1.9.6-1.9.9 (48) it adds 21 (0049-0069); from 'Rehearsal base' (1.9.2, 37) it adds 32. The numbers live in -ExpectedNewMigrations (one place).
 (1.12.0 itself added 0049-0061 over 1.9.6-1.9.9: 0049-0051 1.10.0, 0052-0053 1.10.1, 0054-0055 1.11.0, 0056-0058 1.11.1, 0059-0060 1.11.2, 0061 1.12.0; 1.11.3 added none.)
 COPY of Run-VM-Acceptance-1.12.0.ps1 (that file is unchanged), adapted 13 Oct 2026 for 1.12.0. What changed and the exact command lines: Reference\Work in progress 2026-10-13\VM-HARNESS-1.12.0-NOTES.md.
 Changes: version/migration expectations; the Service view timing median bug fixed (the median read a property that did not exist, so every view printed 0.00 s and passed); the new read-only 1.12 checks
@@ -13,11 +13,11 @@ NOT RUN YET (parse-checked only).
 Run it ELEVATED (Windows PowerShell 5.1), on Workpc, with nothing heavy running. The 1.12.0 uses:
   Install, clean VM:     -Scenario NewPc -Stage Install                      checkpoint 'Clean for 1.9.3*', 1.12.0 with a new database
   Install over 1.9.8/9:  -Scenario Upgrade -Stage Install -UpgradeFrom Checkpoint   newest checkpoint 'VM19[89]*' (or -CheckpointName)
-  Upgrade 1.11.4 VM:     -Scenario Upgrade -Stage Install -UpgradeFrom Checkpoint -CheckpointName 'VM195 Upgrade after automated steps, 2026-10-13 13:25'   (VM at 1.11.4, 61 -> 66)
-  Upgrade 1.9.6 VM:      -Scenario Upgrade -Stage Install -UpgradeFrom Checkpoint -CheckpointName 'VM196 delta*'   (1.9.6, 48 -> 66)
+  Upgrade 1.11.4 VM:     -Scenario Upgrade -Stage Install -UpgradeFrom Checkpoint -CheckpointName 'VM195 Upgrade after automated steps, 2026-10-13 13:25'   (VM at 1.11.4, 61 -> 69)
+  Upgrade 1.9.6 VM:      -Scenario Upgrade -Stage Install -UpgradeFrom Checkpoint -CheckpointName 'VM196 delta*'   (1.9.6, 48 -> 69)
   Rehearsal:             -Scenario Rehearsal -UserChanges Script            'Rehearsal base*' (1.9.2) straight to 1.12.0, then the stages below
   Delta 1.9.9 -> 1.12.0: -Scenario Rehearsal -Stage Delta [-CheckpointName '<1.9.9 or 1.9.8 checkpoint*>']   upgrade + no row changes
-                         + 18 migrations added (0049-0066) + raw pack again + the 0051 check; restores the checkpoint only when -CheckpointName is given
+                         + 21 migrations added (0049-0069) + raw pack again + the 0051 check; restores the checkpoint only when -CheckpointName is given
   Service UI checks:     -Scenario Rehearsal -Stage ServiceUi                read-only: the acceptance runbook's SQL checks + view timings
                          + the 0051 check, on the VM as it is (1.12.0, Service rows imported); restores nothing, installs nothing
   Night-one health run:  -Scenario Rehearsal -Stage HealthNightOne           (1.12.0) runs ETP's automation once in the guest (--automation-once; the
@@ -35,9 +35,9 @@ find the existing session folder (E:\ETP\Reference\VM195-*-Rehearsal).
 
 Rehearsal session, in order (one evidence folder E:\ETP\Reference\VM195-<yyyyMMdd-HHmm>-Rehearsal\, the later stages find it):
   -Stage Install   Restores 'Rehearsal base*' (1.9.2 + live data 1 Oct, 37 migrations), upgrades it STRAIGHT to 1.10.0 (as live
-                   would be: 0038-0066 in one setup run, 37 -> 66 migrations), or through -IntermediateInstallerPath first
+                   would be: 0038-0069 in one setup run, 37 -> 69 migrations), or through -IntermediateInstallerPath first
                    (for example 1.9.9, if live gets it before this session). Upgrade checks: no data loss,
-                   pre-migration backup, journal = bundled (66, latest 0066_tally_test_machine), AW330 row inactive, Service tables empty.
+                   pre-migration backup, journal = bundled (69, latest 0069_import_source_locations), AW330 row inactive, Service tables empty.
                    -UserChanges Script: the 1.9.3 stage-2 proof at once: retire the two TFRROWJLTULT009 accounts, add
                    EtpAutomation (Store Manager), EtpTestManager (Store Manager) and EtpTestViewer (Viewer) through the product
                    procedure, setup again, backup + recovery drill + automated operations under EtpAutomation, then the
@@ -105,6 +105,33 @@ param(
     [switch]$CheckpointCurrentStateFirst,
     [switch]$RerunSetup,
     [string]$OutputFolder,
+    # THE one place that says which migrations 1.12.0 adds over a 1.9.6-1.9.9 database (48 migrations, 0048). The expected total (48 + count), the
+    # expected latest (the last name), the contiguity check and the "added by 1.12.0 over the 1.11.4 VM (61)" list (every name numbered above 61) all
+    # derive from it. Defaults = released 1.12.0 (v1.12.0 = 8c634449): 69 migrations, latest 0069_import_source_locations, 21 added from 48.
+    # For a later release pass the new list; the script warns at start when it differs from the migrations folder below (so it cannot drift silently).
+    [string[]]$ExpectedNewMigrations = @(
+        '0049_tally_store_cost_centres',
+        '0050_service_centre_ui',
+        '0051_staff_targets_owner_only',
+        '0052_service_ui_fixes',
+        '0053_retire_unused_manual_inputs',
+        '0054_error_register',
+        '0055_health_check',
+        '0056_service_job_customer_name',
+        '0057_service_views_name_by_role',
+        '0058_open_imports_signal',
+        '0059_customer_data_permissions',
+        '0060_report_logic_and_speed',
+        '0061_service_view_speed',
+        '0062_schema_objects_journal',
+        '0063_collections_contracts',
+        '0064_cash_deposit_confirmations',
+        '0065_update_settings',
+        '0066_tally_test_machine',
+        '0067_stores_service_as_data',
+        '0068_no_sale_days',
+        '0069_import_source_locations'),
+    [string]$MigrationsFolder = 'E:\ETP\Code\Worktrees\integrate-112-w2\database\migrations',
     [switch]$Yes,
     [ValidateRange(10, 240)][int]$SetupTimeoutMinutes = 90,
     [ValidateRange(5, 240)][int]$ImportTimeoutMinutes = 60,
@@ -123,7 +150,7 @@ $GuestStageDir = 'C:\EtpStaging'
 $GuestEvidenceRoot = 'C:\EtpEvidence\VM195'
 $NewVersion = '1.12.0'
 # -Stage Delta upgrades from the 1.9.9 VM (or the 1.9.8 VM if 1.9.9 never reached it). Both are at 48 migrations (1.9.6-1.9.9 add none).
-$DeltaFromVersions = @('1.9.9', '1.9.8', '1.9.7', '1.9.6')   # 1.9.6-1.9.9 all hold 48 migrations (0048); 1.12.0 adds 0049-0066 to any of them
+$DeltaFromVersions = @('1.9.9', '1.9.8', '1.9.7', '1.9.6')   # 1.9.6-1.9.9 all hold 48 migrations (0048); 1.12.0 adds 0049-0069 to any of them
 $DeltaFromVersion = '1.9.9/1.9.8/1.9.7/1.9.6'   # text only; Invoke-DeltaStage sets $script:DeltaFrom to the version it found
 $script:DeltaFrom = $DeltaFromVersion
 # -ShopRestore installs $InstallerPath ($NewVersion) like every other path (on 9 Oct it was pinned to the 1.9.6 kit).
@@ -137,14 +164,29 @@ $PreviousVersion = '1.9.2'
 #   1.11.1: 0056_service_job_customer_name, 0057_service_views_name_by_role, 0058_open_imports_signal
 #   1.11.2: 0059_customer_data_permissions, 0060_report_logic_and_speed
 #   1.11.4: 0061_service_view_speed (1.11.3 added no migration)
-#   1.12.0: 0062_schema_objects_journal, 0063_collections_contracts, 0064_cash_deposit_confirmations, 0065_update_settings, 0066_tally_test_machine
-# = 66 migrations. From the 1.11.4 VM (61) an upgrade adds 5; from a 1.9.6-1.9.9 database (48) it adds 18 (0049-0066); from 'Rehearsal base' (37) it adds 29 (0038-0066).
+#   1.12.0: 0062_schema_objects_journal, 0063_collections_contracts, 0064_cash_deposit_confirmations, 0065_update_settings, 0066_tally_test_machine, 0067_stores_service_as_data, 0068_no_sale_days, 0069_import_source_locations
+# = 69 migrations. From the 1.11.4 VM (61) an upgrade adds 8; from a 1.9.6-1.9.9 database (48) it adds 21 (0049-0069); from 'Rehearsal base' (37) it adds 32 (0038-0069).
 # The real file names (E:\ETP\Code\Worktrees\release-1.12.0\database\migrations) are used; they are still compared with -like.
-$ExpectedMigrationCount = 66
-$ExpectedLatestMigration = '0066_tally_test_machine'
-$ExpectedNewMigrations = @('0049_tally_store_cost_centres', '0050_service_centre_ui', '0051_staff_targets_owner_only', '0052_service_ui_fixes', '0053_retire_unused_manual_inputs', '0054_error_register', '0055_health_check', '0056_service_job_customer_name', '0057_service_views_name_by_role', '0058_open_imports_signal', '0059_customer_data_permissions', '0060_report_logic_and_speed', '0061_service_view_speed', '0062_schema_objects_journal', '0063_collections_contracts', '0064_cash_deposit_confirmations', '0065_update_settings', '0066_tally_test_machine')   # added by 1.10.0-1.12.0 over any 1.9.6-1.9.9 database
-$Expected112Migrations = @('0062_schema_objects_journal', '0063_collections_contracts', '0064_cash_deposit_confirmations', '0065_update_settings', '0066_tally_test_machine')   # added by 1.12.0 over the 1.11.4 VM (61)
-$Release1114Migrations = 61
+$Release1114Migrations = 61   # the 1.11.4 VM holds 61 (0001-0061)
+$Release1196Migrations = 48    # 1.9.6-1.9.9 hold 48 (0001-0048)
+# Everything below derives from the -ExpectedNewMigrations parameter (default: the released 1.12.0, 0049-0069).
+$ExpectedNewMigrations = @($ExpectedNewMigrations | Sort-Object)
+$ExpectedMigrationCount = $Release1196Migrations + $ExpectedNewMigrations.Count
+$ExpectedLatestMigration = [string]$ExpectedNewMigrations[-1]
+$Expected112Migrations = @($ExpectedNewMigrations | Where-Object { [int]([string]$_).Substring(0, 4) -gt $Release1114Migrations })   # added over the 1.11.4 VM (61)
+$ExpectedFirstNumber = ([string]$ExpectedNewMigrations[0]).Substring(0, 4)
+$ExpectedLastNumber = $ExpectedLatestMigration.Substring(0, 4)
+$ExpectedRangeText = "$ExpectedFirstNumber-$ExpectedLastNumber"
+for ($k = 0; $k -lt $ExpectedNewMigrations.Count; $k++) {
+    if ([int](([string]$ExpectedNewMigrations[$k]).Substring(0, 4)) -ne ($Release1196Migrations + 1 + $k)) { throw "-ExpectedNewMigrations must run contiguously from $('{0:D4}' -f ($Release1196Migrations + 1)): $($ExpectedNewMigrations[$k]) is out of place." }
+}
+if ($MigrationsFolder -and (Test-Path -LiteralPath $MigrationsFolder -PathType Container)) {
+    $onDisk = @(Get-ChildItem -LiteralPath $MigrationsFolder -Filter '*.sql' -File | ForEach-Object { $_.BaseName } | Sort-Object)
+    $expectedOnDisk = @(@($onDisk | Where-Object { [int]$_.Substring(0, 4) -le $Release1196Migrations }) + $ExpectedNewMigrations)
+    if (($onDisk -join '|') -ne ($expectedOnDisk -join '|')) {
+        Write-Warning "The expected migrations (-ExpectedNewMigrations: $ExpectedMigrationCount in all, latest $ExpectedLatestMigration) differ from $MigrationsFolder ($($onDisk.Count), latest $($onDisk[-1])). Expectations may be stale: pass the right -ExpectedNewMigrations."
+    }
+}
 $CleanCheckpointPattern = 'Clean for 1.9.3*'
 # -UpgradeFrom Checkpoint: the newest 1.9.9 or 1.9.8 VM checkpoint (VM198 ... / VM199 ...). For 1.12.0 pass -CheckpointName: the 1.11.4 VM is
 # 'VM195 Upgrade after automated steps, 2026-10-13 13:25'; the 1.9.6 VM is 'VM196 delta*' (go-live is 1.11.4 first, 1.12.0 later).
@@ -158,7 +200,7 @@ $RetiredManualInputs = @('DISPLAY_STOCK', 'BACKSTOCK', 'DEFECTIVE_STOCK', 'Y_LOC
 $HealthExportsFolder = 'C:\ProgramData\EtpReporting\HealthExports'
 $HealthNightlyMinutes = 150   # NightlyHealthSchedule.NightlyTime = 02:30 local: the nightly check is due from then, at any time of day after it
 $RehearsalBaseCounts = [ordered]@{ 'dbo.sales_invoices' = 5822; 'dbo.sales_lines' = 6697; 'dbo.import_files' = 80; 'dbo.daily_reporting_days' = 11 }
-$RehearsalBaseMigrations = 37   # 1.12.0 adds 29 to it (0038-0066)
+$RehearsalBaseMigrations = 37   # 1.12.0 adds ($ExpectedMigrationCount - 37) to it (0038 to the latest)
 $RetiredAccounts = @('TFRROWJLTULT009\Sagar', 'TFRROWJLTULT009\EtpAutomation')
 $RetireReason = 'Retired PC TFRROWJLTULT009 (old laptop, replaced by Workpc on 2 Oct 2026)'
 $AutomationReason = 'Automation account for the scheduled backup and recovery drill'
@@ -1251,6 +1293,11 @@ function Test-SetupRun {
     foreach ($line in @($c.keyLines | Where-Object { $_ -match 'WARNING|NEXT STEP|NOTE:' })) {
         $level = 'INFO'
         if ($line -match 'WARNING') { $level = 'REVIEW' }
+        if ($line -match 'could not prepare the software update folder') {
+            # KNOWN 1.12.0 BUG (fix in 1.12.1): property 'Count' error in the bootstrap's update-folder step. Stays REVIEW (not PASS, not FAIL) until 1.12.1.
+            Add-Check $Area 'Bootstrap advice line: "could not prepare the software update folder" = KNOWN 1.12.0 BUG, fixed in 1.12.1 (stays REVIEW until then)' 'no such warning' (Get-LogMessage $line) 'REVIEW'
+            continue
+        }
         Add-Check $Area 'Bootstrap advice line' 'read it' (Get-LogMessage $line) $level
     }
 }
@@ -2265,25 +2312,25 @@ function Test-MigrationTarget($Before, $After, [string]$Area) {
     $addedText = 'none'
     if ($added.Count -gt 0) { $addedText = "$($added[0]) to $($added[-1])" }
     Add-Check $Area "Migration level $NewVersion" "$ExpectedMigrationCount migrations, latest $ExpectedLatestMigration; added from $($jb.Count): $($ExpectedMigrationCount - $jb.Count)" "$($ja.Count) migrations, latest $latest; added $($added.Count) ($addedText)" (Get-Result (($ja.Count -eq $ExpectedMigrationCount) -and ($latest -like $ExpectedLatestMigration)))
-    # 1.12.0: from the 1.11.4 VM (61) setup adds exactly 0062 .. 0066 (5).
+    # 1.12.0: from the 1.11.4 VM (61) setup adds exactly 0062 .. 0069 (8).
     if ($jb.Count -eq $Release1114Migrations) {
         $unmatched112 = @($Expected112Migrations | Where-Object { $p = $_; @($added | Where-Object { $_ -like $p }).Count -ne 1 })
         Add-Check $Area "Migrations added by $NewVersion over 1.11.4 ($Release1114Migrations)" "$($Expected112Migrations.Count): $($Expected112Migrations -join ', ')" "$($added.Count): $(if ($added.Count) { $added -join ', ' } else { 'none' })" (Get-Result (($added.Count -eq $Expected112Migrations.Count) -and ($unmatched112.Count -eq 0)))
     }
-    # 1.11.2: name each migration added by this setup run against 0049 .. 0066 (only when the start state was 1.9.6-1.9.9, i.e. 48).
+    # 1.11.2: name each migration added by this setup run against 0049 .. 0069 (only when the start state was 1.9.6-1.9.9, i.e. 48).
     if ($jb.Count -eq ($ExpectedMigrationCount - $ExpectedNewMigrations.Count)) {
         $unmatched = @($ExpectedNewMigrations | Where-Object { $p = $_; @($added | Where-Object { $_ -like $p }).Count -ne 1 })
         Add-Check $Area "Migrations added by $NewVersion" "$($ExpectedNewMigrations.Count): $($ExpectedNewMigrations -join ', ')" "$($added.Count): $(if ($added.Count) { $added -join ', ' } else { 'none' })" (Get-Result (($added.Count -eq $ExpectedNewMigrations.Count) -and ($unmatched.Count -eq 0)))
     }
-    # Whatever the start state, the journal must hold every one of the eighteen (0049-0066) by name.
+    # Whatever the start state, the journal must hold every one of the 0049-0069 migrations by name.
     $missingNames = @($ExpectedNewMigrations | Where-Object { $p = $_; @($ja | Where-Object { $_ -like $p }).Count -ne 1 })
-    Add-Check $Area 'Journal holds 0049-0066 by name' ($ExpectedNewMigrations -join ', ') $(if ($missingNames.Count) { 'missing: ' + ($missingNames -join ', ') } else { 'all present' }) (Get-Result ($missingNames.Count -eq 0))
+    Add-Check $Area "Journal holds $ExpectedRangeText by name" ($ExpectedNewMigrations -join ', ') $(if ($missingNames.Count) { 'missing: ' + ($missingNames -join ', ') } else { 'all present' }) (Get-Result ($missingNames.Count -eq 0))
     $numbers = @($ja | ForEach-Object { [int](([string]$_).Substring(0, 4)) })
     $gaps = @()
     for ($n = 1; $n -le $ExpectedMigrationCount; $n++) { if ($numbers -notcontains $n) { $gaps += ('{0:D4}' -f $n) } }
     $gapText = 'none'
     if ($gaps.Count -gt 0) { $gapText = $gaps -join ', ' }
-    Add-Check $Area ('Migration numbers contiguous 0001-{0:D4} (0048 is Service; 0049-0051 are 1.10.0, 0052-0053 1.10.1, 0054-0055 1.11.0, 0056-0058 1.11.1, 0059-0060 1.11.2, 0061 1.11.4, 0062-0066 1.12.0)' -f $ExpectedMigrationCount) 'no gap' $gapText (Get-Result ($gaps.Count -eq 0))
+    Add-Check $Area ('Migration numbers contiguous 0001-{0:D4} (0048 is Service; 0049-0051 are 1.10.0, 0052-0053 1.10.1, 0054-0055 1.11.0, 0056-0058 1.11.1, 0059-0060 1.11.2, 0061 1.11.4, 0062-0069 1.12.0)' -f $ExpectedMigrationCount) 'no gap' $gapText (Get-Result ($gaps.Count -eq 0))
 }
 
 function Test-Release195Schema($F, [string]$Area, [switch]$BeforeService) {
@@ -2615,7 +2662,7 @@ function Invoke-FinalStage {
 
 # -Stage Delta (1.10.0, 10 Oct 2026): the 1.10.0 installer OVER the 1.9.9 VM (or the 1.9.8 VM), then the Service raw pack again. With
 # -CheckpointName the stage first restores that checkpoint (YES asked unless -Yes); without it the VM must already be on 1.9.9 or 1.9.8 and
-# nothing is restored. Expect: setup 1.9.9 -> 1.12.0 applies exactly 0049-0066 (48 -> 66) after a verified pre-migration backup, loses no
+# nothing is restored. Expect: setup 1.9.9 -> 1.12.0 applies exactly 0049-0069 (48 -> 69) after a verified pre-migration backup, loses no
 # row and changes no row count of a table that existed before (Compare-Upgrade + Test-NoRowChanges), the bootstrap log of the run present
 # (Test-BootstrapModuleLog); staff targets are Owner-only (0051, Test-StaffTargetsOwnerOnly); the raw pack re-imports with EVERY file
 # Duplicate or Not needed and 0 new rows; Service rows unchanged; backup + drill pass; then checkpoint "VM1100 delta". Run -Stage ServiceUi
@@ -2662,10 +2709,10 @@ function Invoke-DeltaStage {
     Test-BootstrapModuleLog $run $setupArea
     $f1 = Get-Facts 'delta-after-setup'
     Test-InstalledState $f1 "Installed state ($NewVersion)" $NewVersion -Upgrade
-    # Compare-Upgrade: no decrease, users kept, journal kept, and (18 migrations pending) the verified pre-migration backup line.
+    # Compare-Upgrade: no decrease, users kept, journal kept, and (21 migrations pending) the verified pre-migration backup line.
     Compare-Upgrade $fBefore $f1 $run
     Test-NoRowChanges $fBefore $f1 "No row changes ($from -> $NewVersion)"
-    # Test-MigrationTarget: 66, latest 0066_tally_test_machine, contiguous, and the 18 added ids match 0049 .. 0066 by name.
+    # Test-MigrationTarget: 69, latest 0069_import_source_locations, contiguous, and the 21 added ids match 0049 .. 0069 by name.
     Test-MigrationTarget $fBefore $f1 "Installed state ($NewVersion)"
     Test-StaffTargetsOwnerOnly "Installed state ($NewVersion)"
     $rf1 = Get-ReleaseFacts 'delta-after-setup'
@@ -2696,7 +2743,7 @@ function Invoke-DeltaStage {
     New-Checkpoint ("VM1100 delta ($NewVersion over $from, raw pack again), " + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
 }
 
-# 1.11.2 Delta: setup alone must change no row count of a table that existed before; only the journal grows (by the 18 migrations).
+# 1.11.2 Delta: setup alone must change no row count of a table that existed before; only the journal grows (by the 21 migrations).
 # A Retail, fact or key table that changes is a FAIL; any other table is REVIEW (a migration may seed or restate rows on purpose, and the
 # five-minute automation task can log a run between the two readings; read the bootstrap log). Tables the migrations add are listed (INFO).
 function Test-NoRowChanges($Before, $After, [string]$Area) {
@@ -3323,7 +3370,7 @@ function Test-Release1111Checks([string]$Area) {
 }
 
 # ================================================================ 1.12.0 additions (13 Oct 2026)
-# Read-only checks of what migrations 0062-0066 and the 1.12 setup scripts leave behind (112-W1-INTEGRATION-DONE.md "Left for the VM",
+# Read-only checks of what migrations 0062-0069 and the 1.12 setup scripts leave behind (112-W1-INTEGRATION-DONE.md "Left for the VM",
 # 112-W1-REVIEW.md B-1, B-2, M-3, m-4; lane notes C1, A3, B1, D1, D2). SELECT / sys.* / Get-Acl / Test-Path only; the Viewer probes use
 # EXECUTE AS USER with REVERT in the same batch. Nothing is written, no task is started. Evidence: counts, folder names, account short names.
 # No customer data is read: the three denied tables are only probed for the error number.
@@ -3450,7 +3497,7 @@ $Release112FactsBlock = {
                     $sid = ''
                     try { $sid = ([Security.Principal.NTAccount]::new([string]$r.IdentityReference)).Translate([Security.Principal.SecurityIdentifier]).Value } catch { $sid = [string]$r.IdentityReference }
                     $rights = [int]$r.FileSystemRights
-                    $ent.Add([pscustomobject]@{ sid = $sid; name = [string]$r.IdentityReference; modify = (($rights -band $mod) -eq $mod); write = (($rights -band $wr) -ne 0); fullControl = (($rights -band $full) -eq $full); inherited = [bool]$r.IsInherited })
+                    $ent.Add([pscustomobject]@{ sid = $sid; name = [string]$r.IdentityReference; rights = $rights; inheritFlags = [string]$r.InheritanceFlags; propagation = [string]$r.PropagationFlags; modify = (($rights -band $mod) -eq $mod); write = (($rights -band $wr) -ne 0); fullControl = (($rights -band $full) -eq $full); inherited = [bool]$r.IsInherited })
                 }
                 $row.entries = $ent.ToArray()
             }
@@ -3519,7 +3566,7 @@ function Test-Release112Checks {
     foreach ($e in $errs) { Write-Host "    guest note: $e" -ForegroundColor Yellow }
     Add-Check $Area '1.12.0 read-only checks ran' 'no query error' $(if ($errs.Count) { $errs -join ' / ' } else { 'none' }) (Get-Result ($errs.Count -eq 0))
 
-    # 0062-0066: tables and columns.
+    # 0062-0069: tables and columns.
     $haveT = @($d.tables | ForEach-Object { [string]$_.name })
     $missT = @($ObjectTablesExpected | Where-Object { $haveT -notcontains $_ })
     Add-Check $Area "1.12.0 tables exist (0062-0064): $($ObjectTablesExpected.Count)" ($ObjectTablesExpected -join ', ') $(if ($missT.Count) { 'missing: ' + ($missT -join ', ') } else { 'all present' }) (Get-Result ($missT.Count -eq 0))
@@ -3571,14 +3618,74 @@ function Test-Release112Checks {
         $broad = @($row.entries | Where-Object { $broadSids -contains [string]$_.sid } | ForEach-Object { & $short $_ })
         Add-Check $Area "ShopResults\$leaf`: no broad access" 'no Everyone, Users, Authenticated Users, Interactive, Guests' $(if ($broad.Count) { $broad -join ', ' } else { 'none' }) (Get-Result ($broad.Count -eq 0))
     }
+    # Decision 59 (15 Oct 2026; 1.12.0 commits 7f724c3 / 9cc0681; IR-1, IR-2), as scripts\bootstrap-etp-prerequisites.ps1 builds it:
+    #   TallyEvidence       SYSTEM + Administrators full; ACTIVE OWNERS Modify; nobody else (no Store Manager, not the automation account).
+    #   CollectionsEvidence SYSTEM + Administrators full; Owners Modify; every active Store Manager (who is not also an Owner) CREATE-ONLY: traverse,
+    #                       create files and folders, read attributes - no list, no read, no Modify; CREATOR OWNER (S-1-3-0) Modify on files only (inherit-only),
+    #                       so a manager reads/modifies only the files they created; OWNER RIGHTS (S-1-3-4) read attributes + synchronize only; nobody else.
+    # Both protected (no inheritance from ProgramData).
+    $sidSystem = 'S-1-5-18'; $sidAdmins = 'S-1-5-32-544'; $sidCreatorOwner = 'S-1-3-0'; $sidOwnerRights = 'S-1-3-4'
+    $rightTraverse = 0x20; $rightCreateFiles = 0x2; $rightCreateDirs = 0x4; $rightReadAttr = 0x80; $rightSync = 0x100000
+    $createOnlyMask = ($rightTraverse -bor $rightCreateFiles -bor $rightCreateDirs -bor $rightReadAttr -bor $rightSync)
+    $ownerRightsMask = ($rightReadAttr -bor $rightSync)
+    $evOwners = @($ownerSids)
+    $evManagers = @($managerSids | Where-Object { $evOwners -notcontains $_ })   # a manager who is also an Owner gets the Owner rule
+    $namesOf = { param($sids, $entries) @($sids | ForEach-Object { $x = $_; $e = @($entries | Where-Object { [string]$_.sid -eq $x }) | Select-Object -First 1; if ($e) { & $short $e } else { $x } }) }
     foreach ($rel in $EvidenceFolders) {
         $row = @($d.folders | Where-Object { [string]$_.folder -eq $rel }) | Select-Object -First 1
         if (-not $row -or -not [bool]$row.exists) { Add-Check $Area "$rel exists (B-2)" 'present under C:\ProgramData\EtpReporting (setup)' 'missing' 'FAIL'; continue }
-        $haveMod = @($row.entries | Where-Object { [bool]$_.modify -and ($writerSids -contains [string]$_.sid) } | ForEach-Object { [string]$_.sid })
-        $lacking = @($writerSids | Where-Object { $haveMod -notcontains $_ })
-        Add-Check $Area "$rel`: active Owner and Store Manager accounts have Modify (B-2)" "$($ownerSids.Count) Owner(s) [$(@($d.ownerNames) -join ', ')] and $($managerSids.Count) Store Manager(s) [$(@($d.managerNames) -join ', ')] with Modify" $(if ($writerSids.Count -eq 0) { 'no active Owner/Store Manager SID resolved' } elseif ($lacking.Count) { "$($lacking.Count) of $($writerSids.Count) lack Modify (if users were added after the last setup run, run setup again)" } else { "all $($writerSids.Count) have Modify" }) (Get-Result (($writerSids.Count -gt 0) -and ($lacking.Count -eq 0)))
-        $unexpected = @($row.entries | Where-Object { ($wellKnownOk -notcontains [string]$_.sid) -and ($writerSids -notcontains [string]$_.sid) } | ForEach-Object { & $short $_ })
-        Add-Check $Area "$rel`: nobody else (SYSTEM and Administrators full, the writers Modify)" 'no other account, no broad group' $(if ($unexpected.Count) { $unexpected -join ', ' } else { 'none' }) (Get-Result ($unexpected.Count -eq 0))
+        $isCollections = ($rel -eq 'CollectionsEvidence')
+        $ents = @($row.entries)
+        $rightsOf = { param($sid) $m = 0; foreach ($e in @($ents | Where-Object { [string]$_.sid -eq $sid })) { $m = $m -bor [int]$e.rights }; $m }
+        $bySid = { param($sid) @($ents | Where-Object { [string]$_.sid -eq $sid }) }
+        # Owners: Modify.
+        $haveOwnerMod = @($ents | Where-Object { [bool]$_.modify -and ($evOwners -contains [string]$_.sid) } | ForEach-Object { [string]$_.sid })
+        $ownerLack = @($evOwners | Where-Object { $haveOwnerMod -notcontains $_ })
+        Add-Check $Area "$rel`: active Owners have Modify (decision 59)" "$($evOwners.Count) Owner(s) [$(@($d.ownerNames) -join ', ')] with Modify" $(if ($evOwners.Count -eq 0) { 'no active Owner SID resolved' } elseif ($ownerLack.Count) { "$($ownerLack.Count) of $($evOwners.Count) lack Modify (if Owners were added after the last setup run, run setup again)" } else { "all $($evOwners.Count) have Modify" }) (Get-Result (($evOwners.Count -gt 0) -and ($ownerLack.Count -eq 0)))
+        # SYSTEM and Administrators: full control.
+        $sysFull = @(& $bySid $sidSystem | Where-Object { [bool]$_.fullControl }).Count -ge 1
+        $admFull = @(& $bySid $sidAdmins | Where-Object { [bool]$_.fullControl }).Count -ge 1
+        Add-Check $Area "$rel`: SYSTEM and Administrators have full control" 'both full control' "SYSTEM full=$sysFull; Administrators full=$admFull" (Get-Result ($sysFull -and $admFull))
+        if ($isCollections) {
+            # Store Managers: create-only (traverse, create files/folders, read attributes) - NOT Modify, no list/read of other people's files.
+            if ($evManagers.Count -eq 0) {
+                Add-Check $Area "$rel`: Store Managers are create-only (decision 59)" 'every active Store Manager (not an Owner): traverse, create files and folders, read attributes; no Modify, no read/list' 'no active Store Manager (other than Owners) resolved in the VM' 'INFO'
+            }
+            else {
+                $bad = @()
+                foreach ($m in $evManagers) {
+                    $mr = [int](& $rightsOf $m)
+                    $mn = (& $namesOf @($m) $ents)[0]
+                    $hasCreate = (($mr -band $rightCreateFiles) -ne 0) -and (($mr -band $rightCreateDirs) -ne 0)
+                    $extra = ($mr -band (-bnot $createOnlyMask))
+                    $anyModify = @(& $bySid $m | Where-Object { [bool]$_.modify -or [bool]$_.fullControl }).Count -gt 0
+                    if (-not $hasCreate) { $bad += "$mn cannot create files and folders" }
+                    if ($extra -ne 0 -or $anyModify) { $bad += ("$mn has more than create-only (extra rights 0x{0:X})" -f $extra) }
+                }
+                Add-Check $Area "$rel`: Store Managers are create-only (decision 59)" "$($evManagers.Count) Store Manager(s) [$((& $namesOf $evManagers $ents) -join ', ')]: traverse, create files and folders, read attributes; NO Modify, NO list/read" $(if ($bad.Count) { $bad -join '; ' } else { 'create-only, no Modify' }) (Get-Result ($bad.Count -eq 0))
+            }
+            # CREATOR OWNER: Modify on files created by the manager (object-inherit, inherit-only).
+            $co = @(& $bySid $sidCreatorOwner)
+            $coOk = @($co | Where-Object { [bool]$_.modify -and ([string]$_.inheritFlags -match 'ObjectInherit') -and ([string]$_.inheritFlags -notmatch 'ContainerInherit') -and ([string]$_.propagation -match 'InheritOnly') }).Count -ge 1
+            Add-Check $Area "$rel`: CREATOR OWNER has Modify on files only (a manager reads/modifies only what they created)" 'CREATOR OWNER Modify, ObjectInherit, InheritOnly' $(if ($co.Count) { ($co | ForEach-Object { "modify=$($_.modify) inherit=$($_.inheritFlags) propagation=$($_.propagation)" }) -join '; ' } else { 'no CREATOR OWNER entry' }) (Get-Result $coOk)
+            # OWNER RIGHTS: only read attributes + synchronize.
+            $or = @(& $bySid $sidOwnerRights)
+            $orMask = [int](& $rightsOf $sidOwnerRights)
+            $orOk = ($or.Count -ge 1) -and ($orMask -ne 0) -and (($orMask -band (-bnot $ownerRightsMask)) -eq 0)
+            Add-Check $Area "$rel`: OWNER RIGHTS limited to read attributes (an owner cannot change permissions)" 'OWNER RIGHTS: ReadAttributes + Synchronize only' $(if ($or.Count) { ('rights 0x{0:X}' -f $orMask) } else { 'no OWNER RIGHTS entry' }) (Get-Result $orOk)
+            $allowed = @($sidSystem, $sidAdmins, $sidCreatorOwner, $sidOwnerRights) + $evOwners + $evManagers
+            $allowedText = 'SYSTEM, Administrators, CREATOR OWNER, OWNER RIGHTS, the active Owners and Store Managers'
+        }
+        else {
+            # Tally: no Store Manager, not the automation account (unless the same account is also an Owner).
+            $notAllowed = @($managerSids + @($auto) | Where-Object { $_ -and ($evOwners -notcontains $_) })
+            $hit = @($ents | Where-Object { $notAllowed -contains [string]$_.sid } | ForEach-Object { & $short $_ })
+            Add-Check $Area "$rel`: no Store Manager and not the automation account (all Tally work is Owner-only, decision 59)" 'no entry for any Store Manager or EtpAutomation' $(if ($hit.Count) { ($hit | Select-Object -Unique) -join ', ' } else { 'none' }) (Get-Result ($hit.Count -eq 0))
+            $allowed = @($sidSystem, $sidAdmins) + $evOwners
+            $allowedText = 'SYSTEM, Administrators and the active Owners'
+        }
+        $unexpected = @($ents | Where-Object { $allowed -notcontains [string]$_.sid } | ForEach-Object { & $short $_ })
+        Add-Check $Area "$rel`: nobody else" "only $allowedText; no broad group" $(if ($unexpected.Count) { ($unexpected | Select-Object -Unique) -join ', ' } else { 'none' }) (Get-Result ($unexpected.Count -eq 0))
         Add-Check $Area "$rel`: does not inherit from ProgramData" 'protected ACL' "protected=$($row.isProtected)" (Get-Result ([bool]$row.isProtected))
     }
     $up = @($d.folders | Where-Object { [string]$_.folder -eq $UpdatesFolder }) | Select-Object -First 1
@@ -3591,6 +3698,10 @@ function Test-Release112Checks {
         Add-Check $Area 'Updates folder: nobody else, not the automation account (B1)' 'SYSTEM, Administrators and Owners only' $(if ($upOther.Count) { $upOther -join ', ' } else { 'none' }) (Get-Result ($upOther.Count -eq 0))
         Add-Check $Area 'Updates folder: does not inherit from ProgramData' 'protected ACL' "protected=$($up.isProtected)" (Get-Result ([bool]$up.isProtected))
     }
+    # KNOWN BUG (found in the 15 Oct 2026 21:01 run, fix in 1.12.1): the 1.12.0 bootstrap logs "WARNING: setup could not prepare the software update folder
+    # (The property 'Count' cannot be found on this object...)" although the folder and its ACL came out right (checks above). Not a harness problem; this row
+    # stays REVIEW on every 1.12.0 run until the 1.12.1 bootstrap no longer writes the warning (then delete this row).
+    Add-Check $Area 'Updates folder: setup-log warning "could not prepare the software update folder" is a KNOWN 1.12.0 BUG, fixed in 1.12.1' 'no such warning in the bootstrap log' 'REVIEW until 1.12.1: the 1.12.0 bootstrap writes this warning (property Count) even when the folder and ACL above are correct; in-app updates are not relied on in 1.12.0. Not a harness error.' 'REVIEW'
 
     # m-4: the Viewer is denied SELECT on the three collections tables.
     $vc = 'm-4: Viewer SELECT on bank_statement_lines, provider_settlement_lines, cash_deposit_confirmations is denied (error 229, EXECUTE AS USER, REVERT in the same batch)'
@@ -3618,7 +3729,7 @@ function Invoke-Release112Stage {
     Add-Check $area "The VM is on $NewVersion" "$NewVersion*, $ExpectedMigrationCount migrations, latest $ExpectedLatestMigration" "$ver; $($j.Count) migrations, latest $latest" (Get-Result (($ver -like "$NewVersion*") -and ($j.Count -eq $ExpectedMigrationCount) -and ($latest -like $ExpectedLatestMigration)))
     if ($ver -notlike "$NewVersion*") { throw "The VM is not on $NewVersion (it reports '$ver'). Run -Scenario Upgrade -Stage Install first." }
     $missingNames = @($ExpectedNewMigrations | Where-Object { $p = $_; @($j | Where-Object { $_ -like $p }).Count -ne 1 })
-    Add-Check $area 'Journal holds 0049-0066 by name' ($ExpectedNewMigrations -join ', ') $(if ($missingNames.Count) { 'missing: ' + ($missingNames -join ', ') } else { 'all present' }) (Get-Result ($missingNames.Count -eq 0))
+    Add-Check $area "Journal holds $ExpectedRangeText by name" ($ExpectedNewMigrations -join ', ') $(if ($missingNames.Count) { 'missing: ' + ($missingNames -join ', ') } else { 'all present' }) (Get-Result ($missingNames.Count -eq 0))
     $etp = [int](Invoke-Guest $NoEtpProcessBlock)
     if ($etp -gt 0) { $script:Notes.Add("Release112: ETP was running in the VM ($etp process) during the checks; the checks are read-only and do not depend on it.") }
     Test-Release112Checks $area -RequireHealth
