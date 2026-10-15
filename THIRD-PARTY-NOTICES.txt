@@ -52,6 +52,11 @@ Inno Setup (installer compiler, Jordan Russell / Martijn Laan licence), xUnit
 and related test packages are used to build and test ETP and are not part of
 the installed program.
 
+Obfuscar (Obfuscar.GlobalTool, MIT licence, https://github.com/obfuscar/obfuscar)
+rewrites the ETP assemblies of the protected release build. It is a build
+tool; apart from the small string-decoding routine it adds to those
+assemblies, none of its code is shipped or installed.
+
 No source-code licence terms of any package above are changed by ETP. To
 regenerate this list from the build, use the command in section 1 and check
 each package's licence expression on nuget.org.
