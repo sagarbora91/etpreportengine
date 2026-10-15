@@ -555,6 +555,13 @@ public sealed partial class TaskNavigator(MainWindow window)
             _ = history.ActivateAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate), string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore));
             return history;
         }
+        // 1.12.1 P4 (decision 64 #3): a Morning Fix opens the registered fix screen for its one file.
+        if (task.Id == "conflicts" && Modules.Morning.MorningFix.Read(argument) is not null && window.Screens.TryCreate(
+                new ScreenRequest(ImportFixFallbackFrom, argument, DateOnly.FromDateTime(appliedDate),
+                    string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore, window.CurrentShellAccess,
+                    taskId => { if (TaskNavigation.Find(taskId) is { } next) NavigateTask(next); })
+                { NavigateWithArgument = (taskId, value) => NavigateTaskById(taskId, value) }, out var fixView) && fixView is not null)
+            return fixView;
         if (task.Id is "conflicts" or "keep-evidence") return new Modules.Imports.ImportProblemsView(window.importWorkspaceView, async () =>
         {
             // Persisted outcomes for the header scope, never the session's last import:

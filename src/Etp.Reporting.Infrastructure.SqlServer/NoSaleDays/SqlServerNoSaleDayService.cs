@@ -16,6 +16,8 @@ public sealed class SqlServerNoSaleDayService : INoSaleDayService
     /// <summary>The lane's THROW block. Every number in it carries a sentence written for the person at the screen.</summary>
     public const int FirstRefusal = 51980;
     public const int LastRefusal = 51989;
+    /// <summary>1.12.1 P4 (review m-2): an inactive Retail store (P4 block 52010-52019).</summary>
+    public const int InactiveStoreRefusal = 52010;
 
     /// <summary>The plain sentence for a permission refusal (SQL 229 / 230, or 51980).</summary>
     public const string PermissionMessage = "Only the Owner or a Store Manager can mark or withdraw a no-sale day.";
@@ -120,7 +122,7 @@ public sealed class SqlServerNoSaleDayService : INoSaleDayService
         ArgumentNullException.ThrowIfNull(exception);
         return exception.Number switch
         {
-            >= FirstRefusal and <= LastRefusal => new NoSaleDayRefusedException(exception.Message, exception),
+            >= FirstRefusal and <= LastRefusal or InactiveStoreRefusal => new NoSaleDayRefusedException(exception.Message, exception),
             229 or 230 => new UnauthorizedAccessException(PermissionMessage, exception),
             _ => null
         };

@@ -341,6 +341,12 @@ public static class DesktopFriendlyError
         (51989, null, "A no-sale day mark cannot be deleted or rewritten. Withdraw it with a reason instead."),
         // 1.12 wave 2 U2 import source locations (51990-51999).
         (51990, null, "ETP keeps where each imported file went and never changes it. Nothing was changed."),
+        // 1.12.1 P2 collections (52000-52009).
+        (52000, null, "Another settlement rule for the same mode, store and provider covers some of these dates. Give the other rule an end date first."),
+        (52001, null, "This provider settles a different payment mode. Choose a provider of this mode, or leave it blank."),
+        (52002, null, "The bank cannot have credited it on a day that has not come yet. Check the credited date."),
+        // 1.12.1 P4 no-sale day on an inactive shop (52010-52019).
+        (52010, null, "This shop is inactive in ETP, so a no-sale day cannot be marked for it. Ask the Owner to enable it in Settings > Stores first."),
     ];
 
     /// <summary>

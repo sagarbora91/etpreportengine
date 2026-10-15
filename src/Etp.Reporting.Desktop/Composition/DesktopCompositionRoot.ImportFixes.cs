@@ -6,7 +6,6 @@ using Etp.Reporting.Desktop.Modules.Settings;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Infrastructure.SqlServer.Connections;
 using Etp.Reporting.Infrastructure.SqlServer.ImportSourceLocations;
-using HistoryScope = EtpApplication::Etp.Reporting.Application.Imports.ImportHistoryScope;
 
 namespace Etp.Reporting.Desktop.Composition;
 
@@ -28,10 +27,12 @@ public sealed partial class DesktopCompositionRoot
             .Select(staff => new StaffNameEntry(staff.StoreCode, staff.Code, staff.Name)).ToArray();
         registry.Register(ImportProblemsTask, request => new ImportProblemsView(null, async () =>
         {
-            var scope = new HistoryScope(request.BusinessDate, request.BusinessDate, request.StoreCode);
+            // 1.12.1 P4 (decision 64 #3): a Morning Fix argument reads its own day and store and keeps only its one file.
+            var fix = Modules.Morning.MorningFix.Read(request.Argument);
+            var scope = Modules.Morning.MorningFix.Scope(fix, request.BusinessDate, request.StoreCode);
             var history = await new SqlServerImportHistoryQuery(CurrentConnections().LegacyConnectionString()).LoadAsync(scope);
             var problems = ImportProblems.FromHistory(history.Select(entry => (entry.RecordedUtc, entry.Result)));
-            return FilterProblems(problems, request.Argument);
+            return fix is null ? FilterProblems(problems, request.Argument) : Modules.Morning.MorningFix.Filter(problems, fix);
         }));
     }
 
