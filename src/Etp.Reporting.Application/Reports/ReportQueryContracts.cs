@@ -87,6 +87,12 @@ public interface IOperationalReportQuery<TDsrDocument> where TDsrDocument : notn
     Task<IReadOnlyList<PhysicalStockRecord>> LoadPhysicalStockAsync(string storeCode, DateOnly businessDate, CancellationToken cancellationToken = default);
     /// <summary>Closing stock per item from each store's latest snapshot on or before <see cref="ReportScope.DateTo"/> (RA-STOCK-01); <see cref="StockInventoryRecord.SnapshotDate"/> is the day read.</summary>
     Task<IReadOnlyList<StockInventoryRecord>> LoadStockInventoryAsync(ReportScope scope, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Decision 69 (1.12.1 F2): items per store and brand row that have a stock line with a quantity and no cost price, over the same
+    /// snapshots <see cref="LoadStockInventoryAsync"/> reads. Default empty so an implementation that does not know costs says nothing.
+    /// </summary>
+    Task<IReadOnlyList<UncostedStockRecord>> LoadUncostedStockAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<UncostedStockRecord>>([]);
     Task<IReadOnlyList<DailyExceptionRecord>> LoadDailyExceptionsAsync(string storeCode, DateOnly businessDate, CancellationToken cancellationToken = default);
 }
 

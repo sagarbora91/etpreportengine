@@ -67,6 +67,10 @@ public sealed class SqlServerApplicationReportQuery :
     public async Task<IReadOnlyList<StockInventoryRecord>> LoadStockInventoryAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
         (await operational.LoadStockInventoryAsync(ToScope(scope), latestOnOrBefore: true, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
 
+    public async Task<IReadOnlyList<UncostedStockRecord>> LoadUncostedStockAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
+        (await operational.LoadUncostedStockAsync(ToScope(scope), latestOnOrBefore: true, cancellationToken).ConfigureAwait(false))
+            .Select(x => new UncostedStockRecord(x.StoreCode, x.Brand, x.Items)).ToArray();
+
     public async Task<IReadOnlyList<DailyExceptionRecord>> LoadDailyExceptionsAsync(string storeCode, DateOnly businessDate, CancellationToken cancellationToken = default) =>
         (await operational.LoadDailyExceptionsAsync(storeCode, businessDate, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
 

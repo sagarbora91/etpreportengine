@@ -227,6 +227,7 @@ public partial class ReportsWorkspaceView : UserControl
         presentation.BeginReport(reportCode);
         ExceptionFilters.Visibility=reportCode=="exceptions"?Visibility.Visible:Visibility.Collapsed;
         RefreshExportAvailability();
+        UncostedStockNotice.Clear();
         ReportResult.Text = reportCode == "dsr" ? "Loading the approved Daily Sales Report… Existing context remains visible." : "Loading report… Existing context remains visible.";
         return true;
     }
@@ -239,6 +240,7 @@ public partial class ReportsWorkspaceView : UserControl
         presentation.BeginReport(reportCode);
         ExceptionFilters.Visibility=reportCode=="exceptions"?Visibility.Visible:Visibility.Collapsed;
         RefreshExportAvailability();
+        UncostedStockNotice.Clear();
         ReportResult.Text = "Filters changed. Run the report again before exporting. Existing results belong to the previous scope.";
     }
 
@@ -258,23 +260,38 @@ public partial class ReportsWorkspaceView : UserControl
         {
             var stockScope = ReportScope();
             var rows = await operationalReportQueryFactory().LoadStockInventoryAsync(stockScope);
+            // Decision 69 (1.12.1 F2): stock VALUE leaves out lines with no cost price; say how many, here and in the export.
+            var uncosted = await operationalReportQueryFactory().LoadUncostedStockAsync(stockScope);
+            var uncostedNote = EtpApplication::Etp.Reporting.Application.Reports.UncostedStockNote.Sentence([.. uncosted]);
             var sources = FallbackSnapshotText(rows.Select(x => (x.StoreCode, x.SnapshotDate)), stockScope.DateTo) + SnapshotSourceText(rows.Select(x => (x.StoreCode, x.SnapshotDate, x.SnapshotSource))) + MissingSnapshotText(stockScope.StoreCodes, rows.Select(x => x.StoreCode), stockScope.DateTo);
+            if (revision == reportRevision) ShowUncostedStockNotice(uncosted);
             if (mode == "SLOW") rows = rows.Where(x => StockAgeing.IsSlow(x.Quantity, x.MovementStatus)).ToArray(); // RA-STOCK-06: same rule as Brand Stock "Slow Items"
             if (mode == "BRAND")
             {
                 var grouped = rows.GroupBy(x => new { x.StoreCode, BrandRow = x.StockGroup, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.BrandRow, x.Key.Brand, Cluster = x.Key.Group, Quantity = x.Sum(y => y.Quantity), MrpValue = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => StockAgeing.IsSlow(y.Quantity, y.MovementStatus)) }).OrderBy(x => x.StoreCode).ThenBy(x => x.BrandRow).ThenBy(x => x.Cluster).ThenBy(x => x.Brand).ToArray();
                 var status = grouped.Length == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = grouped; ReportResult.Text = IndianText($"{StatusWords.Label(status)}: {grouped.Length:N0} store/brand/cluster row(s).{sources}");
-                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from each store's latest saved ETP snapshot on or before the selected date; quantity and MRP are never inferred. " + StockMrpNote + BrandRowNote + sources, [new("Store"),new("Brand row"),new("Brand"),new("Cluster"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BrandRow,x.Brand,x.Cluster,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
+                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from each store's latest saved ETP snapshot on or before the selected date; quantity and MRP are never inferred. " + StockMrpNote + BrandRowNote + sources + UncostedExportText(uncostedNote), [new("Store"),new("Brand row"),new("Brand"),new("Cluster"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BrandRow,x.Brand,x.Cluster,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
             }
             else
             {
                 var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands; it lists SLOW, WATCH and NEVER SOLD items with stock, not NEW or ACTIVE ones.{NewStockText(rows)}");
-                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from each store's latest ETP stock snapshot on or before the selected date (the Date column). " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + ReceiptNote + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Cluster"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Last Receipt"),new("Days Since Receipt","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.LastReceiptDate,x.DaysSinceReceipt,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","","","",""]);
+                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from each store's latest ETP stock snapshot on or before the selected date (the Date column). " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + ReceiptNote + sources + UncostedExportText(uncostedNote), [new("Date"),new("Store"),new("Item"),new("Brand"),new("Cluster"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Last Receipt"),new("Days Since Receipt","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.LastReceiptDate,x.DaysSinceReceipt,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","","","",""]);
             }
             ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed), mode == "BRAND" ? "Brand stock" : mode == "SLOW" ? "Slow stock" : "Closing stock");
         }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_REPORT_FAILED", "Stock report failed"); }
     }
+
+    // Decision 69 (1.12.1 F2): the visible note (design system: one Notice, Warning tone) under the report status.
+    private void ShowUncostedStockNotice(IReadOnlyList<EtpApplication::Etp.Reporting.Application.Reports.UncostedStockRecord> uncosted)
+    {
+        var total = EtpApplication::Etp.Reporting.Application.Reports.UncostedStockNote.Total(uncosted);
+        if (total <= 0) { UncostedStockNotice.Clear(); return; }
+        UncostedStockNotice.Show(StatusTone.Warning, EtpApplication::Etp.Reporting.Application.Reports.UncostedStockNote.Title(total),
+            "By store and brand: " + EtpApplication::Etp.Reporting.Application.Reports.UncostedStockNote.PerStoreBrand(uncosted) + ".");
+    }
+
+    internal static string UncostedExportText(string note) => note.Length == 0 ? "" : " " + note;
 
     // Owner answer Q3/Q5: the owner's brand rows (Settings > Evening masters) mapped by cluster.
     internal const string BrandRowNote = " Brand row is the Daily Sales Report brand row mapped to the item's cluster in Settings > Evening masters, else the brand.";
