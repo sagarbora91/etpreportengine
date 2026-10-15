@@ -260,7 +260,7 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
         // The service's own read as the Viewer: the mark comes back, the reason does not.
         var reason = await ScalarAsync($"""
             SET NOCOUNT ON;
-            DECLARE @rows TABLE(store_code varchar(30),business_date date,reason_code varchar(30),reason nvarchar(500),marked_by nvarchar(100),marked_utc datetime2(3));
+            DECLARE @rows TABLE(store_code varchar(30),business_date date,reason_code varchar(30),reason nvarchar(500),marked_by nvarchar(100),marked_utc datetime2(3),has_day_data bit);
             EXECUTE AS USER='nsd_viewer';
             BEGIN TRY
               INSERT @rows EXEC sys.sp_executesql N'{SqlServerNoSaleDayService.LoadSql.Replace("'", "''", StringComparison.Ordinal)}',N'@date date',@date='20260821';
