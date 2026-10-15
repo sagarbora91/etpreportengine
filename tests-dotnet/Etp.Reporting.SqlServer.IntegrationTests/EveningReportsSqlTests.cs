@@ -344,7 +344,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal(34215m,titan.Rows.Single(x=>x.Metric=="VALUE").Ftd);Assert.Equal(938197m,titan.Rows.Single(x=>x.Metric=="VALUE").Mtd);
         Assert.Equal(774868.60m,helios.Rows.Single(x=>x.Metric=="VALUE").Mtd);
         Assert.Equal(1m,titan.Rows.Single(x=>x.Metric=="AUPT").Ftd);Assert.Equal(6843m,titan.Rows.Single(x=>x.Metric=="AVPT").Ftd);
-        Assert.Equal(1600000m-938197m,titan.Balance);Assert.Equal(titan.Balance/7,titan.RequiredAds);
+        Assert.Equal(1600000m-938197m,titan.Balance);Assert.Equal(titan.Balance/6,titan.RequiredAds); // decision 68 #5: 6 days left after 25 Aug (/7 before 1.12.1)
         Assert.Equal(63505m,doc.EveningSheets.Single(x=>x.StoreCode=="COMBINED").Rows.Single(x=>x.Metric=="VALUE").Ftd);
         foreach(var sheet in new[]{titan,helios})
         {

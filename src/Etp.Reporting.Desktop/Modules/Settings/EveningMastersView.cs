@@ -90,7 +90,7 @@ public sealed class EveningMastersView : UserControl
         copyActions.Children.Add(Button(CopyAllStoresText,CopyPreviousMonthAsync,ownerOnly:true));
         saveCopied=Button(SaveCopiedText,SaveCopiedTargetsAsync,ownerOnly:true);copyActions.Children.Add(saveCopied);
         targetPanel.Children.Add(copyActions);targetPanel.Children.Add(copiedNote);targetPanel.Children.Add(copiedTargets);
-        targetPanel.Children.Add(Caption("Day target = monthly target ÷ days in month. MTD balance = monthly target − MTD sales. Required daily sales = balance ÷ remaining days, including today."));
+        targetPanel.Children.Add(Caption("Day target = monthly target ÷ days in month. MTD balance = monthly target − MTD sales. Required daily sales = balance ÷ days left after today (blank on the last day)."));
         tabs.Items.Add(new TabItem{Header="Brand rows",Content=brandPanel});tabs.Items.Add(new TabItem{Header="Monthly targets",Content=targetPanel});panel.Children.Add(tabs);panel.Children.Add(Button("Refresh",Refresh));panel.Children.Add(status);Content=panel;
         HighlightSaveCopied(false);
         RefreshAccessState();

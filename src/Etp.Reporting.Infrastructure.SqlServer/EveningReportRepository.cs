@@ -99,9 +99,20 @@ public sealed partial class OperationalReportRepository
             var ts=targets.Where(x=>Includes(x.StoreCode)&&x.Month==new DateOnly(date.Year,date.Month,1)).ToArray();
             decimal? target=ts.Length==(store=="COMBINED"?stores.Length:1)?ts.Sum(x=>x.TargetSales):null;
             var balance=target-m?.TySales; var days=DateTime.DaysInMonth(date.Year,date.Month);
-            result.Add(new(store,store=="COMBINED"?"All stores":stores.Single(x=>x.Code==store).Name,target,target/days,balance,balance/(days-date.Day+1),rows));
+            result.Add(new(store,store=="COMBINED"?"All stores":stores.Single(x=>x.Code==store).Name,target,target/days,balance,RequiredDailySales(balance,date),rows));
         }
         return result;
+    }
+
+    /// <summary>
+    /// REQ ADS (decision 68 #5, replacing D5's divisor): the MTD balance divided by the days left AFTER the business date, because
+    /// that day's sales are already in MTD (25 Aug: 31 - 25 = 6 days). On the last day of the month no day is left, so it is
+    /// null ("—"), never a division by zero.
+    /// </summary>
+    internal static decimal? RequiredDailySales(decimal? balance,DateOnly date)
+    {
+        var daysLeft=DateTime.DaysInMonth(date.Year,date.Month)-date.Day;
+        return balance is null||daysLeft<=0?null:balance/daysLeft;
     }
 
     public Task<IReadOnlyList<PhysicalStockReportRow>> LoadBrandPhysicalStockAsync(string store,DateOnly date,CancellationToken token=default) =>

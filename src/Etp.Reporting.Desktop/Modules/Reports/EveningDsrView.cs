@@ -34,7 +34,7 @@ public sealed class EveningDsrView : TabControl
                     var cell=new Border{Child=text,Background=row%2==0?Brushes.AliceBlue:Brushes.White,BorderBrush=Brushes.LightGray,BorderThickness=new(0,0,0,1)};Grid.SetRow(cell,row);Grid.SetColumn(cell,col);grid.Children.Add(cell);
                 }
             }
-            panel.Children.Add(grid);panel.Children.Add(new TextBlock{Text="Day target = monthly ÷ days in month. Balance = target − MTD. Required daily sales includes today. — means unavailable; manual totals use available entries.",TextWrapping=TextWrapping.Wrap,Margin=new(6)});
+            panel.Children.Add(grid);panel.Children.Add(new TextBlock{Text="Day target = monthly ÷ days in month. Balance = target − MTD. Required daily sales divides by the days left after today. — means unavailable; manual totals use available entries.",TextWrapping=TextWrapping.Wrap,Margin=new(6)});
             Items.Add(new TabItem{Header=sheet.StoreName,MinHeight=44,Content=new ScrollViewer{Content=panel,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
         }
     }
