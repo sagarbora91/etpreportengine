@@ -160,7 +160,8 @@ public interface ICashDepositService
     Task<long> ConfirmManuallyAsync(ManualDepositConfirmation confirmation, CancellationToken cancellationToken = default);
     Task WithdrawAsync(long confirmationId, string reason, CancellationToken cancellationToken = default);
 
-    /// <summary>1.12.1 P2 (Owner): the active confirmations whose deposit date is in the range, newest first.</summary>
+    /// <summary>1.12.1 P2 (Owner): the active confirmations whose deposit date, or the day they were marked (UTC), is in the
+    /// range; newest deposit first.</summary>
     Task<IReadOnlyList<CreditedDeposit>> LoadCreditedAsync(IReadOnlyList<string>? storeCodes, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
 
     /// <summary>1.12.1 P2 (Owner): the accounts a credit can be recorded on by hand for this store.</summary>

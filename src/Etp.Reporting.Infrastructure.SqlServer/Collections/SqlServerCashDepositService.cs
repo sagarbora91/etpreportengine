@@ -216,7 +216,8 @@ public sealed class SqlServerCashDepositService : ICashDepositService
                 FROM dbo.cash_deposit_confirmations c
                 JOIN dbo.bank_accounts a ON a.bank_account_id=c.bank_account_id
                 LEFT JOIN dbo.v_cash_deposits_sent s ON s.store_code=c.store_code AND s.business_date=c.deposit_business_date
-                WHERE c.withdrawn_utc IS NULL AND c.deposit_business_date BETWEEN @from AND @to
+                WHERE c.withdrawn_utc IS NULL
+                  AND (c.deposit_business_date BETWEEN @from AND @to OR CONVERT(date,c.confirmed_utc) BETWEEN @from AND @to)
                   AND (@stores IS NULL OR c.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
                 ORDER BY c.deposit_business_date DESC,c.store_code,c.cash_deposit_confirmation_id DESC;
             END;

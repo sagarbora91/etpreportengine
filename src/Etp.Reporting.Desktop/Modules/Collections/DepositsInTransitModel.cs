@@ -84,7 +84,8 @@ public sealed class DepositsInTransitModel
     public const string DefaultWithdrawReason = "Marked as credited by mistake";
     public const string NoAccountText = "There is no active bank account for this store. Add one in Settings > Collections setup first.";
 
-    /// <summary>The "Marked as credited" list covers deposits of the last 62 days (two months), newest first.</summary>
+    /// <summary>The "Marked as credited" list covers credits for deposits of the last 62 days (two months) and credits marked in
+    /// that time, newest deposit first.</summary>
     public const int CreditedListDays = 62;
     private readonly Func<ICashDepositService> service;
     private readonly Func<DateOnly> today;

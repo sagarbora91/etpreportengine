@@ -159,7 +159,7 @@ public sealed class DepositsInTransitView : UserControl
         var buttons = new WrapPanel { Margin = DesignTokens.Gap(null, "Space8", null, null) };
         buttons.Children.Add(withdrawButton);
         stack.Children.Add(buttons);
-        return CollectionsUi.Card("Marked as credited", stack, "Bank credits of the last two months. Withdraw one that was marked by mistake; the deposit is then in transit again.");
+        return CollectionsUi.Card("Marked as credited", stack, "Bank credits for the last two months' deposits, and those marked in that time. Withdraw one that was marked by mistake; the deposit is then in transit again.");
     }
 
     private void Render()
