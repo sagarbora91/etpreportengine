@@ -932,7 +932,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
             """;
         await using var connection = await OpenAsync(token);
         var targets = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
-        var wdc = new List<decimal>();
+        var wdc = new List<(string Store, decimal Value)>();
         await using (var command = new SqlCommand(sql, connection))
         {
             command.Parameters.AddWithValue("@date", businessDate);
@@ -941,7 +941,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
             {
                 if (reader.IsDBNull(2)) continue;
                 if (reader.GetString(1).Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
-                else wdc.Add(reader.GetDecimal(2));
+                else wdc.Add((reader.GetString(0).Trim(), reader.GetDecimal(2)));
             }
         }
         var serviceMoneyStores = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -950,7 +950,16 @@ public sealed partial class OperationalReportRepository(string connectionString)
         {
             while (await reader.ReadAsync(token)) serviceMoneyStores.Add(reader.GetString(0).Trim());
         }
-        return new(targets, wdc.Count == 0 ? null : wdc.Sum(), serviceMoneyStores);
+        // Decision 68 #6 (1.12.1): the WDC tile sums only the Service-money shop(s), like the Service total (it summed every
+        // active shop before, so a WDC keyed at another shop showed in the tile but not in the total).
+        return new(targets, ServiceMoneyWdc(wdc, serviceMoneyStores), serviceMoneyStores);
+    }
+
+    /// <summary>The DSR WDC tile: the WDC entries of the Service-money shop(s) only; null when none of them has one.</summary>
+    internal static decimal? ServiceMoneyWdc(IEnumerable<(string Store, decimal Value)> entries, IReadOnlySet<string> serviceMoneyStores)
+    {
+        var rows = entries.Where(x => serviceMoneyStores.Contains(x.Store)).ToArray();
+        return rows.Length == 0 ? null : rows.Sum(x => x.Value);
     }
 
     private static async Task<Dictionary<string, ServiceFacts>> LoadServiceFactsAsync(

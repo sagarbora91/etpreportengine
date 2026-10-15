@@ -41,4 +41,13 @@ public sealed class F1MoneyRulesTests
         Assert.Equal((1.01m, ReconciliationStatus.Failed), (result.Documents[1].Variance, result.Documents[1].Status));
         Assert.Equal(ReconciliationStatus.Failed, result.Status);
     }
+
+    [Fact]
+    public void The_wdc_tile_sums_only_the_service_money_shop()
+    {
+        // Titan (Service-money shop) WDC 250, Helios WDC 100: tile 250 (350 before 1.12.1). No Service-money shop: blank.
+        (string, decimal)[] entries = [("WLMHW", 250m), ("HEMW", 100m)];
+        Assert.Equal(250m, OperationalReportRepository.ServiceMoneyWdc(entries, new HashSet<string>(["wlmhw"], StringComparer.OrdinalIgnoreCase)));
+        Assert.Null(OperationalReportRepository.ServiceMoneyWdc(entries, new HashSet<string>(StringComparer.OrdinalIgnoreCase)));
+    }
 }
