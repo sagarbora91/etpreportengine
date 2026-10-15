@@ -9,7 +9,7 @@ Migrations: **0054_error_register.sql** and **0055_health_check.sql** (1.10.1 us
 ## 1. What it is
 
 1. **Error register.** Every Error or Critical diagnostics entry is grouped by a fingerprint into one register entry with first and last seen, count, app versions, sample Refs and a status. It lives in the database so that the errors of every Windows account (Owner, Store Managers, automation) are in one place. No customer data, no message text.
-2. **Health check.** 51 read-only checks in 7 areas (54 from 1.11.2: DB-06, SEC-04, OPS-10; 55 in 1.12.0 wave 1: DB-07; 56 in wave 2: OPS-11), run by the Owner on demand and by the automation task nightly. Each line: Pass, Warning, Fail, Known or Skipped, a plain explanation and the screen that fixes it.
+2. **Health check.** 56 read-only checks in 7 areas in 1.12.0 (51 at first; 54 from 1.11.2: DB-06, SEC-04, OPS-10; 55 in 1.12.0 wave 1: DB-07; 56 in wave 2: OPS-11), run by the Owner on demand and by the automation task nightly. Each line: Pass, Warning, Fail, Known or Skipped, a plain explanation and the screen that fixes it.
 3. **Fix loop.** Each run writes a privacy-checked JSON export. The weekly audit turns Fails, New and Recurred entries into numbered fix tickets; Sagar approves; fixes go through code-only lanes and the gate; the release manifest marks the register entry Fixed; a repeat after the fix turns it Recurred. Claude never changes the software or the database unattended.
 
 Goals: one list of every distinct error and whether a fix held; one button and one nightly run that prove every function; every finding says what is wrong and where to fix it; a machine-readable export; strictly read-only towards business data; rare warnings (Known with reason and expiry).

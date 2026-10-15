@@ -42,7 +42,7 @@ Settings → Test connection reports a refused login and a missing database sepa
 
 *New in 1.11.0.* Two screens under Settings → Database, for the Owner. Store Managers and Viewers do not see them; they see one line on the Today screen (above "What's missing"): "System check: last night OK", "N warnings" or "1 problem - tell the Owner".
 
-**Health check.** Choose **Run health check**. ETP reads the database and the files it needs and changes nothing. It takes about a minute, runs in the background, and has a Cancel button; between 09:00 and 21:00 it asks first. It checks 51 things in seven groups: the database, permissions, the 22 reports, the import layouts, yesterday's data, backups and scheduled tasks, and the error log. The same check runs by itself every night at about 02:30 (and at the next opportunity if the PC was off). Yesterday is the business date it checks.
+**Health check.** Choose **Run health check**. ETP reads the database and the files it needs and changes nothing. It takes about a minute, runs in the background, and has a Cancel button; between 09:00 and 21:00 it asks first. It checks 56 things in seven groups: the database, permissions, the 22 reports, the import layouts, yesterday's data, backups and scheduled tasks, and the error log. The same check runs by itself every night at about 02:30 (and at the next opportunity if the PC was off). Yesterday is the business date it checks.
 
 Each line shows one of:
 
