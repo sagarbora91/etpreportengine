@@ -74,7 +74,9 @@ public partial class App : Application
         }
         // Interactive start only: the headless verbs and setup have their own refusal (--plan-database-changes).
         // Same path as a rejected configuration: recorded, one message, exit 2, no window and no mutex left behind.
-        if (!headless && await compositionRoot.CheckObjectsUpToDateAsync() is { } objectsRefusal)
+        string? objectsRefusal = null;
+        if (!headless) objectsRefusal = await CheckObjectsWithSplashAsync(compositionRoot);
+        if (objectsRefusal is not null)
         {
             // Review m-5: its own event id, so the Error register tells it apart from a rejected connection string.
             DesktopDiagnostics.Record(new InvalidOperationException(objectsRefusal), "Startup", "STARTUP_OBJECTS_PENDING", DesktopDiagnosticSeverity.Critical);
@@ -89,6 +91,8 @@ public partial class App : Application
             () =>
             {
                 var window = compositionRoot.CreateMainWindow();
+                // The splash (if one was shown) was the first window; the real window must be the main one.
+                MainWindow = window;
                 window.Show();
                 if (e.Args.Contains("--capture-review"))
                     _ = ImportReviewSession.RunAsync(window, e.Args);
@@ -111,6 +115,33 @@ public partial class App : Application
         {
             Shutdown(outcome.ExitCode!.Value);
             return;
+        }
+    }
+
+    /// <summary>How long the check may run before the "Checking the database..." window appears (a quick check shows nothing).</summary>
+    internal static readonly TimeSpan SplashDelay = TimeSpan.FromMilliseconds(500);
+
+    // Review m-5. The check can take up to 20 s on a slow PC; after SplashDelay a small window says what is happening.
+    // The window is the app's first window, so the app must not shut down when it closes before the main window exists.
+    private async Task<string?> CheckObjectsWithSplashAsync(DesktopCompositionRoot compositionRoot)
+    {
+        var check = compositionRoot.CheckObjectsUpToDateAsync();
+        if (await Task.WhenAny(check, Task.Delay(SplashDelay)).ConfigureAwait(true) == check)
+            return await check;
+        StartupCheckWindow? splash = null;
+        var previousMode = ShutdownMode;
+        try
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { splash = new StartupCheckWindow(); splash.Show(); }
+            catch (Exception exception) { DesktopDiagnostics.Record(exception, "Startup", "STARTUP_SPLASH_FAILED", DesktopDiagnosticSeverity.Warning); }
+            return await check;
+        }
+        finally
+        {
+            try { splash?.Close(); } catch (InvalidOperationException) { }
+            MainWindow = null;
+            ShutdownMode = previousMode;
         }
     }
 

@@ -14,7 +14,10 @@ public sealed record UpdateGateState(
     bool BackupRunning,
     bool RecoveryDrillRunning,
     bool EntryDraftOpen,
-    bool OtherEtpSessionOpen);
+    bool OtherEtpSessionOpen,
+    // 1.12.1 P3 (review m-6): a SQL read the gate depends on failed, so "no import / no health run" is unknown. The gate then
+    // fails closed. Defaulted so existing constructions keep compiling.
+    bool DatabaseUnreadable = false);
 
 public enum UpdateGateBlock
 {
@@ -27,6 +30,7 @@ public enum UpdateGateBlock
     RecoveryDrillRunning,
     EntryDraftOpen,
     OtherEtpSessionOpen,
+    DatabaseUnreadable,
 }
 
 public sealed record UpdateGateResult(IReadOnlyList<UpdateGateBlock> Blocks)
@@ -55,13 +59,15 @@ public static class UpdateGate
         if (!state.IsOwner) return new([UpdateGateBlock.NotOwner]);
         var blocks = new List<UpdateGateBlock>();
         if (!state.KeysConfigured) blocks.Add(UpdateGateBlock.NotSetUp);
-        if (!state.UpdateCheckEnabled) blocks.Add(UpdateGateBlock.TurnedOff);
+        // When the database could not be read, the setting is unknown too: say that, not "turned off".
+        if (!state.UpdateCheckEnabled && !state.DatabaseUnreadable) blocks.Add(UpdateGateBlock.TurnedOff);
         if (state.ImportRunning) blocks.Add(UpdateGateBlock.ImportRunning);
         if (state.HealthRunRunning) blocks.Add(UpdateGateBlock.HealthRunRunning);
         if (state.BackupRunning) blocks.Add(UpdateGateBlock.BackupRunning);
         if (state.RecoveryDrillRunning) blocks.Add(UpdateGateBlock.RecoveryDrillRunning);
         if (state.EntryDraftOpen) blocks.Add(UpdateGateBlock.EntryDraftOpen);
         if (state.OtherEtpSessionOpen) blocks.Add(UpdateGateBlock.OtherEtpSessionOpen);
+        if (state.DatabaseUnreadable) blocks.Add(UpdateGateBlock.DatabaseUnreadable);
         return new(blocks);
     }
 
@@ -77,6 +83,7 @@ public static class UpdateGate
         UpdateGateBlock.RecoveryDrillRunning => "The recovery drill is running. Wait for it to finish.",
         UpdateGateBlock.EntryDraftOpen => "An entry has not been saved. Save or discard it first.",
         UpdateGateBlock.OtherEtpSessionOpen => "ETP is open in another Windows session. Close it there first.",
+        UpdateGateBlock.DatabaseUnreadable => "ETP could not check the database, so it cannot tell whether an import or a backup is running. Try again in a minute.",
         _ => throw new ArgumentOutOfRangeException(nameof(block)),
     };
 }

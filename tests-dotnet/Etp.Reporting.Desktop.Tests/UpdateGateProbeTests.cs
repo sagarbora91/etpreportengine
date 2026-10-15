@@ -6,7 +6,7 @@ namespace Etp.Reporting.Desktop.Tests;
 /// <summary>
 /// 1.12 wave 2 (B2). Where each field of the update gate comes from (B1's source list): the window's import and Operations
 /// runners, the database's open-import count, the automation lease, the scheduled backup and drill tasks, the draft guards,
-/// the second ETP session, the compiled-in key and the 0065 switch. A source that cannot be read never blocks forever.
+/// the second ETP session, the compiled-in key and the 0065 switch. A database source that cannot be read fails the gate closed (1.12.1, m-6).
 /// </summary>
 public sealed class UpdateGateProbeTests
 {
@@ -66,10 +66,45 @@ public sealed class UpdateGateProbeTests
     }
 
     [Fact]
-    public async Task A_source_that_cannot_be_read_does_not_block_the_update_forever()
+    public async Task A_database_source_that_cannot_be_read_fails_the_gate_closed_with_one_plain_sentence()
     {
         var sources = new Sources { Throw = new InvalidOperationException("Synthetic: the database could not be read") };
-        Assert.True(UpdateGate.Evaluate(await sources.Probe().ReadAsync(CancellationToken.None)).Allowed);
+        var result = UpdateGate.Evaluate(await sources.Probe().ReadAsync(CancellationToken.None));
+        Assert.False(result.Allowed);
+        // Only the unreadable sentence: not "turned off" (the setting read worked here) and not an invented import/backup.
+        Assert.Equal(new[] { UpdateGateBlock.DatabaseUnreadable }, result.Blocks);
+        var sentence = UpdateGate.Describe(UpdateGateBlock.DatabaseUnreadable);
+        Assert.Contains("Try again", sentence);
+        Assert.DoesNotContain("Exception", sentence);
+    }
+
+    [Fact]
+    public async Task An_unreadable_update_setting_says_unreadable_not_turned_off()
+    {
+        var sources = new UpdateGateSources(() => true, () => false, _ => Task.FromResult(false), _ => Task.FromResult(false),
+            () => false, () => false, () => false, () => false, () => false, () => true,
+            _ => Task.FromException<bool>(new InvalidOperationException("Synthetic")));
+        var result = UpdateGate.Evaluate(await new UpdateGateProbe(sources).ReadAsync(CancellationToken.None));
+        Assert.Equal(new[] { UpdateGateBlock.DatabaseUnreadable }, result.Blocks);
+    }
+
+    [Fact]
+    public async Task The_gate_clears_again_when_the_database_can_be_read()
+    {
+        var sources = new Sources { Throw = new InvalidOperationException("Synthetic") };
+        var probe = sources.Probe();
+        Assert.False(UpdateGate.Evaluate(await probe.ReadAsync(CancellationToken.None)).Allowed);
+        sources.Throw = null;
+        Assert.True(UpdateGate.Evaluate(await probe.ReadAsync(CancellationToken.None)).Allowed);
+    }
+
+    [Fact]
+    public async Task A_machine_side_source_that_throws_still_reads_as_not_running()
+    {
+        var sources = new UpdateGateSources(() => true, () => false, _ => Task.FromResult(false), _ => Task.FromResult(false),
+            () => false, () => throw new InvalidOperationException("Synthetic"), () => throw new InvalidOperationException("Synthetic"),
+            () => false, () => throw new InvalidOperationException("Synthetic"), () => true, _ => Task.FromResult(true));
+        Assert.True(UpdateGate.Evaluate(await new UpdateGateProbe(sources).ReadAsync(CancellationToken.None)).Allowed);
     }
 
     [Fact]
