@@ -44,6 +44,12 @@ public sealed record DailyWorkflowPresentationState(
     /// day, so the verdict band offers "Mark as no-sale day" (N1) to the Owner and the Store Manager.
     /// </summary>
     public bool NoSalesFile { get; init; }
+
+    /// <summary>
+    /// Review M-1: the day is marked as a no-sale day but sales or a daily entry were saved for it since, so the mark no longer
+    /// applies; the verdict band offers N1's "Withdraw" (the Owner and the Store Manager).
+    /// </summary>
+    public bool NoSaleMarkNoLongerApplies { get; init; }
 }
 
 /// <summary>
@@ -89,7 +95,8 @@ public sealed class DailyWorkflowPresentationSession
             state.CanFinalise)
         {
             IsLocked = state.Status == DailyWorkflowStatus.Locked,
-            NoSalesFile = state.MissingReports.Contains(SalesReportCode, StringComparer.OrdinalIgnoreCase)
+            NoSalesFile = state.MissingReports.Contains(SalesReportCode, StringComparer.OrdinalIgnoreCase),
+            NoSaleMarkNoLongerApplies = state.NoSaleMarkNoLongerApplies
         };
     }
 

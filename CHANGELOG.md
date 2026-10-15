@@ -22,6 +22,7 @@ Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on
 **Mark as no-sale day (N1, migration 0068; decisions 52 and 55)**
 
 - The Owner or a Store Manager can mark a shop's day with no sales (closed for a holiday, closed for another reason, or open with nothing sold) with a reason. ETP then stops asking for that day's shop files and daily entries; the month's targets still count, and the day is finalised and locked as usual. The mark can be withdrawn with a reason until the day is finalised. ETP refuses to mark a day it already holds sales for, a day with a daily entry other than zero, a finalised day or a future date.
+- A mark stops applying when sales or a daily entry other than zero are saved for the day after it was made (a late sales file, for example): the day then needs its normal files and entries again, the DSR shows the sales, and Close day, Morning and the Today checklist say "No-sale mark no longer applies" with a **Withdraw** button.
 - The Daily Sales Report, its PDF, Excel and the daily pack show "No sales (marked by ... on ...)" for a marked shop-day, with the day's sales as 0 instead of "not imported".
 - The nightly check DATA-01 counts marked shop-days in its OK line. The Service Centre checked by the daily reminder now comes from the store list, not a fixed store code.
 

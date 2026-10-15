@@ -402,7 +402,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     /// <summary>
     /// Decision 52: on a day with no sales file that is not finalised, the Owner and the Store Manager get N1's "Mark as no-sale
-    /// day" (or "Withdraw" when it is marked) in the verdict band. A Viewer, a finalised day and a day with sales get nothing.
+    /// day" (or "Withdraw" when it is marked) in the verdict band. A Viewer, a finalised day and a day with sales get nothing,
+    /// except that a marked day whose mark no longer applies (sales or entries saved since, review M-1) gets "Withdraw".
     /// </summary>
     private async Task ShowNoSaleDayButtonAsync(DailyWorkflowPresentationState state)
     {
@@ -426,7 +427,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     /// <summary>The rule above, as a pure function (tests).</summary>
     internal static bool ShowsNoSaleDayButton(DailyWorkflowPresentationState state, DailyWorkflowWorkspaceAccess current) =>
-        state.IsAvailable && state.NoSalesFile && !state.IsLocked && current.CanImport;
+        state.IsAvailable && (state.NoSalesFile || state.NoSaleMarkNoLongerApplies) && !state.IsLocked && current.CanImport;
 
     /// <summary>DS-08: the verdict band takes the tone of the state (soft fill, tone-coloured word) instead of one green box.</summary>
     private void ApplyVerdictTone(DailyWorkflowTone? tone)

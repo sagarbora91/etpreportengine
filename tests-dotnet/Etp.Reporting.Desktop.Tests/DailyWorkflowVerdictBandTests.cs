@@ -47,6 +47,20 @@ public sealed class DailyWorkflowVerdictBandTests
     }
 
     [Fact]
+    public void A_mark_that_no_longer_applies_offers_withdraw_on_close_day_even_with_the_sales_file()
+    {
+        // Review M-1: sales were imported after the mark; R025 is no longer missing, but the Owner / Store Manager must be able to
+        // withdraw the mark from Close day too. Never for a Viewer or on a finalised day.
+        var voided = State(DailyWorkflowStatus.NotReady, "R011") with { NoSaleMarkNoLongerApplies = true };
+        var state = new DailyWorkflowPresentationSession().Show(voided, []);
+        Assert.True(state.NoSaleMarkNoLongerApplies);
+        Assert.True(DailyWorkflowWorkspaceView.ShowsNoSaleDayButton(state, new(true, true, false)));
+        Assert.False(DailyWorkflowWorkspaceView.ShowsNoSaleDayButton(state, new(true, false, false)));
+        var locked = new DailyWorkflowPresentationSession().Show(State(DailyWorkflowStatus.Locked) with { NoSaleMarkNoLongerApplies = true }, []);
+        Assert.False(DailyWorkflowWorkspaceView.ShowsNoSaleDayButton(locked, new(true, true, true)));
+    }
+
+    [Fact]
     public void Finalise_is_in_the_verdict_band_and_the_root_still_has_nineteen_children()
     {
         RunSta(() =>

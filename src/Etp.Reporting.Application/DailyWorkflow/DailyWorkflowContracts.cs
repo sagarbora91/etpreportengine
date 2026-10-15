@@ -41,7 +41,14 @@ public sealed record DailyWorkflowState(
     IReadOnlyList<DailyManualInput> ManualInputs,
     IReadOnlyList<string> MissingRequiredInputs,
     bool CanFinalise,
-    string StatusMessage);
+    string StatusMessage)
+{
+    /// <summary>
+    /// Review M-1: the store-day is marked as a no-sale day, but sales or a daily entry other than zero were saved for it since;
+    /// the mark is ignored (the normal checks stand) and Close day offers Withdraw.
+    /// </summary>
+    public bool NoSaleMarkNoLongerApplies { get; init; }
+}
 
 public sealed record DailyManualStockCount(
     string StoreCode,

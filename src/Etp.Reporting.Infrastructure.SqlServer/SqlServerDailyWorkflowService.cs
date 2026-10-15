@@ -213,7 +213,10 @@ public sealed class SqlServerDailyWorkflowService :
             source.ManualInputs.Select(Map).ToArray(),
             source.MissingRequiredInputs,
             source.CanFinalise,
-            source.StatusMessage);
+            source.StatusMessage)
+        {
+            NoSaleMarkNoLongerApplies = source.NoSaleMarkNoLongerApplies
+        };
     }
 
     public static DailyManualInput Map(ManualInputValue source)

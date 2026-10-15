@@ -174,6 +174,8 @@ Use this when a shop genuinely had no sales (a holiday, or a day it did not open
 
 ETP **refuses** to mark a day when it already holds sales for that store and day, when a daily entry other than zero is saved, when the day is locked, or for a date in the future. The refusal says which. To undo: press **Withdraw no-sale day** in the same place, type a reason, and the day asks for its files again. If the day is already locked, reopen it first. Marking and withdrawing are in the audit trail.
 
+If sales or a daily entry other than zero are saved for a marked day afterwards (for example the sales file arrives late), the mark **no longer applies**: ETP asks for the day's files and entries as usual, the Daily Sales Report shows the sales, and Close day, Morning and the Today checklist say "No-sale mark no longer applies". Press **Withdraw** there to remove the mark.
+
 ## Tally screens (Owner)
 
 All Tally work uses a TEST company in a test copy of Tally inside the virtual machine. ETP never talks to the real Tally (decision 53). Setup steps: [TALLY-TEST-SETUP](operations/TALLY-TEST-SETUP.md).
