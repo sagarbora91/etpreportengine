@@ -217,8 +217,9 @@ public sealed class NoSaleDaysSqlTests(SqlDatabaseFixture database) : IClassFixt
             await Refused(() => service.MarkAsync("ZN006", DateOnly.FromDateTime(DateTime.Today).AddDays(2), NoSaleDayText.ClosedHoliday, "Synthetic")));
         Assert.Equal("Choose a shop that ETP knows and a business date.",
             await Refused(() => service.MarkAsync("ZN999", Day, NoSaleDayText.ClosedHoliday, "Synthetic")));
-        // Review m-2: an inactive Retail store is refused the same way (no OPEN day row is created for it).
-        Assert.Equal("Choose a shop that ETP knows and a business date.",
+        // Review m-2 (1.12.1 P4: its own sentence, THROW 52010): an inactive Retail store is refused and no OPEN day row
+        // is created for it.
+        Assert.Equal("This shop is inactive in ETP, so a no-sale day cannot be marked for it. Ask the Owner to enable it in Settings > Stores first.",
             await Refused(() => service.MarkAsync("ZN008", Day, NoSaleDayText.ClosedHoliday, "Synthetic")));
         Assert.Equal("This day is not marked as a no-sale day, so there is nothing to withdraw.",
             await Refused(() => service.WithdrawAsync("ZN006", Day, "Synthetic")));

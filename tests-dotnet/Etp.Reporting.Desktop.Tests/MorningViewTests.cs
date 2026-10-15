@@ -13,7 +13,7 @@ namespace Etp.Reporting.Desktop.Tests;
 
 /// <summary>
 /// 1.12 U1 Morning page (template D) with fake services: one primary only when a store is ready, the confirm names the
-/// stores, Finalise all reports per store, publish speaks in a sentence, Fix buttons carry the history key, N1's buttons
+/// stores, Finalise all reports per store, publish speaks in a sentence, Fix buttons name their one file, N1's buttons
 /// are placed, and a role other than the Owner reads nothing.
 /// </summary>
 [Collection(WpfViewCollection.Name)]
@@ -104,7 +104,7 @@ public sealed class MorningViewTests
     }
 
     [Fact]
-    public void A_fix_button_opens_the_fix_task_with_the_history_key_and_N1_buttons_are_placed()
+    public void A_fix_button_opens_the_fix_task_for_its_one_file_and_N1_buttons_are_placed()
     {
         RunSta(() =>
         {
@@ -129,7 +129,7 @@ public sealed class MorningViewTests
             var fix = Buttons(view).Single(button => (string)button.Content == "Fix sales lines");
             fix.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
 
-            Assert.Equal([(MorningSummaryBuilder.ImportFixTask, (string?)"attempt:41")], opened);
+            Assert.Equal([(MorningSummaryBuilder.ImportFixTask, (string?)"fix:20261009:SC902:synthetic.xlsx")], opened);
             Assert.Equal(["mark SC902", "withdraw SC904"], marks);
             Assert.Contains(Buttons(view), button => (string)button.Content == "Withdraw");
             Assert.Contains(Texts(view), text => text.StartsWith("No-sale day (marked by SYNTH\\manager", StringComparison.Ordinal));

@@ -70,6 +70,48 @@ public sealed class DailyWorkflowVerdictBandTests
         Assert.True(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 1), new DateTime(2026, 10, 31), october));
         Assert.False(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 5), new DateTime(2026, 10, 31), october));
         Assert.False(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 1), null, october));
+        // 1.12.1 P4: a period the Owner picked is kept even when it equals the default.
+        Assert.False(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(new DateTime(2026, 10, 1), new DateTime(2026, 10, 31), october, typed: true));
+        Assert.True(DailyWorkflowWorkspaceView.ShouldReplaceStaffTargetPeriod(null, null, october, typed: true));
+    }
+
+    [Fact]
+    public void The_staff_target_period_follows_the_header_until_the_Owner_picks_one_and_again_once_both_are_cleared()
+    {
+        RunSta(() =>
+        {
+            var view = new DailyWorkflowWorkspaceView(new DailyWorkflowPresentationSession(),
+                () => throw new InvalidOperationException(), () => throw new InvalidOperationException(), () => throw new InvalidOperationException(),
+                () => new(true, true, true), (_, _, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask);
+            var header = (DatePicker)view.FindName("BusinessDateInput");
+            var from = (DatePicker)view.FindName("StaffTargetFromInput");
+            var to = (DatePicker)view.FindName("StaffTargetToInput");
+            Assert.False(view.StaffTargetPeriodTyped);
+            void Period(DateTime first, DateTime last)
+            {
+                Assert.Equal((DateTime?)first, from.SelectedDate);
+                Assert.Equal((DateTime?)last, to.SelectedDate);
+            }
+
+            header.SelectedDate = new DateTime(2026, 10, 15);
+            Period(new DateTime(2026, 10, 1), new DateTime(2026, 10, 31));
+            Assert.False(view.StaffTargetPeriodTyped);
+
+            // The Owner picks 2 Oct, then 1 Oct again: the same dates as the default, but chosen.
+            from.SelectedDate = new DateTime(2026, 10, 2);
+            from.SelectedDate = new DateTime(2026, 10, 1);
+            Assert.True(view.StaffTargetPeriodTyped);
+            header.SelectedDate = new DateTime(2026, 11, 3);
+            Period(new DateTime(2026, 10, 1), new DateTime(2026, 10, 31));
+
+            // Both cleared: the next date change defaults them again.
+            from.SelectedDate = null;
+            to.SelectedDate = null;
+            header.SelectedDate = new DateTime(2026, 11, 4);
+            Period(new DateTime(2026, 11, 1), new DateTime(2026, 11, 30));
+            Assert.False(view.StaffTargetPeriodTyped);
+            return Task.CompletedTask;
+        });
     }
 
     [Fact]

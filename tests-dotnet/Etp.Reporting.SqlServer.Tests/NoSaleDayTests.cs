@@ -102,8 +102,9 @@ public sealed class NoSaleDayTests
             Assert.DoesNotMatch(new Regex(@"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase), text);
             Assert.All(text[grants..].Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0 && !line.StartsWith("--", StringComparison.Ordinal)),
                 line => Assert.Matches(new Regex(@"^(GRANT|DENY) [A-Z ,]+ ON dbo\." + name + @"(\([a-z_,]+\))? TO [a-z_,]+;$"), line));
+            // N1's block 51980-51989; 1.12.1 lane P4's block starts at 52010 (the inactive Retail store, review m-2).
             foreach (Match number in Regex.Matches(text, @"THROW\s+(\d+)", RegexOptions.IgnoreCase))
-                Assert.InRange(int.Parse(number.Groups[1].Value, CultureInfo.InvariantCulture), 51980, 51989);
+                Assert.True(int.Parse(number.Groups[1].Value, CultureInfo.InvariantCulture) is >= 51980 and <= 51989 or 52010, file + ": " + number.Value);
         }
 
         Assert.Contains("DENY SELECT ON dbo.v_no_sale_days_current(reason) TO etp_viewer;", ObjectText(ObjectFiles[0]), StringComparison.Ordinal);
@@ -137,10 +138,26 @@ public sealed class NoSaleDayTests
             Assert.DoesNotMatch(new Regex(@"[0-9:/\\]"), detail.Groups[1].Value);
     }
 
+    [Fact]
+    public void Mark_names_an_unknown_shop_and_an_inactive_Retail_store_apart_and_allows_every_Service_Centre()
+    {
+        // 1.12.1 P4 (review m-2): 51986 for a store ETP does not know; 52010, its own sentence, for an inactive Retail store.
+        var mark = ObjectText("40-dbo.mark_no_sale_day.sql");
+        var unknown = mark.IndexOf("NOT EXISTS(SELECT 1 FROM dbo.stores WHERE store_code=@store)", StringComparison.Ordinal);
+        var inactive = mark.IndexOf("(s.is_active=1 OR u.unit_kind='SERVICE')", StringComparison.Ordinal);
+        Assert.True(unknown > 0 && inactive > unknown);
+        Assert.Contains("THROW 51986,'Choose a shop that ETP knows and a business date.',1;", mark, StringComparison.Ordinal);
+        Assert.Contains("THROW 52010,'This shop is inactive in ETP, so a no-sale day cannot be marked for it. Ask the Owner to enable it in Settings > Stores first.',1;",
+            mark, StringComparison.Ordinal);
+        // Both checks come before the transaction, so a refused store gets no OPEN day row.
+        Assert.True(mark.IndexOf("THROW 52010", StringComparison.Ordinal) < mark.IndexOf("BEGIN TRANSACTION;", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(51980)]
     [InlineData(51984)]
     [InlineData(51989)]
+    [InlineData(52010)]
     public void Lane_refusals_reach_the_screen_as_their_own_plain_sentence(int number)
     {
         var refusal = SqlServerNoSaleDayService.Translate(SqlExceptionFactory.Create(new SqlExceptionFactory.Error(number, "A plain sentence.")));
