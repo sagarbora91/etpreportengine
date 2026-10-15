@@ -7,7 +7,9 @@ param(
     # <database>-latest-verified.json. It must be a .json file directly in the backup folder,
     # and is verified exactly like the latest receipt. Used to prove that a receipt whose row
     # counts were altered makes the drill fail (docs\OPERATIONS.md).
-    [string]$ReceiptPath
+    [string]$ReceiptPath,
+    # 1.12.1 P3 (review m-8). Set by the monthly runner (the scheduled task): wait up to 120 s for SQL Server after a reboot.
+    [switch]$WaitForSql
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -48,6 +50,7 @@ try {
     Assert-EtpLocalSqlTarget $ServerInstance $Database
     $configuredServerInstance=$ServerInstance
     $sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
+    if ($WaitForSql) { Wait-EtpSqlReady -SqlCmd $sqlcmd -ServerInstance $ServerInstance -Database master | Out-Host }
     $ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
     $directory=[IO.Path]::GetFullPath($BackupDirectory)
     $receiptPath=Resolve-EtpDrillReceiptPath -BackupDirectory $directory -Database $Database -ReceiptPath $ReceiptPath

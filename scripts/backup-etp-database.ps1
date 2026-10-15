@@ -54,6 +54,9 @@ try {
     Assert-EtpLocalSqlTarget $ServerInstance $Database
     $configuredServerInstance = $ServerInstance
     $sqlcmd = Resolve-EtpSqlCmd $SqlCmdPath
+    # 1.12.1 P3 (review m-8). The scheduled backup can start before SQL Server is ready after a reboot: wait like
+    # --automation-once does (up to 120 s, only for errors that mean 'not ready yet'). Setup's own backups are not waited for.
+    if ($Purpose -eq 'Scheduled') { Wait-EtpSqlReady -SqlCmd $sqlcmd -ServerInstance $ServerInstance -Database master | Out-Host }
     $ServerInstance = Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
     $directory = [IO.Path]::GetFullPath($BackupDirectory)
     Assert-EtpNoLinks $directory

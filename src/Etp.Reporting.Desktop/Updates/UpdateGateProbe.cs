@@ -32,9 +32,11 @@ internal sealed record UpdateGateSources(
     Func<CancellationToken, Task<bool>> UpdateCheckEnabled);
 
 /// <summary>
-/// Builds the <see cref="UpdateGateState"/> the engine and the confirm sheet use. A source that fails reads as "not
-/// running" (it must never make the update look blocked forever), except that the gate is read again after the backup, so
-/// an import or a draft that started meanwhile still stops the update.
+/// Builds the <see cref="UpdateGateState"/> the engine and the confirm sheet use. A failed SQL source (open imports,
+/// automation lease, update setting) makes the gate fail closed with <c>DatabaseUnreadable</c> (1.12.1, review m-6): an
+/// unreadable database is when an update should wait, and the next read after the database is back clears it. A failed
+/// machine-side source (schtasks, process list, draft guards) still reads as "not running", because the gate is read again
+/// after the backup and those have no way to recover from a transient failure.
 /// </summary>
 internal sealed class UpdateGateProbe(UpdateGateSources sources, Func<Func<bool>, bool> onUi)
 {
@@ -43,9 +45,17 @@ internal sealed class UpdateGateProbe(UpdateGateSources sources, Func<Func<bool>
 
     public async Task<UpdateGateState> ReadAsync(CancellationToken cancellationToken)
     {
-        var importOpen = await Safe(sources.ImportOpenInDatabase, cancellationToken).ConfigureAwait(false);
-        var leaseHeld = await Safe(sources.AutomationLeaseHeld, cancellationToken).ConfigureAwait(false);
-        var enabled = await Safe(sources.UpdateCheckEnabled, cancellationToken).ConfigureAwait(false);
+        // 1.12.1 P3 (m-6): a SQL source that throws is "could not check", not "not running": the gate fails closed.
+        var unreadable = false;
+        async Task<bool> Sql(Func<CancellationToken, Task<bool>> read)
+        {
+            var result = await Safe(read, cancellationToken).ConfigureAwait(false);
+            if (result is null) { unreadable = true; return false; }
+            return result.Value;
+        }
+        var importOpen = await Sql(sources.ImportOpenInDatabase).ConfigureAwait(false);
+        var leaseHeld = await Sql(sources.AutomationLeaseHeld).ConfigureAwait(false);
+        var enabled = await Sql(sources.UpdateCheckEnabled).ConfigureAwait(false);
 
         var isOwner = onUi(sources.IsOwner);
         var importInWindow = onUi(sources.ImportRunningInThisWindow);
@@ -66,7 +76,8 @@ internal sealed class UpdateGateProbe(UpdateGateSources sources, Func<Func<bool>
             BackupRunning: backup,
             RecoveryDrillRunning: drill,
             EntryDraftOpen: draft,
-            OtherEtpSessionOpen: Safe(sources.OtherEtpSessionOpen));
+            OtherEtpSessionOpen: Safe(sources.OtherEtpSessionOpen),
+            DatabaseUnreadable: unreadable);
     }
 
     /// <summary>
@@ -75,14 +86,15 @@ internal sealed class UpdateGateProbe(UpdateGateSources sources, Func<Func<bool>
     /// </summary>
     public UpdateGateState ReadBlocking() => ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
 
-    private static async Task<bool> Safe(Func<CancellationToken, Task<bool>> read, CancellationToken cancellationToken)
+    /// <summary>Null when the read threw (recorded); the caller decides what that means.</summary>
+    private static async Task<bool?> Safe(Func<CancellationToken, Task<bool>> read, CancellationToken cancellationToken)
     {
         try { return await read(cancellationToken).ConfigureAwait(false); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
             DesktopDiagnostics.Record(exception, "Updates.Gate", "UPDATE_GATE_SOURCE_UNREADABLE", DesktopDiagnosticSeverity.Warning);
-            return false;
+            return null;
         }
     }
 

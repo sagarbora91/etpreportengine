@@ -376,6 +376,72 @@ function Resolve-EtpSqlConnection {
     throw 'Could not reach the SQL Server instance with the installed command-line client. Check the instance name and that the client can connect to it.'
 }
 
+function Test-EtpSqlStartupError {
+    # 1.12.1 P3 (review m-8). Pure. True when what Sqlcmd wrote means "SQL Server is not ready yet" (just after a boot or
+    # a restore), the same rule as SqlStartupWait in the application: not reachable yet (network and provider errors,
+    # 53/233/64/121/10053/10054/10060/10061, login time-out), or a database still starting or recovering
+    # (921/922/927/945, and 4060, which SQL Server raises together with 18456 while a database recovers). A refused login on
+    # its own (18456) and permission errors (229/230/262/297/300) are NOT transient: waiting never fixes them.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Lines)
+    $text = (@($Lines) | Where-Object { $null -ne $_ } | ForEach-Object { "$_" }) -join "`n"
+    if ([string]::IsNullOrWhiteSpace($text)) { return $false }
+    $numbers = @([regex]::Matches($text, '(?m)\bMsg (\d+),') | ForEach-Object { [int]$_.Groups[1].Value })
+    if ($numbers | Where-Object { $_ -in 921, 922, 927, 945, 4060 }) { return $true }
+    if ($numbers | Where-Object { $_ -in 229, 230, 262, 297, 300, 18456 }) { return $false }
+    # Client-side failures have no Msg line. The provider names and the network-error wording are Sqlcmd's own.
+    return ($text -match '(?i)(Named Pipes Provider|TCP Provider|Shared Memory Provider|SQL Network Interfaces|Could not open a connection to SQL Server|network-related or instance-specific|server was not found or was not accessible|Login timeout expired|Timeout expired|HResult 0x(2|35|102|274D|2746|2745|2AFA|2AF9)\b)')
+}
+
+function Wait-EtpSqlReady {
+    # 1.12.1 P3 (review m-8). The unattended scripts (scheduled backup, monthly drill) can start before SQL Server accepts
+    # connections after a reboot. Like the application's --automation-once, retry a connection for up to $BudgetSeconds
+    # (2 s doubling to 15 s), but ONLY for errors that mean "not ready yet" (Test-EtpSqlStartupError). Any other failure
+    # returns at once, so the caller's own step reports it as before; running out of budget throws one plain sentence.
+    # The probe, the sleep and the clock are parameters so the rule is tested without SQL Server.
+    param([Parameter(Mandatory)][string]$SqlCmd,[Parameter(Mandatory)][string]$ServerInstance,[string]$Database='master',
+          [int]$BudgetSeconds=120,[int]$FirstDelaySeconds=2,[int]$MaxDelaySeconds=15,
+          [scriptblock]$Probe,[scriptblock]$Sleep,[scriptblock]$Now,[scriptblock]$Log)
+    if (-not $Probe) {
+        $Probe = {
+            param($Server)
+            $previous = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $lines = @(& $SqlCmd -x -S $Server -E -b -l 10 -d $Database -Q 'SET NOCOUNT ON; SELECT 1;' 2>&1 | ForEach-Object { "$_" })
+                return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Lines = $lines }
+            }
+            catch { return [pscustomobject]@{ ExitCode = 1; Lines = @("$($_.Exception.Message)") } }
+            finally { $ErrorActionPreference = $previous }
+        }
+    }
+    if (-not $Sleep) { $Sleep = { param($Seconds) Start-Sleep -Seconds $Seconds } }
+    if (-not $Now) { $Now = { [double][Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency } }
+    if (-not $Log) { $Log = { param($Message) Write-Output $Message } }
+    $targets = @($ServerInstance)
+    if ($ServerInstance -notmatch '^(?i)(lpc|np|tcp|admin):') { $targets += 'lpc:' + $ServerInstance }
+    $started = & $Now
+    $delay = $FirstDelaySeconds
+    while ($true) {
+        $transient = $true; $lastLines = @()
+        foreach ($target in $targets) {
+            Assert-EtpLocalSqlTarget $target 'master'
+            $result = & $Probe $target
+            if ($result.ExitCode -eq 0) { return }
+            $lastLines = @($result.Lines)
+            if (-not (Test-EtpSqlStartupError $lastLines)) { $transient = $false }
+        }
+        # A failure that waiting cannot fix: leave it to the caller's own step, which reports it in its usual words.
+        if (-not $transient) { return }
+        $elapsed = (& $Now) - $started
+        if ($elapsed + $delay -gt $BudgetSeconds) {
+            throw "SQL Server did not become ready (waited $([int]$elapsed) s). Check that the SQL Server service is running, then run this again."
+        }
+        & $Log "ETP-STARTUP-WAIT: SQL Server is not ready yet; waited $([int]$elapsed) s of $BudgetSeconds s, trying again in $delay s."
+        & $Sleep $delay
+        $delay = [Math]::Min($MaxDelaySeconds, $delay * 2)
+    }
+}
+
 function Assert-EtpSqlCmdQueryText {
     # Every statement goes to Sqlcmd as one -Q argument, and a double quote cannot survive that
     # command line: Sqlcmd's own parser ends the argument at it ("Unexpected argument") and
