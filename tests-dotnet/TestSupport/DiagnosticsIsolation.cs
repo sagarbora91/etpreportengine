@@ -19,6 +19,8 @@ internal static class DiagnosticsIsolation
     internal static void Redirect()
     {
         Environment.SetEnvironmentVariable(DesktopDiagnostics.DirectoryVariable, LogDirectory);
+        // 1.12 U1 saves the recent screens on every navigation: keep the walks out of the Owner's ui-preferences.json too.
+        Environment.SetEnvironmentVariable(UiPreferenceStore.DirectoryVariable, Path.Combine(LogDirectory, "ui-preferences"));
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             try { Directory.Delete(LogDirectory, recursive: true); }

@@ -74,7 +74,15 @@ public sealed record UiPreferences(UiDensity Density, IReadOnlyList<string> Pinn
 
 public static class UiPreferenceStore
 {
-    private static readonly string DirectoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting");
+    // Test runs set this so neither they nor the windows they drive write the Owner's ui-preferences.json: since
+    // 1.12 U1 every navigation saves the recent list. The shipped application never sets it.
+    internal const string DirectoryVariable = "ETP_UI_PREFERENCES_DIRECTORY";
+
+    /// <summary>The Owner's real file under %LOCALAPPDATA%, whatever the test override says.</summary>
+    internal static string RealFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "ui-preferences.json");
+
+    private static string DirectoryPath => Environment.GetEnvironmentVariable(DirectoryVariable) is { Length: > 0 } overridden
+        ? overridden : Path.GetDirectoryName(RealFilePath)!;
     public static string FilePath => Path.Combine(DirectoryPath, "ui-preferences.json");
 
     public static UiPreferences Load()

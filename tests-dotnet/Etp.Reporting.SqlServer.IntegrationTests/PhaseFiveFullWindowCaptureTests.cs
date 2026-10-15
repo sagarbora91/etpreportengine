@@ -104,7 +104,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         var settings = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpPhaseFiveCapture", Guid.NewGuid().ToString("N"))).FullName;
         var realSettings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
         var settingsHash = HashIfPresent(realSettings);
-        var preferencesHash = HashIfPresent(UiPreferenceStore.FilePath);
+        var preferencesHash = HashIfPresent(UiPreferenceStore.RealFilePath);
         // The parent names the database, so it can still drop it if it has to kill this process.
         var database = Environment.GetEnvironmentVariable(RoleWalkDatabaseVariable) is { Length: > 0 } name
             ? new SqlDatabaseFixture(name) : new SqlDatabaseFixture();
@@ -143,7 +143,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         TestCleanup.StepAsync("drop the fixture database", database.DisposeAsync),
         TestCleanup.Step("delete the temporary settings folder", () => Directory.Delete(settings, recursive: true)),
         TestCleanup.Step("leave the real connection settings unchanged", () => Assert.Equal(settingsHash, HashIfPresent(realSettings))),
-        TestCleanup.Step("leave the real display preferences unchanged", () => Assert.Equal(preferencesHash, HashIfPresent(UiPreferenceStore.FilePath))));
+        TestCleanup.Step("leave the real display preferences unchanged", () => Assert.Equal(preferencesHash, HashIfPresent(UiPreferenceStore.RealFilePath))));
     }
 
     private static async Task<RoleWalk> WalkOnStaAsync(SqlDatabaseFixture database, string settings, string? evidence, string? help)

@@ -23,7 +23,7 @@ public sealed class PhaseFourFullWindowSmokeTests(ITestOutputHelper output)
         var settings = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpFullWindowSmoke", Guid.NewGuid().ToString("N"))).FullName;
         var realSettings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
         var settingsBefore = HashIfPresent(realSettings);
-        var preferencesBefore = HashIfPresent(UiPreferenceStore.FilePath);
+        var preferencesBefore = HashIfPresent(UiPreferenceStore.RealFilePath);
         try
         {
             await database.InitializeAsync();
@@ -31,7 +31,7 @@ public sealed class PhaseFourFullWindowSmokeTests(ITestOutputHelper output)
             await RunWindowOnStaAsync(database.ConnectionString, settings);
             Assert.Equal(2, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type IN ('ApplicationStart','SessionStart') AND outcome='Succeeded';")));
             Assert.Equal(settingsBefore, HashIfPresent(realSettings));
-            Assert.Equal(preferencesBefore, HashIfPresent(UiPreferenceStore.FilePath));
+            Assert.Equal(preferencesBefore, HashIfPresent(UiPreferenceStore.RealFilePath));
             output.WriteLine("Full MainWindow test host: real window shown, startup and SQL session succeeded, Today loaded for Owner, WPF rendering passed at 1366x768 and 816x480, and window closed. Only a generated test database and temporary connection settings were used; existing user settings hashes are unchanged. This is not production App.OnStartup or native screenshot capture.");
         }
         finally
