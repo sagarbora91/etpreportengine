@@ -4,6 +4,8 @@ using ServiceCentre = EtpApplication::Etp.Reporting.Application.Stores.ServiceCe
 using ServiceCentreAdministration = EtpApplication::Etp.Reporting.Application.Stores.IServiceCentreAdministration;
 using ServiceCentreCatalog = EtpApplication::Etp.Reporting.Application.Stores.IServiceCentreCatalog;
 using ServiceCentreRules = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules;
+using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
+using SqlServerServiceReportQuery = Etp.Reporting.Infrastructure.SqlServer.SqlServerServiceReportQuery;
 
 namespace Etp.Reporting.Desktop.Modules.Service;
 
@@ -38,4 +40,47 @@ public static class ServiceCentreServices
 
     /// <summary>The label beside every Service screen title: the only centre's name, "All Service Centres" or "Service Centre".</summary>
     public static string Label(IReadOnlyList<ServiceCentre> centres) => ServiceCentreRules.ScreenLabel(centres);
+
+    // ------------------------------------------------------------------ 1.12.1 P1: one Service Centre at a time
+
+    /// <summary>The first choice of the Service Centre picker (every centre's jobs together).</summary>
+    public const string AllCentresLabel = "All Service Centres";
+
+    /// <summary>
+    /// The Service Centre the Service screens show (its store code), or null for all of them. One choice for the whole Service
+    /// rail and this session: a screen opened next shows the same centre. A code that is no longer a centre reads as null.
+    /// </summary>
+    public static string? SelectedStoreCode { get; set; }
+
+    /// <summary>
+    /// Scopes a Service query to one centre, or returns null when the query cannot be scoped (then the screens show every
+    /// centre and offer no picker). Production: <see cref="SqlServerServiceReportQuery.ForServiceCentre"/>; a test may set it.
+    /// </summary>
+    public static Func<ServiceReportQuery, string, ServiceReportQuery?> Scope { get; set; } = DefaultScope;
+
+    /// <summary>The production scope: a SQL Server query reads <c>v_service_job.service_store_code</c>; any other query cannot be scoped.</summary>
+    public static ServiceReportQuery? DefaultScope(ServiceReportQuery query, string storeCode) =>
+        query is SqlServerServiceReportQuery sql ? sql.ForServiceCentre(storeCode) : null;
+
+    /// <summary>The picker's choices: "All Service Centres", then each centre by its catalogue name (code = store code).</summary>
+    public static IReadOnlyList<ServiceListChoice> Choices(IReadOnlyList<ServiceCentre> centres)
+    {
+        ArgumentNullException.ThrowIfNull(centres);
+        return [new(null, AllCentresLabel), .. centres.Select(centre => new ServiceListChoice(centre.StoreCode, ServiceCentreRules.DisplayName(centre)))];
+    }
+
+    /// <summary>The chosen centre when it is still one of <paramref name="centres"/>, else null (all centres).</summary>
+    public static ServiceCentre? Chosen(IReadOnlyList<ServiceCentre> centres, string? storeCode)
+    {
+        ArgumentNullException.ThrowIfNull(centres);
+        if (string.IsNullOrWhiteSpace(storeCode) || centres.Count < 2) return null;
+        return centres.FirstOrDefault(centre => string.Equals(centre.StoreCode.Trim(), storeCode.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// The line under a Service screen's title while one centre is chosen: what follows the choice and what does not (the
+    /// Service files hold no Service Centre for file dates, S004 money, the manual entries, parts invoices, goods in transit and stock).
+    /// </summary>
+    public static string ScopeNote(string centreName) =>
+        $"Jobs and claims are for {centreName}. Money, parts invoices, goods in transit, closing stock and file dates are for all Service Centres.";
 }

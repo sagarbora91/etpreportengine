@@ -215,6 +215,9 @@ public sealed class StoreCatalogRepository(string connectionString)
 /// <c>unit_kind</c> is SERVICE, with its job-number prefix. On a database before 0067 (no unit_kind or prefix column) it
 /// returns the stores of the business unit coded SERVICE (0048), each with the prefix JO plus its store code. A store with
 /// no prefix also reads JO plus its code. Read-only; one SELECT.
+/// 1.12.1 P1 (review m-1): the prefix of a store with none saved is worked out in SQL by <see cref="FallbackPrefixSql"/>,
+/// the same expression as the <c>centres</c> CTE of <c>dbo.v_service_job</c> (upper case, trimmed, cut to 20 characters,
+/// even for a store code that is not plain A-Z0-9), so the catalogue and the view place every job at the same centre.
 /// </summary>
 public sealed class SqlServerServiceCentreCatalog : IServiceCentreCatalog
 {
@@ -238,20 +241,37 @@ public sealed class SqlServerServiceCentreCatalog : IServiceCentreCatalog
         };
     }
 
+    /// <summary>
+    /// The prefix of a Service Centre with no saved prefix, exactly as <c>32-dbo.v_service_job.sql</c> writes it in its
+    /// <c>centres</c> CTE (review m-1; a text test keeps the two equal).
+    /// </summary>
+    internal const string FallbackPrefixSql = "CONVERT(varchar(20),'JO'+UPPER(LTRIM(RTRIM(s.store_code))))";
+
     // Guarded by COL_LENGTH only (the condition reads no new column); the 0067 read is its own statement, so it compiles
-    // only where the columns exist.
+    // only where the columns exist. Inside sp_executesql the quotes of FallbackPrefixSql are doubled.
     internal const string LoadSql = """
         IF COL_LENGTH(N'dbo.business_units', N'unit_kind') IS NULL OR COL_LENGTH(N'dbo.stores', N'service_job_prefix') IS NULL
-            SELECT s.store_code,s.store_name,CONVERT(varchar(20),NULL) service_job_prefix
+            SELECT s.store_code,s.store_name,CONVERT(varchar(20),'JO'+UPPER(LTRIM(RTRIM(s.store_code)))) service_job_prefix
             FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
             WHERE u.business_unit_code='SERVICE'
             ORDER BY s.store_code;
         ELSE
-            EXEC sp_executesql N'SELECT s.store_code,s.store_name,s.service_job_prefix
+            EXEC sp_executesql N'SELECT s.store_code,s.store_name,COALESCE(s.service_job_prefix,CONVERT(varchar(20),''JO''+UPPER(LTRIM(RTRIM(s.store_code))))) service_job_prefix
             FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
             WHERE u.unit_kind=''SERVICE''
             ORDER BY s.store_code';
         """;
+
+    /// <summary>
+    /// The C# twin of <see cref="FallbackPrefixSql"/> for a row that still comes back without a prefix (never from the SQL
+    /// above; kept so a blank value can not make a centre without a prefix): JO and the trimmed upper-case code, at most 20
+    /// characters, as the view's CONVERT(varchar(20), ...) cuts it.
+    /// </summary>
+    internal static string FallbackPrefix(string storeCode)
+    {
+        var prefix = "JO" + storeCode.Trim(' ').ToUpperInvariant();
+        return prefix.Length <= ServiceCentreRules.MaxPrefixLength ? prefix : prefix[..ServiceCentreRules.MaxPrefixLength];
+    }
 
     public async Task<IReadOnlyList<ServiceCentre>> LoadAsync(CancellationToken ct = default)
     {
@@ -263,7 +283,7 @@ public sealed class SqlServerServiceCentreCatalog : IServiceCentreCatalog
         {
             var code = reader.GetString(0).Trim();
             var prefix = reader.IsDBNull(2) ? null : reader.GetString(2).Trim();
-            centres.Add(new(code, reader.GetString(1).Trim(), string.IsNullOrEmpty(prefix) ? ServiceCentreRules.SuggestedPrefix(code) : prefix));
+            centres.Add(new(code, reader.GetString(1).Trim(), string.IsNullOrEmpty(prefix) ? FallbackPrefix(reader.GetString(0)) : prefix));
         }
         return centres;
     }

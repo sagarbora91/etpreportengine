@@ -213,7 +213,7 @@ WITH live AS (
 ), snap AS (
   SELECT MAX(snapshot_date) as_at FROM live
 ), centres AS (
-  -- Review m-1: a Service Centre with no saved prefix uses 'JO'+store code, as the C# catalogue suggests (ServiceCentreRules).
+  -- Review m-1: a Service Centre with no saved prefix uses 'JO'+store code; SqlServerServiceCentreCatalog reads the same expression.
   SELECT s.store_code,COALESCE(s.service_job_prefix,CONVERT(varchar(20),'JO'+UPPER(LTRIM(RTRIM(s.store_code))))) service_job_prefix
   FROM dbo.stores s JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
   WHERE u.unit_kind='SERVICE'
@@ -258,7 +258,7 @@ FROM agg a
 CROSS JOIN snap
 CROSS JOIN only_centre oc
 OUTER APPLY (SELECT COALESCE((SELECT TOP (1) c.store_code FROM centres c
-    WHERE a.job_order_number LIKE CONVERT(nvarchar(20),c.service_job_prefix)+N'%' ORDER BY LEN(c.service_job_prefix) DESC,c.store_code),
+    WHERE LEFT(a.job_order_number,LEN(c.service_job_prefix))=CONVERT(nvarchar(20),c.service_job_prefix) ORDER BY LEN(c.service_job_prefix) DESC,c.store_code),
   oc.store_code) store_code) jc
 CROSS APPLY (SELECT MIN(v.d) booking_date FROM (VALUES(a.ls_s002_created),(a.ls_list_created),(a.sv_job_date),(a.st9_s009_job_date),(a.st9_s010_job_date),(a.srn_job_date),(a.w_srf_date)) v(d)) bd
 CROSS APPLY (SELECT

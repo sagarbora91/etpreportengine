@@ -138,6 +138,13 @@ public sealed class ServiceMoneyView : ServiceScreenView
     private bool HasS004Reading => Refreshes.Any(refresh => string.Equals(refresh.ReportCode, "S004", StringComparison.OrdinalIgnoreCase));
     private string S004Note => HasS004Reading ? "" : " No tender collection export is imported yet, so only the manual entries are shown.";
 
+    /// <summary>1.12.1 P1: the tender collection and the manual Service entries hold no Service Centre.</summary>
+    protected override string CentreScopeNote(string centreName) => MoneyScopeNote;
+
+    /// <summary>The line under the title while one Service Centre is chosen (the money check does not follow the choice).</summary>
+    public const string MoneyScopeNote =
+        "The money check is for all Service Centres: the tender collection and the manual Service entries hold no Service Centre.";
+
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
         var days = await source.LoadMoneyCheckAsync(From, To);
