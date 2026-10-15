@@ -95,11 +95,22 @@ public sealed partial class ServiceViewSpeedSqlTests
         finally { await database.DisposeAsync(); }
     }
 
+    // Columns a restated view has gained since 1.11.4, on purpose, at the end. 1.12 A4 (0067): v_service_job names the Service
+    // Centre whose prefix starts the job number. The old texts are compared on the columns they had; any other difference fails.
+    private static readonly Dictionary<string, string[]> AddedSince1114 = new(StringComparer.Ordinal)
+    {
+        ["v_service_job"] = ["service_store_code"],
+    };
+
     private static async Task AssertSameAsync(SqlDatabaseFixture database, string when, string? user)
     {
         foreach (var view in Restated)
         {
-            string Sql(string a, string b) => $"SELECT COUNT(*) FROM (SELECT * FROM dbo.{a} EXCEPT SELECT * FROM dbo.{b}) d";
+            var oldColumns = await ColumnsAsync(database, Prefix + view);
+            var newColumns = await ColumnsAsync(database, view);
+            Assert.Equal(oldColumns.Concat(AddedSince1114.GetValueOrDefault(view, [])).ToList(), newColumns);
+            var shared = string.Join(",", oldColumns.Select(column => $"[{column}]"));
+            string Sql(string a, string b) => $"SELECT COUNT(*) FROM (SELECT {shared} FROM dbo.{a} EXCEPT SELECT {shared} FROM dbo.{b}) d";
             string Wrap(string sql) => user is null ? sql : As(user, sql);
             var newRows = await IntAsync(database, Wrap($"SELECT COUNT(*) FROM dbo.{view}"));
             var oldRows = await IntAsync(database, Wrap($"SELECT COUNT(*) FROM dbo.{Prefix}{view}"));
@@ -145,6 +156,9 @@ public sealed partial class ServiceViewSpeedSqlTests
     }
 
     private static string As(string user, string sql) => $"EXECUTE AS USER='{user}'; {sql}; REVERT;";
+
+    private static Task<List<string>> ColumnsAsync(SqlDatabaseFixture database, string view) => NamesAsync(database,
+        $"SELECT name FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.{view}') ORDER BY column_id");
 
     private static async Task<int> IntAsync(SqlDatabaseFixture database, string sql) => Convert.ToInt32(await database.ExecuteAsync(sql, 300));
 
