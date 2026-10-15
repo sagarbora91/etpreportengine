@@ -115,7 +115,7 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
     [SqlFact]
     public async Task Read_back_over_HTTP_records_the_day_book_with_its_request_and_reconciles()
     {
-        var profile = await SeedAsync("TXE", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/");
+        var profile = await SeedAsync("TXE", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", machine: Environment.MachineName);
         var batch = await PrepareAndApproveAsync(profile, "TXE");
         var receipt = await Sales().ExportAsync(batch);
         var tally = new FakeTally { DayBook = AsDayBook(await File.ReadAllBytesAsync(Path.Combine(root, receipt.RelativePath.Replace('\\', Path.DirectorySeparatorChar)))) };
@@ -134,12 +134,26 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
             (await new SqlServerTallyReconciliationService(database.ConnectionString, root).CompareAsync(batch, readback.Id, sourceUnchanged: true)).Result.RunOutcome);
     }
 
+    // 1.12.1 IR-4: read-back is bound to the test PC like send; on any other PC nothing is asked of Tally and nothing is recorded.
+    [SqlFact]
+    public async Task Read_back_is_refused_on_any_PC_but_the_test_PC()
+    {
+        var profile = await SeedAsync("TXR", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", machine: "ETP-TEST-VM");
+        var batch = await PrepareAndApproveAsync(profile, "TXR");
+        var tally = new FakeTally();
+
+        var otherPc = new SqlServerTallyConnectedService(database.ConnectionString, _ => tally, _ => tally, root, () => "OFFICE-PC");
+        Assert.Equal(TallyConnectedMode.OnlyTheTestPc, (await Assert.ThrowsAsync<InvalidOperationException>(() => otherPc.ReadBackAsync(batch))).Message);
+        Assert.Equal(0, tally.Calls);
+        Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.tally_readbacks WHERE accounting_batch_id={batch}"));
+    }
+
     [SqlFact]
     public async Task Connecting_is_refused_unless_set_up_for_the_test_company_and_Tally_has_it_open()
     {
         var off = await PrepareAndApproveAsync(await SeedAsync("TXF", TallyTestCompany.Name), "TXF");
         var other = await PrepareAndApproveAsync(await SeedAsync("TXG", "TEST - ETP TXG", endpoint: "http://127.0.0.1:9000/"), "TXG");
-        var closed = await PrepareAndApproveAsync(await SeedAsync("TXH", TallyTestCompany.Name, endpoint: "http://localhost:9000/"), "TXH");
+        var closed = await PrepareAndApproveAsync(await SeedAsync("TXH", TallyTestCompany.Name, endpoint: "http://localhost:9000/", machine: Environment.MachineName), "TXH");
         var tally = new FakeTally();
         var connected = Connected(tally);
 
@@ -166,13 +180,15 @@ public sealed class TallySalesExportReadbackSqlTests(SqlDatabaseFixture database
         var profile = await SeedAsync("TXI", TallyTestCompany.Name, endpoint: "http://127.0.0.1:9000/", delivery: "HTTP", machine: Environment.MachineName);
         var batch = await PrepareAndApproveAsync(profile, "TXI");
         var tally = new FakeTally { ImportAnswer = Fixture("import-created.xml") };
-        var connected = Connected(tally);
+        var importFactoryCalls = 0;
+        var connected = new SqlServerTallyConnectedService(database.ConnectionString, _ => tally, _ => { importFactoryCalls++; return tally; }, root);
 
         var notWritten = await Assert.ThrowsAsync<InvalidOperationException>(() => connected.SendAsync(batch));
         Assert.Contains("Write the Tally file first", notWritten.Message, StringComparison.Ordinal);
         await Sales().ExportAsync(batch);
 
         var sent = await connected.SendAsync(batch);
+        Assert.Equal(1, importFactoryCalls); // 1.12.1 IR-9: one gateway per send (licence check and import share it)
 
         Assert.Equal(("RESPONDED", 1), (sent.AttemptStatus, sent.VoucherCount));
         Assert.True(sent.Result!.AllCreated(1));

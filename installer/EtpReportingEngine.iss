@@ -39,6 +39,11 @@ SetupLogging=yes
 VersionInfoVersion={#AppVersion}
 VersionInfoProductTextVersion={#AppVersion}
 
+[InstallDelete]
+; 1.12.1 IR-8. Object files are re-copied on every install; a renamed or re-layered file (30- to 40-) must not linger beside
+; its replacement, or the runner sees two files for one object. Deleted before [Files] copies the new set.
+Type: filesandordirs; Name: "{app}\database\objects"
+
 [Files]
 Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; P4-11. The SQL media travels inside the installer only when the build supplied

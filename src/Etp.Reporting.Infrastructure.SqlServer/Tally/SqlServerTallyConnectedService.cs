@@ -14,7 +14,7 @@ public sealed record TallySendOutcome(long AttemptId, string AttemptStatus, int 
 /// it as a read-back (source HTTP) for the existing comparison. Send posts a batch's already written and verified Tally file, and
 /// only after a fresh read-back proves none of its vouchers is in Tally yet, so nothing is ever posted twice. Both are refused
 /// unless the batch's company is the TEST company 'Saagar Traders Titan' with an address on this PC, port 9000 (default: none, so
-/// off). A send also needs this PC to be the test PC the profile names and Tally to report Educational mode (decision 53).
+/// off), and this PC is the test PC the profile names (read-back too, 1.12.1 IR-4). A send also needs Tally to report Educational mode (decision 53).
 /// Owner only. Every request and answer is kept as evidence.</summary>
 public sealed class SqlServerTallyConnectedService(
     string connectionString,
@@ -48,7 +48,6 @@ public sealed class SqlServerTallyConnectedService(
         if (profile.DefaultDeliveryMode != "HTTP")
             throw new InvalidOperationException("Sending straight to Tally is off for this company: its delivery is 'file'. Change it in Settings → Tally companies, or import the file in Tally by hand.");
         if (importGateway is null) throw new InvalidOperationException("Sending to Tally is not available in this build.");
-        if (TallyConnectedMode.TestPcRefusal(profile, thisMachine()) is { } notTestPc) throw new InvalidOperationException(notTestPc);
         if (batch.Status != TallyBatchStatus.ExportedAwaitingImport)
             throw new InvalidOperationException("Write the Tally file first. Only a written and checked file is sent.");
 
@@ -69,7 +68,10 @@ public sealed class SqlServerTallyConnectedService(
             throw new InvalidOperationException(educational + " Nothing was sent.");
 
         // Decision 53: Tally itself must say it is in Educational mode; anything else (No, no answer, an unreadable answer) refuses.
-        var educationalAnswer = await importGateway(endpoint).FetchEducationalModeAsync(cancellationToken);
+        // IR-9: the factory is called once per send. The gateway is owned by whoever supplied the factory (the desktop caches one per
+        // endpoint and disposes it with its actions object), so it is deliberately not disposed here.
+        var gateway = importGateway(endpoint);
+        var educationalAnswer = await gateway.FetchEducationalModeAsync(cancellationToken);
         if (!educationalAnswer.Succeeded) throw new InvalidOperationException((educationalAnswer.Message ?? "Tally could not be asked whether it is in Educational mode.") + " Nothing was sent.");
         if (TallyXml.EducationalMode(educationalAnswer.Response) != true) throw new InvalidOperationException(TallyConnectedMode.OnlyEducationalMode);
 
@@ -87,7 +89,7 @@ public sealed class SqlServerTallyConnectedService(
         await MarkSentAsync(attemptId, cancellationToken);
 
         // If this is cancelled the request may still have reached Tally: the attempt stays SENT and the next send reads back first.
-        var exchange = await importGateway(endpoint).ImportAsync(profile.CompanyName.Trim(), content, cancellationToken);
+        var exchange = await gateway.ImportAsync(profile.CompanyName.Trim(), content, cancellationToken);
 
         TallyArtifact? response = null;
         if (exchange.Response is { Length: > 0 } body)
@@ -155,6 +157,8 @@ public sealed class SqlServerTallyConnectedService(
         if (TallyConnectedMode.Refusal(profile) is { } refusal) throw new InvalidOperationException(refusal);
         if (!TallyConnectedMode.IsAllowedEndpoint(profile.EndpointUrl!.Trim(), out var endpoint) || endpoint is null)
             throw new InvalidOperationException(TallyConnectedMode.OnlyThisPc);
+        // IR-4 (decision 53/57): read-back is bound to the test PC too, not only send. Same shared rule, same text.
+        if (TallyConnectedMode.TestPcRefusal(profile, thisMachine()) is { } notTestPc) throw new InvalidOperationException(notTestPc);
         return (batch, profile, endpoint);
     }
 
