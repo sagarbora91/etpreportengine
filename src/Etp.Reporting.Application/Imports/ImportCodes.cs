@@ -19,6 +19,8 @@ public static class ImportCodes
     /// <summary>No tier dated the snapshot, and the Owner's folder-import date override supplied it (recorded deviation from spec 6.4).</summary>
     public const string SnapshotDateFromOverride = "SNAPSHOT_DATE_FROM_OVERRIDE";
     public const string SnapshotMultipleDates = "SNAPSHOT_MULTIPLE_DATES";
+    /// <summary>IF-032: a raw Closing Stock or BinWise export was dated by the time of day it was made (StockSnapshotDayRule).</summary>
+    public const string SnapshotDatedByExportTime = "SNAPSHOT_DATED_BY_EXPORT_TIME";
     public const string InfoBlocksUnusable = "INFO_BLOCKS_UNUSABLE";
     public const string ContractUnreadable = Contract.Unreadable;
     public const string PeriodOverlapUnresolved = "PERIOD_OVERLAP_UNRESOLVED";
@@ -85,6 +87,7 @@ public static class ImportCodes
         FamilyDerived or InvoiceYearDiffers or StaleCopyCollapsed or AttributeNotApplied or Contract.KeyUnknown
             or Contract.BlocksNotInTimeOrder or Contract.LegacyBlocks
             or ControlWorkbookNotNeeded or ReportFamilyNotNeeded or NotAnEtpExport
+            or SnapshotDatedByExportTime
             => ImportIssueSeverity.Information,
         _ => ImportIssueSeverity.Blocker
     };

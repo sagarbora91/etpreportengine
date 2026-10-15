@@ -31,7 +31,54 @@ public sealed partial class SqlServerTransactionalImportStore
         }
     }
     private sealed record ImportPlan(long? ExistingHashFileId, bool DuplicateContent,
-        IReadOnlyList<PreviousFile> PreviousFiles, IReadOnlyDictionary<int, string> Keys);
+        IReadOnlyList<PreviousFile> PreviousFiles, IReadOnlyDictionary<int, string> Keys)
+    {
+        /// <summary>IF-028: current imports of this same stock file under another date, retired by this import ("re-dated").</summary>
+        public IReadOnlyList<long> Redated { get; init; } = [];
+    }
+
+    /// <summary>
+    /// IF-028 (decision 66): the stock snapshot families whose earlier import of the same file under another date is
+    /// retired automatically ("re-dated"). <c>dbo.retire_redated_import</c> and <see cref="SqlServerImportFileRepository"/>'s
+    /// ExistsInScopeAsync hold the same list.
+    /// </summary>
+    internal static bool RetiresRedatedCopies(string? reportCode) => reportCode is "R010" or "CLOSING_STOCK";
+
+    /// <summary>
+    /// The current imports of the same file (SHA-256), store and report under another period: readings an earlier
+    /// importer dated wrongly (HEMW R010 29 Sep, now 7 Sep), or that the IF-032 rule now dates differently.
+    /// </summary>
+    private static async Task<IReadOnlyList<long>> RedatedCopiesAsync(SqlConnection c,SqlTransaction t,ImportFileRegistration file,
+        string reportCode,long? keep,CancellationToken token)
+    {
+        var start=file.PeriodStart??file.BusinessDate; var end=file.PeriodEnd??file.BusinessDate;
+        if(!RetiresRedatedCopies(reportCode) || file.StoreCode is null || start is null || end is null) return [];
+        await using var q=Cmd(c,t,"""
+            SELECT import_file_id FROM dbo.import_files WITH(UPDLOCK,HOLDLOCK)
+            WHERE source_sha256=@hash AND data_truth_version=1 AND is_superseded=0 AND report_code=@report AND store_code=@store
+              AND NOT(COALESCE(period_start,business_date)=@start AND COALESCE(period_end,business_date)=@end)
+            ORDER BY import_file_id;
+            """);
+        q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(file.SourceSha256));
+        q.Parameters.AddWithValue("@report",reportCode);q.Parameters.AddWithValue("@store",file.StoreCode);
+        q.Parameters.AddWithValue("@start",start.Value);q.Parameters.AddWithValue("@end",end.Value);
+        var ids=new List<long>();
+        await using(var reader=await q.ExecuteReaderAsync(token))
+            while(await reader.ReadAsync(token)) ids.Add(reader.GetInt64(0));
+        ids.RemoveAll(id=>id==keep);
+        return ids;
+    }
+
+    /// <summary>Retires each re-dated copy in favour of <paramref name="replacement"/>, inside the import transaction.</summary>
+    private static async Task RetireRedatedAsync(SqlConnection c,SqlTransaction t,IReadOnlyList<long> redated,long replacement,CancellationToken token)
+    {
+        foreach(var previous in redated)
+        {
+            await using var q=Cmd(c,t,"EXEC dbo.retire_redated_import @previous,@replacement");
+            q.Parameters.AddWithValue("@previous",previous);q.Parameters.AddWithValue("@replacement",replacement);
+            await q.ExecuteNonQueryAsync(token);
+        }
+    }
 
     private static async Task<ImportPlan> PlanImportAsync(SqlConnection c, SqlTransaction t,
         ImportPersistencePackage package, CancellationToken token)
@@ -42,19 +89,30 @@ public sealed partial class SqlServerTransactionalImportStore
             gate.Parameters.AddWithValue("@resource", $"ETP_IMPORT:{file.StoreCode}:{file.Profile.ReportCode}");
             await gate.ExecuteNonQueryAsync(token);
         }
+        var reportCode = PersistenceValidation.ResolveReportCode(file);
+        // IF-028: the explicit restatement target is never also retired as re-dated.
+        var redated = await RedatedCopiesAsync(c, t, file, reportCode, package.Restatement?.PreviousImportFileId, token);
         await using (var exact = Cmd(c, t, """
-            SELECT import_file_id FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1
+            SELECT TOP(1) import_file_id,is_superseded FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1
               AND report_code=@report AND (store_code=@store OR (store_code IS NULL AND @store IS NULL))
               AND (period_start=@start OR (period_start IS NULL AND @start IS NULL))
               AND (period_end=@end OR (period_end IS NULL AND @end IS NULL))
+            ORDER BY is_superseded,import_file_id
             """))
         {
             exact.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(file.SourceSha256));
-            exact.Parameters.AddWithValue("@report", PersistenceValidation.ResolveReportCode(file));
+            exact.Parameters.AddWithValue("@report", reportCode);
             Add(exact,"@store",file.StoreCode);
             Add(exact,"@start",file.PeriodStart ?? file.BusinessDate);
             Add(exact,"@end",file.PeriodEnd ?? file.BusinessDate);
-            if (await exact.ExecuteScalarAsync(token) is long id) return new(id, true, [], new Dictionary<int,string>());
+            await using var reader = await exact.ExecuteReaderAsync(token);
+            if (await reader.ReadAsync(token))
+            {
+                // The file is already stored under this date. A current copy still retires the wrongly dated ones
+                // (the 9 Oct HEMW case: the corrected 7 Sep import exists, the 29 Sep copy is still current).
+                var id = reader.GetInt64(0); var current = !reader.GetBoolean(1);
+                return new(id, true, [], new Dictionary<int,string>()) { Redated = current ? redated : [] };
+            }
         }
         if (package.AcceptedImport is not { } accepted) return new(null, false, [], new Dictionary<int,string>());
         var keys = ContentKeys(accepted, file.BusinessDate);
@@ -87,11 +145,13 @@ public sealed partial class SqlServerTransactionalImportStore
             }
         }
         previous=SharingSnapshotDates(previous,keys.Values,package.Restatement?.PreviousImportFileId);
+        // IF-028: a re-dated copy is retired by this import, so it is neither a duplicate nor a period already present.
+        previous=WithoutRedatedCopies(previous,redated);
         // ImportAudit holds a copy of this decision in PlannerOnePlanRules.Decide; change both (PlannerOnePlanRulesAgreementTests).
         var incoming=keys.Values.ToHashSet(StringComparer.Ordinal);
         var allExisting=previous.SelectMany(x=>x.Keys).ToHashSet(StringComparer.Ordinal);
         if(previous.Count>0 && incoming.IsSubsetOf(allExisting) && package.Restatement is null)
-            return new(null,true,previous,keys);
+            return new(null,true,previous,keys){Redated=redated};
         foreach(var old in previous)
         {
             var coversRange=(file.PeriodStart??file.BusinessDate)<=old.Start && (file.PeriodEnd??file.BusinessDate)>=old.End;
@@ -114,8 +174,12 @@ public sealed partial class SqlServerTransactionalImportStore
                     $"Already imported on {old.Imported:dd MMM yyyy} (hash {old.Hash[..12]}). Use Restate. {old.Keys.Except(incoming).Count():N0} conflicting or missing rows; no data was changed.")
                     { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
         }
-        return new(null,false,previous,keys);
+        return new(null,false,previous,keys){Redated=redated};
     }
+
+    /// <summary>The current files the plan weighs, without the re-dated copies of the incoming file (IF-028).</summary>
+    internal static List<PreviousFile> WithoutRedatedCopies(IReadOnlyList<PreviousFile> previous,IReadOnlyCollection<long> redated)=>
+        previous.Where(old=>!redated.Contains(old.Id)).ToList();
 
     /// <summary>
     /// Each row's content key, <c>{hash}:{n}</c>, n counting identical rows. A row of an undated family (R010, R023,

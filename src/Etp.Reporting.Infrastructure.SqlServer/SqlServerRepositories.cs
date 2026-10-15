@@ -43,6 +43,12 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
             SELECT CONVERT(bit,CASE WHEN EXISTS(
                 SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1
                   AND report_code=@report AND store_code=@store AND period_start=@start AND period_end=@end
+            ) AND NOT EXISTS(
+                -- IF-028: while an earlier copy of the same stock file is still current under another date, the import
+                -- goes on to the planner, which retires that copy ("re-dated") and then reports the file as a duplicate.
+                SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1 AND is_superseded=0
+                  AND report_code=@report AND report_code IN('R010','CLOSING_STOCK') AND store_code=@store
+                  AND NOT(COALESCE(period_start,business_date)=@start AND COALESCE(period_end,business_date)=@end)
             ) THEN 1 ELSE 0 END)
             """,connection);
         command.Parameters.AddWithValue("@hash",NormalizeHash(sourceSha256));
@@ -144,10 +150,15 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         try
         {
             var plan=await PlanImportAsync(connection,transaction,package,cancellationToken);
-            // Nothing was written for an exact duplicate; the earlier file only has to still be there.
+            // Nothing was written for an exact duplicate; the earlier file only has to still be there. A wrongly dated
+            // copy of the same file is still retired in favour of it (IF-028); a lost COMMIT reply only leaves that copy for
+            // the next import of the file.
             if(plan.ExistingHashFileId is { } existingId)
+            {
+                await RetireRedatedAsync(connection,transaction,plan.Redated,existingId,cancellationToken);
                 return await SqlTransactionGuard.CommitOrVerifyAsync(existingId,()=>Commit(transaction,cancellationToken),
                     ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>FileExistsAsync(existingId));
+            }
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
             batchWritten=true;
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
@@ -156,6 +167,8 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
             if(package.AcceptedImport?.Workbook is { EvidenceBytes.IsEmpty: false } workbook &&
                string.Equals(workbook.Sha256,package.File.SourceSha256,StringComparison.OrdinalIgnoreCase))
                 await ImportSourceEvidence.RetainAsync(connection,transaction,package.File.SourceSha256,workbook.EvidenceBytes,fileId,cancellationToken);
+            // IF-028: the wrongly dated copies of this same file leave the current reading before anything is compared.
+            await RetireRedatedAsync(connection,transaction,plan.Redated,fileId,cancellationToken);
             if(plan.DuplicateContent)
             {
                 await RecordDuplicateAsync(connection,transaction,package,fileId,plan,cancellationToken);
