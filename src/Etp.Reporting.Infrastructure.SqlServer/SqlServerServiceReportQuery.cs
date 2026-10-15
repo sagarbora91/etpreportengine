@@ -177,8 +177,10 @@ public sealed partial class SqlServerServiceReportQuery(string connectionString)
     {
         await RequireViewAsync(cancellationToken);
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
+        // 1.12.1 P8: a scoped query swaps Parts, Stock and the Not-matched jobs for their centre twins and binds @centre.
+        await using var command = new SqlCommand(ScopedSql(sql), connection);
         bind(command);
+        BindScope(command);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var rows = new List<T>();
         while (await reader.ReadAsync(cancellationToken)) rows.Add(map(reader));

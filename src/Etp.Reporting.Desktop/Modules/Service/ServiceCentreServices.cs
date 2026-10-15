@@ -4,6 +4,7 @@ using ServiceCentre = EtpApplication::Etp.Reporting.Application.Stores.ServiceCe
 using ServiceCentreAdministration = EtpApplication::Etp.Reporting.Application.Stores.IServiceCentreAdministration;
 using ServiceCentreCatalog = EtpApplication::Etp.Reporting.Application.Stores.IServiceCentreCatalog;
 using ServiceCentreRules = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules;
+using ServiceCentreScope = EtpApplication::Etp.Reporting.Application.Service.ServiceCentreScope;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 using SqlServerServiceReportQuery = Etp.Reporting.Infrastructure.SqlServer.SqlServerServiceReportQuery;
 
@@ -66,7 +67,10 @@ public static class ServiceCentreServices
     public static IReadOnlyList<ServiceListChoice> Choices(IReadOnlyList<ServiceCentre> centres)
     {
         ArgumentNullException.ThrowIfNull(centres);
-        return [new(null, AllCentresLabel), .. centres.Select(centre => new ServiceListChoice(centre.StoreCode, ServiceCentreRules.DisplayName(centre)))];
+        // 1.12.1 P8: "Not matched to any centre" comes last while there are two or more centres.
+        return ServiceCentreChoices.WithNotMatched(
+            [new(null, AllCentresLabel), .. centres.Select(centre => new ServiceListChoice(centre.StoreCode, ServiceCentreRules.DisplayName(centre)))],
+            centres.Count);
     }
 
     /// <summary>The chosen centre when it is still one of <paramref name="centres"/>, else null (all centres).</summary>
@@ -78,9 +82,8 @@ public static class ServiceCentreServices
     }
 
     /// <summary>
-    /// The line under a Service screen's title while one centre is chosen: what follows the choice and what does not (the
-    /// Service files hold no Service Centre for file dates, S004 money, the manual entries, parts invoices, goods in transit and stock).
+    /// The line under a Service screen's title while one centre is chosen: what follows the choice and what does not. Since
+    /// 1.12.1 P8 the parts invoices and the closing stock follow it too; money, goods in transit and file dates carry no centre.
     /// </summary>
-    public static string ScopeNote(string centreName) =>
-        $"Jobs and claims are for {centreName}. Money, parts invoices, goods in transit, closing stock and file dates are for all Service Centres.";
+    public static string ScopeNote(string centreName) => ServiceCentreScope.ScopeNote(centreName);
 }

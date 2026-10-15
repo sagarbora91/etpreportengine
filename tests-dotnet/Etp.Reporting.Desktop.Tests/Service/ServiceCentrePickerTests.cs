@@ -50,8 +50,9 @@ public sealed class ServiceCentrePickerTests
             board.ActivateAsync().GetAwaiter().GetResult();
 
             Assert.True(board.CentrePickerVisible);
-            Assert.Equal([ServiceCentreServices.AllCentresLabel, First.Name, Second.Name], board.CentreChoices.Select(choice => choice.Label));
-            Assert.Equal([null, First.StoreCode, Second.StoreCode], board.CentreChoices.Select(choice => choice.Code));
+            // 1.12.1 P8: "Not matched to any centre" is the last choice with two or more centres.
+            Assert.Equal([ServiceCentreServices.AllCentresLabel, First.Name, Second.Name, "Not matched to any centre"], board.CentreChoices.Select(choice => choice.Label));
+            Assert.Equal([null, First.StoreCode, Second.StoreCode, "~NOT_MATCHED"], board.CentreChoices.Select(choice => choice.Code));
             Assert.Equal(ServiceCentreServices.AllCentresLabel, board.CentreLabel);
             Assert.Null(board.ChosenCentreCode);
             Assert.Equal("", board.CentreScopeText);

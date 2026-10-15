@@ -7,7 +7,7 @@ using System.Windows.Data;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
 using ServiceCentre = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentre;
-using ServiceCentreRules = EtpApplication::Etp.Reporting.Application.Stores.ServiceCentreRules;
+using ServiceCentreScope = EtpApplication::Etp.Reporting.Application.Service.ServiceCentreScope;
 using ServiceFreshnessChip = EtpApplication::Etp.Reporting.Application.Service.ServiceFreshnessChip;
 using Etp.Reporting.Desktop.Modules.Reports;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
@@ -353,13 +353,15 @@ public abstract class ServiceScreenView : UserControl
     private ServiceReportQuery ScopeToChosenCentre(ServiceReportQuery source, IReadOnlyList<ServiceCentre> centres)
     {
         var canScope = centres.Count >= 2 && ServiceCentreServices.Scope(source, centres[0].StoreCode) is not null;
-        var chosen = canScope ? ServiceCentreServices.Chosen(centres, ServiceCentreServices.SelectedStoreCode) : null;
-        var scoped = chosen is null ? null : ServiceCentreServices.Scope(source, chosen.StoreCode);
-        if (scoped is null) chosen = null;
-        FillCentrePicker(canScope ? ServiceCentreServices.Choices(centres) : [], chosen?.StoreCode);
-        ChosenCentreCode = chosen?.StoreCode;
-        ShowCentre(chosen is null ? ServiceCentreServices.Label(centres) : ServiceCentreRules.DisplayName(chosen));
-        ShowScopeNote(chosen is null ? "" : CentreScopeNote(CentreLabel));
+        // 1.12.1 P8: the choice is one centre, "Not matched to any centre" (its own code) or all centres.
+        var selection = canScope ? ServiceCentreChoices.Resolve(centres, ServiceCentreServices.SelectedStoreCode) : ServiceCentreSelection.All;
+        var scoped = selection.StoreCode is null ? null : ServiceCentreServices.Scope(source, selection.StoreCode);
+        if (scoped is null) selection = ServiceCentreSelection.All;
+        FillCentrePicker(canScope ? ServiceCentreServices.Choices(centres) : [], selection.StoreCode);
+        ChosenCentreCode = selection.StoreCode;
+        ShowCentre(selection.StoreCode is null ? ServiceCentreServices.Label(centres) : selection.Name);
+        ShowScopeNote(selection.StoreCode is null ? ""
+            : selection.NotMatched ? ServiceCentreScope.NotMatchedScopeNote() : CentreScopeNote(CentreLabel));
         return scoped ?? source;
     }
 
