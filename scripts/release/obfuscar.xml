@@ -111,8 +111,9 @@
     <!-- Public, constructor-deserialised (SecurityProbes MatrixFile.Permissions, WindowsSmtpCredentials.cs:17). Strong only. -->
     <SkipType name="Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermission" skipMethods="true" />
     <SkipType name="Etp.Reporting.Infrastructure.SqlServer.SmtpCredential" skipMethods="true" />
-    <!-- PRIVATE exception types whose GetType().Name reaches text ("ImportAudit: internal error (X)", AuditRunner.cs:97;
-         PlannerOnePredictor uses PackageCaptured for control flow). Needed in BOTH profiles. -->
+    <!-- PRIVATE exception types. Both are caught by type (AuditRunner.cs:63; PlannerOnePredictor uses PackageCaptured
+         for control flow), so renaming would work; kept so that a debug dump or the "internal error (X)" line
+         (AuditRunner.cs:97) that names them stays readable. -->
     <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.AuditRunner/AuditDatabaseException" />
     <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.AuditRunner+AuditDatabaseException" />
     <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.PlannerOnePredictor/PackageCaptured" />
