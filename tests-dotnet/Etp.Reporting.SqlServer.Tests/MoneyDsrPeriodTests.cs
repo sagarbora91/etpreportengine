@@ -41,7 +41,7 @@ public sealed class MoneyDsrPeriodTests
         Assert.Equal(new DateOnly(2026, 8, 25), applied["WLMHW"].SourceCoversTo);
     }
 
-    [Fact(Skip = "Fails until F1 (gap #5, decision 68)")]
+    [Fact]
     public void Partly_covered_ly_period_has_no_growth_percent_and_is_marked_partial()
     {
         var period = Policy.Resolve(TieOutDay, ReportingPeriodKind.Mtd);
@@ -76,7 +76,7 @@ public sealed class MoneyDsrPeriodTests
         Assert.Equal(300m, row.GrowthPercent); // (20,000 / 5,000 - 1) * 100
     }
 
-    [Fact(Skip = "Fails until F1 (gap #5, decision 68)")]
+    [Fact]
     public void A_ty_period_with_one_missing_day_in_the_middle_is_partial_with_no_growth()
     {
         // 1-10 Aug and 12-25 Aug 2026 are covered; 11 Aug has no source. LY is fully covered.

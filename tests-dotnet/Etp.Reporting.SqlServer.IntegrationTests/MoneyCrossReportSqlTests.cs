@@ -14,8 +14,8 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// <para>
 /// Cross-layer: synthetic rows go into the real tables of a fresh test database, and the C# repositories read them through
 /// the real SQL. Synthetic stores only (GCSTAFF, NEWTYPE, CRO41, PART41, TRND41, GCSUM), no customer data, no impersonation.
-/// Tests that fail on the 1.12.0 code because of a decision-68 rule carry <c>Skip = "Fails until F1 ..."</c>; the integrator
-/// removes the Skip once lane F1 (production fix) has merged (1121-M1-NOTE.md).
+/// Tests that failed on the 1.12.0 code because of a decision-68 rule were skipped until lane F1 merged; the 1.12.1 integrator
+/// removed those Skips (1121-M1-NOTE.md).
 /// </para>
 /// </summary>
 public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
@@ -23,7 +23,7 @@ public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : ICla
     // Gap #1. The CANCEL41 seed of ReportLogicAndSpeedSqlTests plus a gift-card-only bill on d1.
     //   d1: I1 = 1,000 + 500 (cancelled the same day by B1 = -1,000 - 500, R025 INVREFNO I1); I2 = 700; G1 = GIFT CARD 2,000.
     //   d2: I3 = 300.  d3: B2 = -300 cancels I3 two days later (not the same day, so I3 stays an invoice on d2).
-    [SqlFact(Skip = "Fails until F1 (gap #1, decision 68)")]
+    [SqlFact]
     public async Task Trend_invoices_follow_decision_41_and_gift_cards_like_the_dsr()
     {
         const string store = "TRND41";
@@ -63,7 +63,7 @@ public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : ICla
     }
 
     // Gap #2. Bill A1: watch 4,000 + gift card (brand GC) 1,000, both sold by CRO C1 (paired R013 rows).
-    [SqlFact(Skip = "Fails until F1 (gap #2, decision 68)")]
+    [SqlFact]
     public async Task Staff_total_on_a_gift_card_day_equals_the_dsr_value()
     {
         const string store = "GCSTAFF";
@@ -95,7 +95,7 @@ public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : ICla
     // decision 68 makes equal to the DSR store total, leaves it out too. Today the canonical total adds it and the staff
     // check reads Failed for ever. NOTE: decision 68 names gift cards; this follows "store total = DSR VALUE" (gap #2's
     // first option). If F1 keeps unknown types in the canonical total, keep this skipped and ask Sagar (1121-M1-NOTE.md).
-    [SqlFact(Skip = "Fails until F1 (gap #2, decision 68)")]
+    [SqlFact]
     public async Task Staff_store_total_leaves_out_a_line_type_the_dsr_does_not_count()
     {
         const string store = "NEWTYPE";
@@ -115,7 +115,7 @@ public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : ICla
     }
 
     // Gap #3. C1 sells I1 1,500 (cancelled the same day by B1 -1,500, with an R025 BC row naming I1) and I2 700.
-    [SqlFact(Skip = "Fails until F1 (gap #3, decision 68)")]
+    [SqlFact]
     public async Task A_bill_cancelled_the_same_day_is_not_a_cro_transaction()
     {
         const string store = "CRO41";
@@ -146,7 +146,7 @@ public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : ICla
     }
 
     // Gap #4. I1 lines 1,000 (ITEMA) + 500 (ITEMB); B1 BC -500 (qty -1, ITEMB) names I1 on the same day: one line cancelled.
-    [SqlFact(Skip = "Fails until F1 (gap #4, decision 68)")]
+    [SqlFact]
     public async Task A_bill_partly_cancelled_the_same_day_is_still_one_invoice_in_every_report()
     {
         const string store = "PART41";
@@ -180,7 +180,7 @@ public sealed class MoneyCrossReportSqlTests(SqlDatabaseFixture database) : ICla
 
     // Gap #13. The GCDSR seed of EveningReportsSqlTests: G1 = watch 4,000 (brand WB) + gift card 1,000 (brand GC);
     // G2 = a gift-card-only bill (product GIFT CARD) 2,000.
-    [SqlFact(Skip = "Fails until F1 (gap #13, decision 68)")]
+    [SqlFact]
     public async Task Sales_summary_brand_wise_customer_wise_and_trend_leave_gift_cards_out_like_the_dsr()
     {
         const string store = "GCSUM";

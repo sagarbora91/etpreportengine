@@ -71,7 +71,7 @@ public sealed class MoneyDisplayAndNoSaleTests
         };
     }
 
-    [Fact(Skip = "Fails until F1 (gap #16, decision 68)")]
+    [Fact]
     public void A_marked_store_also_gives_combined_growth_invoices_and_the_combined_sheet()
     {
         var applied = DailySalesReportBuilder.ApplyNoSaleDays(Document(), [new("ZZ002", Line)]);

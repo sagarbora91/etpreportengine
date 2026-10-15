@@ -4,12 +4,11 @@ namespace Etp.Reporting.Reporting.Tests;
 
 /// <summary>
 /// Gap #7 (MONEY-TEST-GAPS.md), decision 68: the invoice/tender control tolerance is Rs 1.00 (|variance| &lt;= 1.00 passes).
-/// Tests that use <see cref="RetailReportingPolicy.Tender"/> need lane F1's production change and are skipped until then.
+/// Tests that use <see cref="RetailReportingPolicy.Tender"/> rely on lane F1's production change (merged in 1.12.1).
 /// Tests with an explicit rule (tolerance 0) or a ROUND_OFF tender pass on today's code. Values are synthetic and hand-computed.
 /// </summary>
 public sealed class MoneyTenderToleranceTests
 {
-    private const string F1 = "Fails until F1 (gap #7, decision 68)";
     private static readonly ApprovedControlRule Exact = new("m3-exact", 0m);
 
     private static InvoiceTenderReconciliation Run(decimal invoice, ApprovedControlRule rule, params (string Type, decimal Amount)[] tenders) =>
@@ -18,13 +17,13 @@ public sealed class MoneyTenderToleranceTests
             tenders.Select(x => new TenderControlValue("S1", "I1", x.Type, x.Amount, true)),
             rule);
 
-    [Fact(Skip = F1)]
+    [Fact]
     public void Production_tender_rule_allows_one_rupee()
     {
         Assert.Equal(1m, RetailReportingPolicy.Tender.AbsoluteTolerance);
     }
 
-    [Fact(Skip = F1)]
+    [Fact]
     public void Forty_paise_short_passes_under_the_production_rule_and_keeps_its_variance()
     {
         // 1,129.40 - 1,129.00 = 0.40, inside Rs 1.
@@ -35,7 +34,7 @@ public sealed class MoneyTenderToleranceTests
         Assert.Equal(0.40m, r.Variance);
     }
 
-    [Fact(Skip = F1)]
+    [Fact]
     public void Exactly_one_rupee_either_way_passes_under_the_production_rule()
     {
         Assert.Equal(ReconciliationStatus.Passed, Run(1130.00m, RetailReportingPolicy.Tender, ("CASH", 1129.00m)).Status); // +1.00
@@ -55,7 +54,7 @@ public sealed class MoneyTenderToleranceTests
         Assert.Equal(-1.01m, Assert.Single(under.Documents).Variance);
     }
 
-    [Fact(Skip = F1)]
+    [Fact]
     public void Tolerance_applies_per_document_not_to_the_total()
     {
         // Two documents each 0.60 short: each passes; the total variance 1.20 is shown but does not fail the control.

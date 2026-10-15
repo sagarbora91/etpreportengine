@@ -32,7 +32,7 @@ public sealed class MoneyTargetSheetSqlTests(SqlDatabaseFixture db) : IClassFixt
             await masters.SaveMonthlyTargetAsync(new(store, month, targets.GetValueOrDefault(store)));
     }
 
-    [SqlFact(Skip = "Fails until F1 (gap #8, decision 68)")]
+    [SqlFact]
     public async Task Leap_february_target_divides_by_29_and_required_ads_by_the_19_days_left_after_the_10th()
     {
         var month = new DateOnly(2028, 2, 1);
@@ -47,7 +47,7 @@ public sealed class MoneyTargetSheetSqlTests(SqlDatabaseFixture db) : IClassFixt
         Assert.Equal(10_000m, sheet.RequiredAds);      // 1,90,000 / (29 - 10 = 19 days left after today)
     }
 
-    [SqlFact(Skip = "Fails until F1 (gap #8, decision 68)")]
+    [SqlFact]
     public async Task Over_achieved_target_shows_a_negative_balance_and_required_ads_the_day_before_month_end()
     {
         var month = new DateOnly(2028, 2, 1);
@@ -60,7 +60,7 @@ public sealed class MoneyTargetSheetSqlTests(SqlDatabaseFixture db) : IClassFixt
         Assert.Equal(-10_000m, sheet.RequiredAds);     // -10,000 / 1 day left
     }
 
-    [SqlFact(Skip = "Fails until F1 (gap #8, decision 68)")]
+    [SqlFact]
     public async Task Required_ads_on_the_last_day_of_the_month_has_no_days_left_and_reads_blank()
     {
         var month = new DateOnly(2028, 2, 1);
@@ -74,7 +74,7 @@ public sealed class MoneyTargetSheetSqlTests(SqlDatabaseFixture db) : IClassFixt
         Assert.Null(sheet.RequiredAds);
     }
 
-    [SqlFact(Skip = "Fails until F1 (gap #8, decision 68)")]
+    [SqlFact]
     public async Task The_25_aug_tie_out_store_and_combined_required_ads_divide_by_the_6_days_left()
     {
         // Aug 2033 stands in for Aug 2026 (the same 31-day month; only the day number counts).

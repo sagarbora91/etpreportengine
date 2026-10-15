@@ -58,7 +58,7 @@ public sealed class MoneyServiceSqlTests
         finally { await database.DisposeAsync(); }
     }
 
-    [SqlFact(Skip = "Fails until F1 (gap #14, decision 68)")]
+    [SqlFact]
     public async Task Wdc_tile_sums_only_the_service_money_shop()
     {
         var database = new SqlDatabaseFixture();

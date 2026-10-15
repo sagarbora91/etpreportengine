@@ -56,8 +56,8 @@ public sealed class MoneyStockSqlTests
 
             var closing = await reports.LoadStockInventoryAsync(new(Day, Day, [Store]));
 
-            // Item A: lots are merged, quantity 2 + 1 = 3. Only the costed lot has a value, so TotalCost = 2,000. The one
-            // uncosted unit is not flagged (PIN: today's behaviour; the value is silently short by that unit).
+            // Item A: lots are merged, quantity 2 + 1 = 3. Only the costed lot has a value, so TotalCost = 2,000 (decision 69:
+            // value unchanged). The uncosted unit is no longer silent: the F2 note counts it (below).
             var a = closing.Single(x => x.ProductCode == "ITEM-A");
             Assert.Equal(3m, a.Quantity);
             Assert.Equal(2000m, a.TotalCost);
@@ -73,6 +73,11 @@ public sealed class MoneyStockSqlTests
             // Brand SAMPLE: quantity 3 - 1 + 5 = 7; the costed rows add up to 2,000 - 500 = 1,500 (item C's 5 units add nothing).
             Assert.Equal(7m, closing.Sum(x => x.Quantity));
             Assert.Equal(1500m, closing.Sum(x => x.TotalCost ?? 0m));
+
+            // 1.12.1 F2 (decision 69): the note counts the items with an uncosted line. ITEM-A has an uncosted lot and ITEM-C
+            // is all uncosted; ITEM-B is costed. So brand SAMPLE has 2 items with no cost price.
+            var uncosted = await reports.LoadUncostedStockAsync(new(Day, Day, [Store]), latestOnOrBefore: false);
+            Assert.Equal([(Store, "SAMPLE", 2)], uncosted.Select(x => (x.StoreCode, x.Brand, x.Items)));
 
             var physical = await reports.LoadBrandPhysicalStockAsync(Store, Day);
             Assert.Equal(7m, Assert.Single(physical).SystemQuantity);
