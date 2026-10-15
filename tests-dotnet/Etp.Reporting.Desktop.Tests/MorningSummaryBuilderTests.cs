@@ -57,7 +57,7 @@ public sealed class MorningSummaryBuilderTests
     }
 
     [Fact]
-    public void A_refused_shop_file_is_named_with_its_reason_and_gets_a_Fix_button_by_history_key()
+    public void A_refused_shop_file_is_named_with_its_reason_and_gets_a_Fix_button_for_that_one_file()
     {
         var refused = Entry("attempt:41", "SC903", "R025", "Failed", "The sheet date and the file name differ.");
         var workflow = Workflow("SC903", missingReports: ["R025"]);
@@ -67,7 +67,8 @@ public sealed class MorningSummaryBuilderTests
         Assert.Equal("Sales lines was refused (The sheet date and the file name differ)", card.Blockers[0]);
         Assert.DoesNotContain("Sales lines not imported yet", card.Blockers);
         var fix = Assert.Single(card.Actions, action => action.TaskId == MorningSummaryBuilder.ImportFixTask);
-        Assert.Equal(("Fix sales lines", "attempt:41"), (fix.Label, fix.Argument));
+        // 1.12.1 P4 (decision 64 #3): the argument names the day, the card's store and the file, not the history key.
+        Assert.Equal(("Fix sales lines", "fix:20261009:SC903:synthetic-SC903-R025.xlsx"), (fix.Label, fix.Argument));
         Assert.Equal(("1 refused", MorningTone.Critical), (card.Lines[0].Word, card.Lines[0].Tone));
         var files = summary.Chips.Single(chip => chip.Label == "Shop files");
         Assert.Equal(("1 refused", MorningTone.Critical, "conflicts"), (files.Word, files.Tone, files.OpenTaskId));
@@ -286,6 +287,44 @@ public sealed class MorningSummaryBuilderTests
 
     private static MorningStoreSource Store(string code, string name, DailyWorkflowState workflow, NoSaleDay noSale) =>
         new(code, name, workflow, [], [], noSale);
+
+    [Fact]
+    public void A_Fix_argument_prefers_the_file_hash_and_falls_back_to_the_history_key_when_no_file_is_named()
+    {
+        var sha = new string('A', 64);
+        var hashed = Entry("attempt:42", "SC903", "R022", "Failed", "Refused.");
+        hashed = hashed with { Result = hashed.Result with { SourceSha256 = sha } };
+        var nameless = Entry("attempt:43", "SC903", "R011", "Failed", "Refused.");
+        nameless = nameless with { Result = nameless.Result with { FileName = " " } };
+        var card = Assert.Single(Build(Store("SC903", "Shop Three", Workflow("SC903", missingReports: ["R022", "R011"]), hashed, nameless)).Stores);
+
+        var fixes = card.Actions.Where(action => action.TaskId == MorningSummaryBuilder.ImportFixTask).Select(action => action.Argument).ToArray();
+        Assert.Contains("fix:20261009:SC903:" + sha, fixes);
+        Assert.Contains("attempt:43", fixes);
+    }
+
+    [Fact]
+    public void A_Fix_argument_reads_back_and_matches_only_its_own_file()
+    {
+        var fix = new MorningFixArgument(Day, "SC903", "synthetic.xlsx");
+        Assert.Equal("fix:20261009:SC903:synthetic.xlsx", fix.ToString());
+        Assert.Equal(fix, MorningFixArgument.TryParse(" " + fix + " "));
+        // A key may hold a colon (it is the last part); anything else is not a Fix argument.
+        Assert.Equal("a:b.xlsx", MorningFixArgument.TryParse("fix:20261009:SC903:a:b.xlsx")!.FileKey);
+        Assert.Null(MorningFixArgument.TryParse("attempt:41"));
+        Assert.Null(MorningFixArgument.TryParse("fix:2026-10-09:SC903:x.xlsx"));
+        Assert.Null(MorningFixArgument.TryParse("fix:20261009::x.xlsx"));
+        Assert.Null(MorningFixArgument.TryParse("fix:20261009:SC903:"));
+        Assert.Null(MorningFixArgument.TryParse(null));
+
+        Assert.True(fix.Matches("SYNTHETIC.xlsx", "sc903", null));
+        Assert.True(fix.Matches("synthetic.xlsx", null, null), "a file refused before ETP learned its store");
+        Assert.False(fix.Matches("synthetic.xlsx", "SC904", null), "the same file name in another store is another file");
+        Assert.False(fix.Matches("other.xlsx", "SC903", null));
+        var hashed = new MorningFixArgument(Day, "SC903", new string('b', 64));
+        Assert.True(hashed.Matches("any-name.xlsx", "SC904", new string('B', 64)));
+        Assert.False(hashed.Matches("any-name.xlsx", "SC903", new string('C', 64)));
+    }
 
     private static DailyWorkflowState Workflow(string store, string[]? missingReports = null, string[]? missingInputs = null,
         DailyWorkflowStatus? status = null, bool? canFinalise = null)

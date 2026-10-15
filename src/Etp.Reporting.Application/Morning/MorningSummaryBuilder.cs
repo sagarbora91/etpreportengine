@@ -26,7 +26,7 @@ public static class MorningSummaryBuilder
     public const string HealthCheckTask = "health-check";
     public const string ImportHistoryTask = "import-history";
     public const string ImportProblemsTask = "conflicts";
-    /// <summary>The Fix handler U2 registers (plan section 4); the shell falls back to Problems until it exists.</summary>
+    /// <summary>The Fix handler U2 registers (plan section 4); its argument is a <see cref="MorningFixArgument"/>.</summary>
     public const string ImportFixTask = "import-problems";
     public const string ServiceTodayTask = "service-today";
     public const string CloseDayTask = "readiness";
@@ -110,8 +110,11 @@ public static class MorningSummaryBuilder
         }
 
         IReadOnlyList<string> blockers = workflow.CanFinalise ? [] : Blockers(workflow, refused);
+        // 1.12.1 P4 (decision 64 #3): the argument names the day, this card's store and the one file, so Fix opens that
+        // file's problem; an attempt that names no file at all keeps its history key (the fix screen then lists the day).
         foreach (var entry in refused.Take(3))
-            actions.Add(new("Fix " + FileName(entry.Result.ReportCode).ToLowerInvariant(), ImportFixTask, entry.Key));
+            actions.Add(new("Fix " + FileName(entry.Result.ReportCode).ToLowerInvariant(), ImportFixTask,
+                MorningFixArgument.For(workflow.BusinessDate, store.StoreCode, entry)?.ToString() ?? entry.Key));
         if (!workflow.CanFinalise && !markApplies)
         {
             if (workflow.MissingRequiredInputs.Contains("WALK_INS", StringComparer.OrdinalIgnoreCase)) actions.Add(new("Enter walk-ins", "walk-ins"));
