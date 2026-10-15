@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ETP Reporting Engine - Obfuscar configuration for the PROTECTED release build only (code-protection plan 4.3, lane O1).
+
+  Used only by scripts\release\Invoke-EtpObfuscation.ps1, which is called only by
+  scripts\build-windows-release.ps1 -Protect. Dev builds, dotnet test, the gates and CI never see this file.
+
+  This file is a TEMPLATE. Invoke-EtpObfuscation.ps1 loads it, fills InPath / OutPath / LogFile / the search path,
+  sets KeepPublicApi from the profile (Standard = true, Strong = false), removes the Desktop module when
+  -DesktopObfuscation None is chosen, and writes the filled copy into <OutputDirectory>-symbols\obfuscar.filled.xml.
+  The values below are placeholders and are always replaced.
+
+  Every exclusion has its reason next to it. They were derived by reading the code at 8c634449 (15 Oct 2026); the full
+  list with file and line references is in docs\security\RELEASE-PROTECTION.md. Exclusions only ever KEEP a name; none of
+  them changes behaviour. Unknown or unmatched exclusions are harmless (they keep nothing more).
+
+  Nested type names are written twice, with "/" (Mono.Cecil's form, which Obfuscar matches) and with "+" (reflection's
+  form), because Obfuscar's documentation does not say which one it matches and an unmatched SkipType is harmless.
+-->
+<Obfuscator>
+  <Var name="InPath" value="__FILLED_BY_Invoke-EtpObfuscation__" />
+  <Var name="OutPath" value="__FILLED_BY_Invoke-EtpObfuscation__" />
+  <Var name="LogFile" value="__FILLED_BY_Invoke-EtpObfuscation__" />
+  <Var name="XmlMapping" value="false" />
+
+  <!-- Standard profile: public API kept (KeepPublicApi=true). Strong profile: the script sets false. -->
+  <Var name="KeepPublicApi" value="true" />
+  <!-- Non-public (internal/private) types and methods are renamed. -->
+  <Var name="HidePrivateApi" value="true" />
+
+  <!-- WPF bindings (XAML Path=...), DataGrid auto-generated columns, TypeDescriptor.GetProperties (TablePresentation,
+       PageSearch), Type.GetProperty("Area"/"Code"/"Variance") (ReportDetailFilter, ReportGridColumns) and
+       System.Text.Json all resolve PROPERTIES by name at run time. Property accessors stay with their properties. -->
+  <Var name="RenameProperties" value="false" />
+  <Var name="RenameEvents" value="false" />
+  <!-- Enum members are serialised by name (JsonStringEnumConverter in EtpReportFamilyRegistry.Parse), parsed by name
+       (Enum.Parse / TryParse in DiagStoreSupport, ImportSourceLocationStore, SqlServerHealthCheckStore, AuditCommandLine,
+       ErrorRegisterView, ReportsWorkspaceView) and written to SQL as text. Fields are kept in the first version. -->
+  <Var name="RenameFields" value="false" />
+
+  <!-- SQL text, column names and messages are encoded in IL and decoded at run time (reversible, not readable in a
+       listing). Attribute arguments and const fields are not touched by Obfuscar. -->
+  <Var name="HideStrings" value="true" />
+
+  <Var name="ReuseNames" value="false" />
+  <!-- Compiler-generated types (async state machines, lambdas' closure classes, anonymous types serialised by
+       System.Text.Json in DailyReportingPackService, SqlServerTallyReconciliationService, ShopResult etc.,
+       [GeneratedRegex] runners) keep their names and members. -->
+  <Var name="SkipGenerated" value="true" />
+  <!-- ASCII names only: the diagnostics log, the error register's token CHECKs ([A-Za-z0-9._:<>+-]) and
+       DesktopDiagnostics.SafeFrame accept them unchanged. -->
+  <Var name="UseUnicodeNames" value="false" />
+  <Var name="UseKoreanNames" value="false" />
+  <Var name="OptimizeMethods" value="true" />
+  <Var name="SuppressIldasm" value="false" />
+  <!-- Write PDBs that match the rewritten assemblies, for the private symbols archive (never shipped). -->
+  <Var name="RegenerateDebugInfo" value="true" />
+
+  <!-- Referenced assemblies (runtime, WPF, NuGet packages) are resolved from the self-contained publish folder. -->
+  <AssemblySearchPath path="__FILLED_BY_Invoke-EtpObfuscation__" />
+
+  <!-- ================================================================== Domain -->
+  <Module file="$(InPath)\Etp.Reporting.Domain.dll" />
+
+  <!-- ================================================================== Application -->
+  <Module file="$(InPath)\Etp.Reporting.Application.dll">
+    <!-- Desktop TablePresentation.cs:131 compares member.GetType().Name with "ReportStatus". Public (kept anyway in
+         Standard); listed for the Strong profile. -->
+    <SkipType name="Etp.Reporting.Application.Reports.ReportStatus" />
+    <!-- System.Text.Json deserialises these records through their constructor, matching constructor PARAMETER names to
+         property names. Obfuscar removes parameter names of methods it may rename, so the constructor is kept with its
+         parameter names (skipMethods). Public: Strong profile only. -->
+    <SkipType name="Etp.Reporting.Application.Updates.UpdateAttemptRecord" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Application.Imports.ImportIssue" skipMethods="true" />
+    <!-- Exception type names are recorded (ImportFailure type, DesktopDiagnostics ExceptionType, error-register
+         fingerprints, health findings): keep them stable and readable. -->
+    <SkipType name="Etp.Reporting.Application.NoSaleDays.NoSaleDayRefusedException" />
+  </Module>
+
+  <!-- ================================================================== Import -->
+  <Module file="$(InPath)\Etp.Reporting.Import.dll">
+    <!-- EtpReportFamilies.json (embedded resource, loaded by its literal name) is deserialised into these through their
+         constructors (EtpReportFamilyRegistry.Parse). Public: Strong profile only. -->
+    <SkipType name="Etp.Reporting.Import.Profiles.EtpReportFamily" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Import.Profiles.EtpSourceColumn" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Import.Profiles.EtpFamilyIdentity" skipMethods="true" />
+    <!-- Exception type names (BatchImportCoordinator.DescribeDetailed records exception.GetType().Name). -->
+    <SkipType name="Etp.Reporting.Import.Audit.AuditInputException" />
+    <SkipType name="Etp.Reporting.Import.Batch.ImportConflictException" />
+    <SkipType name="Etp.Reporting.Import.Batch.ImportSourceException" />
+    <SkipType name="Etp.Reporting.Import.Collections.StatementLayoutException" />
+  </Module>
+
+  <!-- ================================================================== Infrastructure.Http -->
+  <Module file="$(InPath)\Etp.Reporting.Infrastructure.Http.dll" />
+
+  <!-- ================================================================== Infrastructure.SqlServer -->
+  <Module file="$(InPath)\Etp.Reporting.Infrastructure.SqlServer.dll">
+    <!-- PRIVATE records deserialised by System.Text.Json through their constructors. Without this the protected build
+         throws "Each parameter in the deserialization constructor ... must bind to an object property" when the import
+         history is read (SqlServerImportHistoryQuery.cs:191) and when a Tally profile with cost centres is loaded
+         (SqlServerTallyProfileService.cs:153). Needed in BOTH profiles. -->
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.SqlServerImportHistoryQuery/StoredIssue" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.SqlServerImportHistoryQuery+StoredIssue" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyProfileService/StoreCostCentre" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyProfileService+StoreCostCentre" skipMethods="true" />
+    <!-- PRIVATE class deserialised from the embedded ExpectedRolePermissions.json (SecurityProbes.cs:82, health check
+         SEC-01..03). Default constructor + [JsonPropertyName] properties: safe already; kept as belt and braces. -->
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermissionMatrix/MatrixFile" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermissionMatrix+MatrixFile" skipMethods="true" />
+    <!-- Public, constructor-deserialised (SecurityProbes MatrixFile.Permissions, WindowsSmtpCredentials.cs:17). Strong only. -->
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermission" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.SmtpCredential" skipMethods="true" />
+    <!-- PRIVATE exception types whose GetType().Name reaches text ("ImportAudit: internal error (X)", AuditRunner.cs:97;
+         PlannerOnePredictor uses PackageCaptured for control flow). Needed in BOTH profiles. -->
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.AuditRunner/AuditDatabaseException" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.AuditRunner+AuditDatabaseException" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.PlannerOnePredictor/PackageCaptured" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.Audit.PlannerOnePredictor+PackageCaptured" />
+    <!-- Public exception types (recorded by name). Strong only. -->
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.MigrationIntegrityException" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.SchemaObjectIntegrityException" />
+    <SkipType name="Etp.Reporting.Infrastructure.SqlServer.SchemaObjectsNotUpToDateException" />
+  </Module>
+
+  <!-- ================================================================== Reporting -->
+  <Module file="$(InPath)\Etp.Reporting.Reporting.dll">
+    <!-- Desktop TablePresentation.cs:131 compares member.GetType().Name with "ReconciliationStatus". Strong only. -->
+    <SkipType name="Etp.Reporting.Reporting.ReconciliationStatus" />
+    <!-- Archived report packs are deserialised through their constructors (ReportPackArchiveCodec.Deserialize,
+         Phase2OperationsRepository.cs:344). Strong only. -->
+    <SkipType name="Etp.Reporting.Reporting.ReportPackDocument" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Reporting.ReportPackTable" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Reporting.ExcelReportData" skipMethods="true" />
+    <SkipType name="Etp.Reporting.Reporting.ExcelReportColumn" skipMethods="true" />
+  </Module>
+
+  <!-- ================================================================== Desktop (WPF UI) - "light" (strings only)
+       Decision D3: the UI assembly lightly or not at all. Obfuscar does not analyse BAML, and the compiled XAML refers to
+       Desktop types by name (x:Class, clr-namespace:Etp.Reporting.Desktop and .Modules.Reports, converters, local
+       controls, XamlGeneratedNamespace.GeneratedInternalTypeHelper which WPF finds by reflection), System.Text.Json reads
+       Desktop records through constructors (DesktopConnectionSettings, UiPreferences, DesktopDiagnosticEntry), and
+       UiDensityJsonConverter is named in an attribute. So EVERY Desktop namespace is skipped for renaming (types,
+       methods, fields, properties, events); only string hiding may apply. Obfuscation.Tests.ps1 fails when a namespace
+       declared under src\Etp.Reporting.Desktop is missing below.
+       With -DesktopObfuscation None the script removes this module entirely (Standard profile only: the Strong profile
+       renames public members of the other six, so Desktop's references to them must be rewritten too). -->
+  <Module file="$(InPath)\Etp.Reporting.Desktop.dll">
+    <SkipNamespace name="XamlGeneratedNamespace" />
+    <SkipNamespace name="Etp.Reporting.Desktop" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Composition" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Diagnostics" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Accounting" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Archive" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Collections" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.DailyWorkflow" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Dashboard" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.HealthCheck" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Imports" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Morning" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.NoSaleDays" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.OperationsAdministration" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Registers" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Reports" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Service" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Settings" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.SourceInbox" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Modules.Today" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Themes" />
+    <SkipNamespace name="Etp.Reporting.Desktop.Updates" />
+  </Module>
+</Obfuscator>
