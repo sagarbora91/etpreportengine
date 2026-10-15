@@ -52,7 +52,10 @@ public sealed record DsrManagementRow(
     int WalkInMissingDays = 0,
     decimal? TyGiftCards = null,
     decimal? LyGiftCards = null,
-    DateOnly? SourceCoversTo = null);
+    DateOnly? SourceCoversTo = null,
+    // Decision 68 #4 (1.12.1): set when the sales export covers only part of this period (this year, last year or both);
+    // the figures are the partial sums and growth is blank. Null when every day is covered.
+    string? PartialNote = null);
 
 public sealed record StaffPerformanceRow(
     string StoreCode,
@@ -405,7 +408,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var supplementary = await LoadDsrSupplementaryAsync(businessDate, cancellationToken);
         var document = DailySalesReportBuilder.Build(businessDate,
             dsr.Select(x => new DsrPeriodFact(x.Period, x.Store, x.TySales, x.LySales, x.TyUnits, x.LyUnits,
-                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent, x.TyGiftCards, x.LyGiftCards)).ToArray(),
+                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent, x.TyGiftCards, x.LyGiftCards, x.PartialNote)).ToArray(),
             service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.MissingDays==0?x.Total:null, x.LastYearMissingDays==0?x.LastYearTotal:null)).ToArray(),
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
             (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
@@ -859,21 +862,42 @@ public sealed partial class OperationalReportRepository(string connectionString)
         coverage.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
         var ranges=new List<(string Store,DateOnly From,DateOnly To)>();
         await using(var cr=await coverage.ExecuteReaderAsync(token))while(await cr.ReadAsync(token))if(!cr.IsDBNull(1)&&!cr.IsDBNull(2))ranges.Add((cr.GetString(0),cr.GetFieldValue<DateOnly>(1),cr.GetFieldValue<DateOnly>(2)));
-        return ApplySourceCoverage(result,ranges,stores,period);
+        // Decision 68 #4: a day marked as a no-sale day (decision 52) has no file but is not missing, so it does not make a
+        // period partial. The view arrives with 1.12; on an older database no day is marked.
+        const string noSaleSql = """
+            IF OBJECT_ID(N'dbo.v_no_sale_days_current', N'V') IS NOT NULL
+                EXEC sp_executesql N'SELECT store_code,business_date FROM dbo.v_no_sale_days_current WHERE store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))',
+                    N'@stores nvarchar(max)', @stores=@stores;
+            """;
+        var noSaleDays=new List<(string Store,DateOnly Day)>();
+        await using(var marks=new SqlCommand(noSaleSql,connection))
+        {
+            marks.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
+            await using var mr=await marks.ExecuteReaderAsync(token);
+            while(await mr.ReadAsync(token))noSaleDays.Add((mr.GetString(0).Trim(),mr.GetFieldValue<DateOnly>(1)));
+        }
+        return ApplySourceCoverage(result,ranges,stores,period,noSaleDays);
     }
 
     /// <summary>
     /// A period with no sales reads 0 only when a current R025 file covers every day of it; otherwise it stays null
     /// (not imported, never zero). Every store carries the last day its R025 covers so the DSR can say so (RA-SALES-01).
+    /// Decision 68 #4 (1.12.1): a period that has sales but that the files (plus the store's no-sale days) cover only in part
+    /// keeps its partial figure and is marked partial (TyPartial / LyPartial), so its growth is left blank.
     /// </summary>
-    internal static Dictionary<string, DsrFacts> ApplySourceCoverage(Dictionary<string, DsrFacts> result,IReadOnlyList<(string Store,DateOnly From,DateOnly To)> ranges,IReadOnlyList<string> stores,BusinessReportingPeriod period)
+    internal static Dictionary<string, DsrFacts> ApplySourceCoverage(Dictionary<string, DsrFacts> result,IReadOnlyList<(string Store,DateOnly From,DateOnly To)> ranges,IReadOnlyList<string> stores,BusinessReportingPeriod period,
+        IReadOnlyList<(string Store,DateOnly Day)>? noSaleDays=null)
     {
         foreach(var store in stores)
         {
-            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>ranges.Any(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)&&range.Start.AddDays(offset)>=r.From&&range.Start.AddDays(offset)<=r.To));
+            bool InFile(DateOnly day)=>ranges.Any(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)&&day>=r.From&&day<=r.To);
+            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>InFile(range.Start.AddDays(offset)));
+            bool Known(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).Select(offset=>range.Start.AddDays(offset))
+                .All(day=>InFile(day)||(noSaleDays?.Any(x=>x.Day==day&&string.Equals(x.Store,store,StringComparison.OrdinalIgnoreCase))??false));
             var fact=result.GetValueOrDefault(store)??new();
             if(fact.TySales is null&&Covered(period.Current))fact=fact with{TySales=0,TyUnits=0,TyInvoices=0,TyGiftCards=0};
             if(fact.LySales is null&&Covered(period.LastYear))fact=fact with{LySales=0,LyUnits=0,LyInvoices=0,LyGiftCards=0};
+            fact=fact with{TyPartial=fact.TySales is not null&&!Known(period.Current),LyPartial=fact.LySales is not null&&!Known(period.LastYear)};
             var covered=ranges.Where(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)).Select(r=>(DateOnly?)r.To).ToArray();
             result[store]=fact with{SourceCoversTo=covered.Length==0?null:covered.Max()};
         }
@@ -1015,15 +1039,28 @@ public sealed partial class OperationalReportRepository(string connectionString)
         WalkInFacts walkIns,
         ManagementMetricEngine engine)
     {
-        var growth = engine.Growth(facts.TySales, facts.LySales);
+        var partial = PartialNote(periodName, facts.TyPartial, facts.LyPartial);
+        var growth = partial is null ? engine.Growth(facts.TySales, facts.LySales) : new CalculatedMetric(null, MetricAvailability.MissingSource, partial);
         var denominator = new ProductivityRule(DsrMetricPolicy, TransactionDenominator.InvoiceCount);
         var upt = engine.UnitsPerTransaction(facts.TyUnits, facts.TyInvoices, denominator);
         var atv = engine.AverageTransactionValue(facts.TySales, facts.TyInvoices, denominator);
         var conversion = engine.Conversion(facts.TyInvoices, walkIns.MissingDays==0?walkIns.Value:null);
         return new(periodName, store, period.Current.Start, period.Current.End, facts.TySales, facts.LySales,
-            growth.Value, growth.Availability.ToString(), facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
-            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards, facts.SourceCoversTo);
+            growth.Value, partial is null ? growth.Availability.ToString() : "Partial", facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
+            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards, facts.SourceCoversTo, partial);
     }
+
+    /// <summary>
+    /// Decision 68 #4: the plain note for a period the sales export covers only in part, or null. For example
+    /// "Partial: the sales export covers only part of LY MTD". The figure is shown; growth is blank.
+    /// </summary>
+    internal static string? PartialNote(string periodName, bool thisYear, bool lastYear) => (thisYear, lastYear) switch
+    {
+        (true, true) => $"Partial: the sales export covers only part of {periodName} and LY {periodName}",
+        (true, false) => $"Partial: the sales export covers only part of {periodName}",
+        (false, true) => $"Partial: the sales export covers only part of LY {periodName}",
+        _ => null
+    };
 
     private static DsrFacts Combine(IEnumerable<DsrFacts> facts)
     {
@@ -1032,7 +1069,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return new(Complete(values.Select(x => x.TySales)), Complete(values.Select(x => x.LySales)),
             Complete(values.Select(x => x.TyUnits)), Complete(values.Select(x => x.LyUnits)),
             values.Length>0&&values.All(x => x.TyInvoices is not null) ? values.Sum(x => x.TyInvoices!.Value) : null, values.Length>0&&values.All(x => x.LyInvoices is not null) ? values.Sum(x => x.LyInvoices!.Value) : null,
-            Complete(values.Select(x => x.TyGiftCards)), Complete(values.Select(x => x.LyGiftCards)));
+            Complete(values.Select(x => x.TyGiftCards)), Complete(values.Select(x => x.LyGiftCards)))
+        { TyPartial = values.Any(x => x.TyPartial), LyPartial = values.Any(x => x.LyPartial) };
     }
 
     private static decimal? SumNullable(IEnumerable<decimal?> values)
@@ -1066,7 +1104,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     internal const string GiftCardRowLabel = "GIFT CARD";
     internal const string GiftCardDsrNote = "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE";
     /// <summary>SourceCoversTo: the last day a current R025 file covers for the store (null when none), named when the period is not covered (RA-SALES-01).</summary>
-    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null, DateOnly? SourceCoversTo = null);
+    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null, DateOnly? SourceCoversTo = null, bool TyPartial = false, bool LyPartial = false);
 
     /// <summary>Entered walk-ins for a period; <see cref="Value"/> is null when nothing was entered (missing is not zero).</summary>
     internal sealed record WalkInFacts(decimal? Value, int MissingDays)

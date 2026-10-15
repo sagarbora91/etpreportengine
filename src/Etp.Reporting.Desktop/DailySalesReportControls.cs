@@ -126,7 +126,7 @@ public sealed class StorePeriodCard : Border
             var band = new Border { Padding = DesignTokens.Gap(null, "Space8", null, missing ? "Space16" : "Space8"), Margin = DesignTokens.Gap(null, "Space4", null, null) };
             band.SetResourceReference(Border.BackgroundProperty, row % 2 == 1 ? "Surface" : "ZebraRow");
             Grid.SetRow(band, row + 1); Grid.SetColumnSpan(band, 5); table.Children.Add(band); AddRow(table, row + 1, values, true);
-            if (missing) { var note = DsrUi.Styled(p.MissingSourceNote!, "CaptionText", "Critical", TextAlignment.Center); note.Margin = DesignTokens.Gap(null, "Space24", null, null); Grid.SetRow(note, row + 1); Grid.SetColumn(note, 2); Grid.SetColumnSpan(note, 3); table.Children.Add(note); }
+            if (missing) { var note = DsrUi.Styled(p.MissingSourceNote!, "CaptionText", p.MissingSourceNote!.StartsWith("Partial", StringComparison.Ordinal) ? "Warning" : "Critical", TextAlignment.Center); note.Margin = DesignTokens.Gap(null, "Space24", null, null); Grid.SetRow(note, row + 1); Grid.SetColumn(note, 2); Grid.SetColumnSpan(note, 3); table.Children.Add(note); }
         }
         body.Children.Add(table); root.Children.Add(body); Child = root; AutomationProperties.SetName(this, $"{store.DisplayName} FTD MTD YTD comparison");
     }

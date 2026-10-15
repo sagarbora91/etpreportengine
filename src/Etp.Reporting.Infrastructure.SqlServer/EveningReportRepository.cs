@@ -74,7 +74,10 @@ public sealed partial class OperationalReportRepository
                 return a.Length==0?null:a.Sum(x=>x.Value);
             }
             var fp=policy.Resolve(date,ReportingPeriodKind.Ftd); var mp=policy.Resolve(date,ReportingPeriodKind.Mtd); var yp=policy.Resolve(date,ReportingPeriodKind.Ytd);
-            var rows=new List<EveningMetricRow>{Row("VOL",f?.TyUnits,f?.LyUnits,m?.TyUnits,y?.TyUnits,y?.LyUnits),Row("VALUE",f?.TySales,f?.LySales,m?.TySales,y?.TySales,y?.LySales,"currency"),
+            // Decision 68 #4: the MTD / YTD / LY YTD columns of a partly covered period hold the partial sums; say so on the sales rows.
+            var partial=string.Join("; ",new[]{m?.PartialNote,y?.PartialNote}.OfType<string>());
+            var partialNote=partial.Length==0?null:partial;
+            var rows=new List<EveningMetricRow>{Row("VOL",f?.TyUnits,f?.LyUnits,m?.TyUnits,y?.TyUnits,y?.LyUnits,"number",partialNote),Row("VALUE",f?.TySales,f?.LySales,m?.TySales,y?.TySales,y?.LySales,"currency",partialNote),
                 Row("AUPT",f?.Upt,Ratio(f?.LyUnits,f?.LyInvoices),m?.Upt,y?.Upt,Ratio(y?.LyUnits,y?.LyInvoices),"ratio"),Row("AVPT",f?.Atv,Ratio(f?.LySales,f?.LyInvoices),m?.Atv,y?.Atv,Ratio(y?.LySales,y?.LyInvoices),"currency")};
             if(store!="COMBINED")
             {
@@ -89,7 +92,7 @@ public sealed partial class OperationalReportRepository
             rows.Add(Row(OperationalReportRepository.GiftCardRowLabel,f?.TyGiftCards,f?.LyGiftCards,m?.TyGiftCards,y?.TyGiftCards,y?.LyGiftCards,"currency",OperationalReportRepository.GiftCardDsrNote));
             foreach(var (label,field) in new[]{("RETAIL WALKIN","WALK_INS"),("WCC WALKIN","WCC_WALKIN"),("WCC SALES","WCC_SALES"),("WDC BILLS","WDC_BILLS")})
                 rows.Add(Row(label,Manual(field,fp.Current),Manual(field,fp.LastYear),Manual(field,mp.Current),Manual(field,yp.Current),Manual(field,yp.LastYear),field=="WCC_SALES"?"currency":"number","Available entries; missing days are not zero entries"));
-            rows.Insert(rows.FindIndex(x=>x.Metric=="WCC WALKIN"),Row("INVOICE",f?.TyInvoices,f?.LyInvoices,m?.TyInvoices,y?.TyInvoices,y?.LyInvoices));
+            rows.Insert(rows.FindIndex(x=>x.Metric=="WCC WALKIN"),Row("INVOICE",f?.TyInvoices,f?.LyInvoices,m?.TyInvoices,y?.TyInvoices,y?.LyInvoices,"number",partialNote));
             decimal? Conversion(int? n,DateRange period)
             {
                 var entered=manual.Count(x=>Includes(x.Store)&&x.Field=="WALK_INS"&&x.Date>=period.Start&&x.Date<=period.End);
