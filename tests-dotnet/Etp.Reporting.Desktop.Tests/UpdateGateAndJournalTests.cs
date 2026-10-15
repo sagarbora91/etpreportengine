@@ -135,9 +135,9 @@ public sealed class UpdateGateAndJournalTests
     public void The_failure_text_names_the_backup_time_and_file()
     {
         var pending = Started("0123456789abcdef0123456789abcdef", new DateTimeOffset(2026, 10, 12, 8, 32, 0, TimeSpan.Zero));
-        Assert.Equal("Update failed. Your data is safe. Backup taken at 08:30 (EtpReporting-20261012-083000-abc.bak). Call Sagar.",
+        Assert.Equal("Update failed. Setup stopped before it finished, so some database changes may already be in place. The backup taken before the update is EtpReporting-20261012-083000-abc.bak (taken at 08:30). Call Sagar before using ETP.",
             UpdateOutcomeResolver.FailureText(pending, TimeZoneInfo.Utc));
-        Assert.Equal("Update failed. Your data is safe. Call Sagar.", UpdateOutcomeResolver.FailureText(pending with { BackupPath = null }, TimeZoneInfo.Utc));
+        Assert.Equal("Update failed. Setup stopped before it finished, so some database changes may already be in place. ETP has no record of a backup for this update. Call Sagar before using ETP.", UpdateOutcomeResolver.FailureText(pending with { BackupPath = null }, TimeZoneInfo.Utc));
     }
 
     [Fact]

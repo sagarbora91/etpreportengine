@@ -124,7 +124,8 @@ public sealed record UpdateSetupResult(string AttemptId, string Version, string 
 
 /// <summary>
 /// 1.12 (B1, design section 4 rule 8). Works out at the next start what happened to the pending attempt. Never restores and
-/// never retries: it only decides which screen the Owner sees ("Update failed. Your data is safe. Backup taken at ...").
+/// never retries: it only decides which screen the Owner sees ("Update failed. Setup stopped before it finished ... The backup taken
+/// before the update is ...").
 /// </summary>
 public static class UpdateOutcomeResolver
 {
@@ -151,14 +152,24 @@ public static class UpdateOutcomeResolver
     public static UpdateAttemptRecord OutcomeRecord(UpdateAttemptRecord pending, UpdateAttemptOutcome outcome, DateTimeOffset nowUtc) =>
         pending with { Event = UpdateAttemptEvent.Outcome, Outcome = outcome, RecordedUtc = nowUtc };
 
-    /// <summary>The failure screen's words (plan section B, UI). The time is the backup's, in the PC's local time.</summary>
+    /// <summary>
+    /// The failure screen's words (plan section B, UI). The time is the backup's, in the PC's local time. Review M-3: setup
+    /// applies each database change on its own, so a setup that stopped half-way may have applied some of them; the text says
+    /// so, names the backup taken before the update and asks for help before ETP is used. It never restores (decision 39).
+    /// </summary>
     public static string FailureText(UpdateAttemptRecord pending, TimeZoneInfo zone)
     {
         ArgumentNullException.ThrowIfNull(pending);
         if (pending.BackupVerifiedUtc is not { } verified || string.IsNullOrEmpty(pending.BackupPath))
-            return "Update failed. Your data is safe. Call Sagar.";
+            return FailedSentence + " ETP has no record of a backup for this update. " + GetHelpSentence;
         var local = TimeZoneInfo.ConvertTime(verified, zone);
         return string.Create(CultureInfo.InvariantCulture,
-            $"Update failed. Your data is safe. Backup taken at {local:HH:mm} ({Path.GetFileName(pending.BackupPath)}). Call Sagar.");
+            $"{FailedSentence} The backup taken before the update is {Path.GetFileName(pending.BackupPath)} (taken at {local:HH:mm}). {GetHelpSentence}");
     }
+
+    /// <summary>Review M-3: what is known after a failed setup (some database changes may already be in place).</summary>
+    public const string FailedSentence = "Update failed. Setup stopped before it finished, so some database changes may already be in place.";
+
+    /// <summary>Review M-3: the Owner gets help before using ETP again; Sagar decides whether the backup is needed.</summary>
+    public const string GetHelpSentence = "Call Sagar before using ETP.";
 }

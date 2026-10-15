@@ -101,7 +101,8 @@ internal static class UpdateConfirmSheet
 /// <summary>
 /// 1.12 wave 2 (B2). The result screen: shown at the next start after an update attempt that failed or never started, and
 /// for an install ETP refused. Template: dialog (L3). One StatusChip with the word, the sentence, "Open setup log folder"
-/// (QuietButton) when setup left a log, and "Close". It never offers a restore: the data was not touched, and Sagar decides.
+/// (QuietButton) when setup left a log, and "Close". It never offers a restore (decision 39): setup may have applied some database changes before
+/// it stopped (review M-3), so the text names the backup taken before the update and Sagar decides whether it is needed.
 /// </summary>
 internal static class UpdateResultDialog
 {

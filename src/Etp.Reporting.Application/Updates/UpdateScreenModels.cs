@@ -173,7 +173,7 @@ public static class UpdateScreenText
                     "The update finished. A backup was taken first.", false, null);
             case UpdateAttemptOutcome.Failed:
                 return new("The update did not finish", UpdateTextTone.Critical,
-                    UpdateOutcomeResolver.FailureText(attempt, zone) + " Nothing was restored and your data was not changed by ETP."
+                    UpdateOutcomeResolver.FailureText(attempt, zone) + " Nothing was restored."
                     + string.Create(CultureInfo.InvariantCulture, $" ETP is running version {running}."),
                     true, logFolder);
             default:

@@ -202,7 +202,7 @@ Updates come from a signed folder in OneDrive that only Sagar can publish to. Ba
 
 1. When a newer release is waiting, a banner appears on every page for the Owner: "ETP 1.12.x is available", with the notes, **Install now** and **Not now**. Nobody else sees it.
 2. **Install now** opens a sheet listing what must be quiet first (no import, nightly check or backup running, no open entry draft, no other ETP window), the backup ETP takes before updating, and that ETP will close. Press **Install now** to go on (it stays off while anything listed blocks it).
-3. ETP updates and starts again by itself (not as administrator). At the next start a result screen says what happened. After a failure it says your data is safe, names the backup, and has **Open setup log folder**. ETP never restores the database by itself; call Sagar.
+3. ETP updates and starts again by itself (not as administrator). At the next start a result screen says what happened. After a failure it says that some database changes may already be in place, names the backup taken before the update, and has **Open setup log folder**. Call Sagar before using ETP: ETP never restores the database by itself.
 4. **Settings > Software update:** the update folder, **Check now**, the result of the last check, and the on/off switch for checking. Leave checking off until Sagar says to turn it on.
 
 ## Stores and automatic import

@@ -57,7 +57,7 @@ Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on
 **Software update screens (B2)**
 
 - The Owner sees "ETP 1.12.1 is available" under the header when a newer, signed release is in the update folder. "Install now" asks first, lists anything that stops the update (an import, a backup, an unsaved entry, another ETP window), takes a verified backup, closes ETP, runs setup and opens ETP again.
-- After an update that failed or never started, ETP says so at the next start, names the backup and the setup log folder, and never restores anything by itself.
+- After an update that failed or never started, ETP says so at the next start, names the backup and the setup log folder, and never restores anything by itself. After a failure it says that some database changes may already be in place (setup applies each one on its own) and to call Sagar before using ETP.
 - Settings > Software update: the update folder, "Check now", the last check (including files ETP will not trust) and the switch for checking at start. It stays off until you turn it on.
 - `Publish-Release.ps1` works out `hasSchemaChange` from the release candidate's own database change plan.
 

@@ -200,10 +200,13 @@ public sealed class UpdateScreenTextTests
         Assert.True(result.NeedsAttention);
         Assert.Equal(UpdateTextTone.Critical, result.Tone);
         Assert.Equal("The update did not finish", result.Title);
-        Assert.Contains("Your data is safe.", result.Body, StringComparison.Ordinal);
-        Assert.Contains("Backup taken at 09:05 (EtpReporting_PRE_UPDATE_20261014.bak)", result.Body, StringComparison.Ordinal);
+        // Review M-3: setup commits each database change on its own, so a half-way failure may have applied some; never "safe".
+        Assert.Contains("some database changes may already be in place", result.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("data is safe", result.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("not changed", result.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("The backup taken before the update is EtpReporting_PRE_UPDATE_20261014.bak (taken at 09:05)", result.Body, StringComparison.Ordinal);
         Assert.Contains("Nothing was restored", result.Body, StringComparison.Ordinal);
-        Assert.Contains("Call Sagar", result.Body, StringComparison.Ordinal);
+        Assert.Contains("Call Sagar before using ETP.", result.Body, StringComparison.Ordinal);
         Assert.Contains("ETP is running version 1.12.0", result.Body, StringComparison.Ordinal);
         Assert.Equal(@"C:\ProgramData\EtpReporting\Updates\1.12.1", result.SetupLogFolder);
         // Never a restore: there is no sentence that tells anyone to restore, and no restore wording in the button.
@@ -212,10 +215,10 @@ public sealed class UpdateScreenTextTests
     }
 
     [Fact]
-    public void A_failure_without_a_recorded_backup_still_says_the_data_is_safe()
+    public void A_failure_without_a_recorded_backup_says_so_and_asks_for_help()
     {
         var result = UpdateScreenText.Result(Attempt(withBackup: false), UpdateAttemptOutcome.Failed, Running, Utc);
-        Assert.Contains("Update failed. Your data is safe. Call Sagar.", result.Body, StringComparison.Ordinal);
+        Assert.Contains("Update failed. Setup stopped before it finished, so some database changes may already be in place. ETP has no record of a backup for this update. Call Sagar before using ETP.", result.Body, StringComparison.Ordinal);
     }
 
     [Fact]
