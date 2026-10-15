@@ -83,10 +83,20 @@ public static partial class CollectionsSetupRules
         if (draft.OverdueAfterDays is < 0 or > 365) throw new ArgumentException("Overdue after must be 0 to 365 days.");
         if (draft.CashTolerance is < 0) throw new ArgumentException("The cash tolerance cannot be negative.");
         if (draft.EffectiveTo is { } to && to < draft.EffectiveFrom) throw new ArgumentException("The rule cannot end before it starts.");
+        // 1.12.1 P2: a rule says something, and says it consistently.
+        if (draft.SettlementWindowDays is null && draft.OverdueAfterDays is null && draft.CashTolerance is null)
+            throw new ArgumentException("Set a settlement window, an overdue limit or a cash tolerance. A rule with none of them changes nothing.");
+        if (draft.SettlementWindowDays is { } window && draft.OverdueAfterDays is { } overdue && overdue < window)
+            throw new ArgumentException("Overdue after cannot be shorter than the settlement window.");
+        var provider = string.IsNullOrWhiteSpace(draft.ProviderKey) ? null : Key(draft.ProviderKey, "provider key");
+        if (provider is not null && draft.Mode is "Cash" or "Service Cash")
+            throw new ArgumentException("Cash goes to the bank by deposit, so a cash rule has no provider. Leave the provider blank.");
+        if (draft.CashTolerance is not null && draft.Mode is not ("Cash" or "Service Cash"))
+            throw new ArgumentException("A cash tolerance belongs to a cash rule only.");
         return draft with
         {
             StoreCode = Store(draft.StoreCode),
-            ProviderKey = string.IsNullOrWhiteSpace(draft.ProviderKey) ? null : Key(draft.ProviderKey, "provider key")
+            ProviderKey = provider
         };
     }
 

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using Etp.Reporting.Desktop.Modules.Reports;
 using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop.Modules.Collections;
@@ -10,6 +11,8 @@ namespace Etp.Reporting.Desktop.Modules.Collections;
 /// the mode, the scope line, one Notice ("Totals only, not matched yet"), the grid as the body and a footer with the unit.
 /// Every state is a chip with its word; money is under a (₹) header and a missing figure is an em dash. A Viewer's statement
 /// has no bank references and the column is not shown.
+/// 1.12.1 P2: "Export to Excel" (secondary; Refresh stays the primary) writes the lines on screen. The bank columns (credited on,
+/// bank reference) are in the Owner's file only (<see cref="CollectionsStatementModel.ExportIncludesBankColumns"/>).
 /// </summary>
 public sealed class CollectionsStatementView : UserControl
 {
@@ -17,6 +20,8 @@ public sealed class CollectionsStatementView : UserControl
     private readonly PageFrame frame = new(PageTemplate.Report);
     private readonly DataGrid grid = CollectionsUi.Grid("Collections: expected vs evidence");
     private readonly Button refreshButton = CollectionsUi.MakeButton("Refresh", "PrimaryButton");
+    private readonly Button exportButton = CollectionsUi.MakeButton("Export to Excel", automationName: "Export the statement to Excel");
+    private readonly CollectionsExcelExport? export;
     private readonly DatePicker fromPicker = new();
     private readonly DatePicker toPicker = new();
     private readonly ComboBox modeBox = new();
@@ -24,9 +29,10 @@ public sealed class CollectionsStatementView : UserControl
     private bool loaded;
     private bool rendering;
 
-    public CollectionsStatementView(CollectionsStatementModel model)
+    public CollectionsStatementView(CollectionsStatementModel model, CollectionsExcelExport? export = null)
     {
         this.model = model ?? throw new ArgumentNullException(nameof(model));
+        this.export = export;
         foreach (var picker in new[] { fromPicker, toPicker })
         {
             picker.SetResourceReference(FrameworkElement.MinHeightProperty, "ActiveTargetHeight");
@@ -47,6 +53,7 @@ public sealed class CollectionsStatementView : UserControl
         toolbar.Children.Add(fromPicker);
         toolbar.Children.Add(toPicker);
         toolbar.Children.Add(modeBox);
+        if (export is not null) toolbar.Children.Add(exportButton);
         frame.Toolbar = toolbar;
 
         CollectionsUi.AddText(grid, "Store", nameof(StatementRow.Store), minWidth: 80);
@@ -66,6 +73,11 @@ public sealed class CollectionsStatementView : UserControl
         AutomationProperties.SetName(this, "Collections: expected vs evidence");
 
         refreshButton.Click += async (_, _) => await ShowAsync();
+        exportButton.Click += async (_, _) =>
+        {
+            var path = ExportSaveDialog.Show(this, ExportSaveDialog.ExcelFilter, model.ExportFileName);
+            if (path is not null) await ExportToPathAsync(path);
+        };
         fromPicker.SelectedDateChanged += (_, _) => { if (!rendering && fromPicker.SelectedDate is { } date) model.From = DateOnly.FromDateTime(date); };
         toPicker.SelectedDateChanged += (_, _) => { if (!rendering && toPicker.SelectedDate is { } date) model.To = DateOnly.FromDateTime(date); };
         modeBox.SelectionChanged += (_, _) => { if (!rendering && modeBox.SelectedItem is string mode) model.ModeFilter = mode; };
@@ -77,10 +89,35 @@ public sealed class CollectionsStatementView : UserControl
     public DataGrid Table => grid;
     internal PageFrame Frame => frame;
     internal DataGridColumn? ReferenceColumn => referenceColumn;
+    internal Button ExportButton => exportButton;
+
+    /// <summary>The last export's sentence (shown in the notice until the next load).</summary>
+    public string ExportText { get; private set; } = string.Empty;
+    public StatusTone ExportTone { get; private set; } = StatusTone.Neutral;
+
+    /// <summary>Writes the lines on screen to <paramref name="path"/> with the role's columns.</summary>
+    public async Task ExportToPathAsync(string path)
+    {
+        if (export is null || !model.CanExport) return;
+        try
+        {
+            await export(path, model.BuildExportMetadata(DateTimeOffset.UtcNow), model.BuildExportData());
+            ExportTone = StatusTone.Success;
+            ExportText = $"Exported {IndianFormat.Plural(model.Rows.Count, "line")} to {System.IO.Path.GetFileName(path)}."
+                + (model.ExportIncludesBankColumns ? string.Empty : " " + CollectionsStatementModel.ExportWithoutBankColumnsText);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            ExportTone = StatusTone.Critical;
+            ExportText = "The export could not be saved. " + CollectionsScreens.Sentence(exception);
+        }
+        Render();
+    }
 
     /// <summary>Reads the statement for the dates on screen (the first load, Refresh and a changed date all end here).</summary>
     public async Task ShowAsync()
     {
+        ExportText = string.Empty;
         try { await model.LoadAsync(); }
         catch (OperationCanceledException) { }
         Render();
@@ -94,6 +131,7 @@ public sealed class CollectionsStatementView : UserControl
         {
             frame.Description = model.IsAllowed ? model.ScopeText : string.Empty;
             if (!model.IsAllowed) frame.Notice.Show(StatusTone.Critical, model.RefusalText!);
+            else if (ExportText.Length > 0) frame.Notice.Show(ExportTone, ExportText);
             else if (model.StatusText.Length > 0 && model.StatusTone != StatusTone.Neutral) frame.Notice.Show(model.StatusTone, model.StatusText);
             else if (model.ShowsTotalsOnlyNotice) frame.Notice.Show(StatusTone.Information, CollectionsStatementModel.TotalsOnlyNoticeTitle, CollectionsStatementModel.TotalsOnlyNoticeBody);
             else if (model.StatusText.Length > 0) frame.Notice.Show(StatusTone.Neutral, model.StatusText);
@@ -106,6 +144,7 @@ public sealed class CollectionsStatementView : UserControl
             modeBox.SelectedItem = model.ModeFilter;
             frame.Footer = model.FooterText;
             CollectionsUi.SetEnabled(refreshButton, model.IsAllowed, model.RefusalText ?? string.Empty);
+            CollectionsUi.SetEnabled(exportButton, model.CanExport, model.ExportDisabledReason);
         }
         finally { rendering = false; }
     }

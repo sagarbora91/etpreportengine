@@ -65,8 +65,48 @@ internal sealed class FakeDepositService : ICashDepositService
         return Task.FromResult(41L);
     }
 
-    public Task<long> ConfirmManuallyAsync(ManualDepositConfirmation confirmation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    public Task WithdrawAsync(long confirmationId, string reason, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    // 1.12.1 P2: record by hand, withdraw, the credited list and the accounts.
+    public List<ManualDepositConfirmation> Manual { get; } = [];
+    public List<(long Id, string Reason)> Withdrawn { get; } = [];
+    public Exception? ManualFailure { get; set; }
+    public IReadOnlyList<CreditedDeposit> CreditedList { get; set; } = [];
+    public List<(DateOnly From, DateOnly To)> CreditedRanges { get; } = [];
+    public IReadOnlyList<DepositAccount> Accounts { get; set; } = [new(7, "SYN_COLA", "Synthetic COLA account", "COLA", true)];
+    public int CreditedCalls { get; private set; }
+
+    public Task<long> ConfirmManuallyAsync(ManualDepositConfirmation confirmation, CancellationToken cancellationToken = default)
+    {
+        Manual.Add(confirmation);
+        if (ManualFailure is not null) return Task.FromException<long>(ManualFailure);
+        Transit = Transit.Where(deposit => !(deposit.StoreCode == confirmation.StoreCode && deposit.DepositDate == confirmation.DepositDate)).ToList();
+        CreditedList = [.. CreditedList, new CreditedDeposit(50 + Manual.Count, confirmation.StoreCode, confirmation.DepositDate, confirmation.CreditedDate, confirmation.Amount,
+            null, confirmation.BankAccountId, "Synthetic COLA account", confirmation.BankReference, true, "SYNTHETIC\\owner", new DateTime(2026, 8, 6), confirmation.Reason)];
+        return Task.FromResult(50L + Manual.Count);
+    }
+
+    public Task WithdrawAsync(long confirmationId, string reason, CancellationToken cancellationToken = default)
+    {
+        Withdrawn.Add((confirmationId, reason));
+        var credit = CreditedList.FirstOrDefault(item => item.ConfirmationId == confirmationId);
+        if (credit is not null)
+        {
+            CreditedList = CreditedList.Where(item => item.ConfirmationId != confirmationId).ToList();
+            Transit = [.. Transit, new DepositInTransit(credit.StoreCode, credit.DepositDate, credit.SentAmount ?? credit.CreditedAmount, 5)];
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<CreditedDeposit>> LoadCreditedAsync(IReadOnlyList<string>? storeCodes, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    {
+        CreditedCalls++; CreditedRanges.Add((from, to));
+        return Task.FromResult(CreditedList);
+    }
+
+    public Task<IReadOnlyList<DepositAccount>> LoadDepositAccountsAsync(string storeCode, CancellationToken cancellationToken = default) => Task.FromResult(Accounts);
+
+    public static CreditedDeposit Credit(long id, string store, int day, decimal sent, decimal credited, bool byHand) =>
+        new(id, store, new DateOnly(2026, 8, day), new DateOnly(2026, 8, day + 1), credited, sent, 7, "Synthetic COLA account",
+            byHand ? null : "DEP000" + id, byHand, "SYNTHETIC\\owner", new DateTime(2026, 8, day + 1), "Seen on the bank statement");
 
     public static DepositInTransit Deposit(string store, int day, decimal amount, int age) => new(store, new DateOnly(2026, 8, day), amount, age);
 
@@ -110,7 +150,13 @@ internal sealed class FakeSetupService : ICollectionsSetupService
 
     public Task SaveProviderAsync(ProviderDraft draft, string reason, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task<int> SaveMerchantIdAsync(MerchantIdDraft draft, string reason, CancellationToken cancellationToken = default) => Task.FromResult(1);
-    public Task<int> SavePolicyAsync(CollectionPolicyDraft draft, string reason, CancellationToken cancellationToken = default) => Task.FromResult(1);
+    public List<(CollectionPolicyDraft Draft, string Reason)> Policies { get; } = [];
+
+    public Task<int> SavePolicyAsync(CollectionPolicyDraft draft, string reason, CancellationToken cancellationToken = default)
+    {
+        Policies.Add((draft, reason));
+        return Task.FromResult(1);
+    }
 
     public Task<int> SaveLayoutAsync(StatementLayoutDraft draft, string reason, CancellationToken cancellationToken = default)
     {
@@ -147,4 +193,14 @@ internal sealed class FakeDialogs : ICollectionsDialogs
     public string? ChooseSampleFile() => Sample;
     public string? AskReason(string title, string prompt, string? suggestion = null) { Asked.Add(title); Suggestions.Add(suggestion); return ReasonAnswer; }
     public bool Confirm(string action, string detail) => ConfirmAnswer;
+
+    // 1.12.1 P2: "Record by hand".
+    public ManualCreditEntry? ManualAnswer { get; set; }
+    public List<ManualCreditEntry> ManualSuggestions { get; } = [];
+
+    public ManualCreditEntry? AskManualCredit(string title, string prompt, ManualCreditEntry suggestion, IReadOnlyList<DepositAccount> accounts)
+    {
+        Asked.Add(title); ManualSuggestions.Add(suggestion);
+        return ManualAnswer;
+    }
 }

@@ -188,9 +188,20 @@ public sealed class SqlServerCollectionsSetupService : ICollectionsSetupService
         var value = CollectionsSetupRules.Normalise(draft);
         var why = CollectionsSetupRules.Reason(reason);
         await RequireAsync(session, CanAdminister, SetupAudit, OwnerRequired, cancellationToken);
+        // 1.12.1 P2: two rules of the same scope never cover the same day (CollectionPolicyResolver.Overlaps says the same
+        // first), and a provider rule names a provider of that mode (Service prefix ignored, as trg_tender_modes_provider_mode).
         const string sql = """
             SET XACT_ABORT ON; BEGIN TRANSACTION;
             DECLARE @saved int=@id;
+            IF @provider IS NOT NULL
+               AND NOT EXISTS(SELECT 1 FROM dbo.collection_providers p WHERE p.provider_key=@provider
+                              AND p.mode=CASE WHEN @mode LIKE 'Service %' THEN STUFF(@mode,1,8,'') ELSE @mode END)
+              THROW 52001,'This provider settles a different payment mode. Choose a provider of this mode, or leave it blank.',1;
+            IF EXISTS(SELECT 1 FROM dbo.collection_policies p WITH(UPDLOCK,HOLDLOCK)
+                      WHERE (@saved IS NULL OR p.policy_id<>@saved) AND p.mode=@mode
+                        AND ISNULL(p.store_code,'')=ISNULL(@store,'') AND ISNULL(p.provider_key,'')=ISNULL(@provider,'')
+                        AND p.effective_from<=ISNULL(@to,'99991231') AND ISNULL(p.effective_to,'99991231')>=@from)
+              THROW 52000,'Another settlement rule for the same mode, store and provider covers some of these dates. Give the other rule an end date first.',1;
             IF @saved IS NULL
             BEGIN
               INSERT dbo.collection_policies(store_code,mode,provider_key,settlement_window_days,overdue_after_days,cash_tolerance,effective_from,effective_to,change_reason)

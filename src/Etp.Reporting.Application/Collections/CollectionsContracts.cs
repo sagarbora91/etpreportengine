@@ -119,7 +119,13 @@ public interface ICollectionsImportService
 }
 
 /// <summary>A deposit the daily sheet says was sent and the bank has not been confirmed to credit yet.</summary>
-public sealed record DepositInTransit(string StoreCode, DateOnly DepositDate, decimal Amount, int AgeDays);
+/// <param name="OverdueAfterDays">1.12.1 P2: the "Overdue after" days of the Owner's Cash settlement rule in force for this store
+/// on the deposit date (<see cref="CollectionPolicyResolver"/>); null when no rule sets it, and then nothing is ever overdue (D20).</param>
+public sealed record DepositInTransit(string StoreCode, DateOnly DepositDate, decimal Amount, int AgeDays, int? OverdueAfterDays = null)
+{
+    /// <summary>Older than the rule allows. Without a rule a deposit is never overdue.</summary>
+    public bool IsOverdue => OverdueAfterDays is { } limit && AgeDays > limit;
+}
 
 /// <summary>A bank credit line that R-DEP-1 offers for a deposit in transit. <see cref="Narration"/> is shown to the Owner only.</summary>
 public sealed record DepositCandidateLine(long BankLineId, int BankAccountId, string AccountKey, string AccountName, string? AccountStoreCode,
@@ -134,6 +140,16 @@ public sealed record DepositProposalAcceptance(string StoreCode, DateOnly Deposi
 public sealed record ManualDepositConfirmation(
     string StoreCode, DateOnly DepositDate, DateOnly CreditedDate, int BankAccountId, decimal Amount, string? BankReference, string Reason);
 
+/// <summary>1.12.1 P2: an active bank credit confirmation (accepted from a proposal or recorded by hand), for the Owner's
+/// "Marked as credited" list, where a mistake is withdrawn with a reason. <see cref="SentAmount"/> is what the daily sheet says
+/// was sent (null when the sheet has no deposit for that day). The account is named, never numbered.</summary>
+public sealed record CreditedDeposit(
+    long ConfirmationId, string StoreCode, DateOnly DepositDate, DateOnly CreditedDate, decimal CreditedAmount, decimal? SentAmount,
+    int BankAccountId, string AccountName, string? BankReference, bool RecordedByHand, string ConfirmedBy, DateTime ConfirmedUtc, string Reason);
+
+/// <summary>1.12.1 P2: a bank account the Owner may record a credit on for a store (active, the store's own or shared).</summary>
+public sealed record DepositAccount(int BankAccountId, string AccountKey, string DisplayName, string? StoreCode, bool TakesCashDeposits);
+
 /// <summary>Today > "Bank credited" (decision 44 #7: deposit sent and credited are two states). Proposals only propose;
 /// accepting, recording by hand and withdrawing are Owner-only and audited (CashDepositConfirmed). Allowed on a LOCKED day.</summary>
 public interface ICashDepositService
@@ -143,6 +159,13 @@ public interface ICashDepositService
     Task<long> AcceptProposalAsync(DepositProposalAcceptance acceptance, CancellationToken cancellationToken = default);
     Task<long> ConfirmManuallyAsync(ManualDepositConfirmation confirmation, CancellationToken cancellationToken = default);
     Task WithdrawAsync(long confirmationId, string reason, CancellationToken cancellationToken = default);
+
+    /// <summary>1.12.1 P2 (Owner): the active confirmations whose deposit date, or the day they were marked (UTC), is in the
+    /// range; newest deposit first.</summary>
+    Task<IReadOnlyList<CreditedDeposit>> LoadCreditedAsync(IReadOnlyList<string>? storeCodes, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+
+    /// <summary>1.12.1 P2 (Owner): the accounts a credit can be recorded on by hand for this store.</summary>
+    Task<IReadOnlyList<DepositAccount>> LoadDepositAccountsAsync(string storeCode, CancellationToken cancellationToken = default);
 }
 
 public sealed record CollectionsStatementRequest(IReadOnlyList<string>? StoreCodes, DateOnly From, DateOnly To, DateOnly AsOf);

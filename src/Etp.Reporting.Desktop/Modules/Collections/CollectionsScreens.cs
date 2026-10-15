@@ -60,7 +60,8 @@ public sealed record CollectionsServices(
     Func<ICollectionsSetupService> Setup,
     Func<ICollectionsImportService> Import,
     Func<ICashDepositService> Deposits,
-    Func<ICollectionsStatementQuery> Statement);
+    Func<ICollectionsStatementQuery> Statement,
+    CollectionsExcelExport? Export = null);
 
 /// <summary>The questions and file choices the screens ask of a person. The default shows Windows dialogs; tests inject answers.</summary>
 public interface ICollectionsDialogs
@@ -76,4 +77,11 @@ public interface ICollectionsDialogs
 
     /// <summary>A yes to a change that is hard to undo. False when cancelled.</summary>
     bool Confirm(string action, string detail);
+
+    /// <summary>1.12.1 P2: "Record by hand" - the credited date, the account, the amount, the bank reference and the reason,
+    /// starting from <paramref name="suggestion"/>. Null when cancelled. The model checks what comes back.</summary>
+    ManualCreditEntry? AskManualCredit(string title, string prompt, ManualCreditEntry suggestion, IReadOnlyList<DepositAccount> accounts);
 }
+
+/// <summary>1.12.1 P2: writes the statement to an Excel workbook. Production uses the report exporter (ReportExportCoordinator).</summary>
+public delegate Task CollectionsExcelExport(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data);

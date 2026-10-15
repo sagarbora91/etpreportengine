@@ -63,6 +63,46 @@ public sealed class CollectionsServiceBoundaryTests
         Assert.All(session.Audits, audit => Assert.Equal("CashDepositConfirmed/Blocked", audit));
     }
 
+    [Theory]
+    [InlineData(AccessRole.StoreManager)]
+    [InlineData(AccessRole.Viewer)]
+    [InlineData(AccessRole.None)]
+    public async Task Only_the_owner_lists_the_credits_to_withdraw_and_the_accounts_to_record_on(AccessRole role)
+    {
+        var session = new FakeSession(role);
+        var service = new SqlServerCashDepositService(session);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.LoadCreditedAsync(null, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.LoadDepositAccountsAsync("COLP"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SqlServerCollectionsSetupService(session).SavePolicyAsync(
+            new(null, "COLP", "Cash", null, null, 3, null, new DateOnly(2026, 8, 1), null), "Synthetic rule"));
+        Assert.Equal(new[] { "CashDepositConfirmed/Blocked", "CashDepositConfirmed/Blocked", "CollectionsSetup/Blocked" }, session.Audits);
+    }
+
+    [Fact]
+    public async Task A_settlement_rule_and_a_credited_list_are_checked_before_the_role_so_they_never_reach_sql()
+    {
+        var session = new FakeSession(AccessRole.Owner);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => new SqlServerCollectionsSetupService(session).SavePolicyAsync(
+            new(null, "COLP", "Cash", null, null, null, null, new DateOnly(2026, 8, 1), null), "Synthetic rule"));
+        await Assert.ThrowsAsync<ArgumentException>(() => new SqlServerCashDepositService(session).LoadCreditedAsync(null, new DateOnly(2026, 8, 31), new DateOnly(2026, 8, 1)));
+        await Assert.ThrowsAsync<ArgumentException>(() => new SqlServerCashDepositService(session).LoadDepositAccountsAsync(" "));
+        Assert.Empty(session.Audits);
+    }
+
+    [Fact]
+    public void The_lane_P2_throw_block_reads_as_its_own_sentence()
+    {
+        // 1.12.1 P2: THROW 52000-52009 pass through as plain sentences, like D2's 51950-51959.
+        Assert.Equal("Another settlement rule covers these dates.", CollectionsAccess.Plain(SqlError(52000, "Another settlement rule covers these dates.")));
+        Assert.Equal("This provider settles a different payment mode.", CollectionsAccess.Plain(SqlError(52001, "This provider settles a different payment mode.")));
+        Assert.Null(CollectionsAccess.Plain(SqlError(52010, "Another lane's refusal.")));
+    }
+
+    private static SqlException SqlError(int number, string message) =>
+        Etp.Reporting.TestSupport.SqlExceptionFactory.Create(new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(number, message));
+
     [Fact]
     public async Task A_viewer_cannot_import_statements_or_list_deposits_in_transit()
     {

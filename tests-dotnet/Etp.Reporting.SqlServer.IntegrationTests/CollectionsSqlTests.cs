@@ -246,7 +246,8 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
         Assert.Equal("AIRPAY", await TextAsync("SELECT provider_key FROM dbo.tender_modes WHERE source_tender_code=N'PAYMENTTYPE25'"));
         Assert.Equal(1, await IntAsync("SELECT CONVERT(int,is_till_cash) FROM dbo.tender_modes WHERE source_tender_code=N'CASH'"));
 
-        Assert.Equal(0, await IntAsync("SELECT COUNT(*) FROM dbo.collection_policies"));
+        // No rule ships (D20). 1.12.1 P2's own test adds rules for its synthetic store COLP only.
+        Assert.Equal(0, await IntAsync("SELECT COUNT(*) FROM dbo.collection_policies WHERE ISNULL(store_code,'')<>'COLP'"));
         Assert.Equal(6, await IntAsync("SELECT COUNT(*) FROM dbo.collection_providers"));
         Assert.Equal(6, await IntAsync("SELECT COUNT(*) FROM dbo.collections_setup_history WHERE table_name='collection_providers' AND action='I'"));
         var history = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync("DELETE dbo.collections_setup_history"));
@@ -363,6 +364,126 @@ public sealed class CollectionsSqlTests(SqlDatabaseFixture database) : IClassFix
             Assert.Empty(viewerDeposits.Rows);
         }
         finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); if (Directory.Exists(ownFiles)) Directory.Delete(ownFiles, true); }
+    }
+
+    /// <summary>
+    /// 1.12.1 lane P2 (cross-layer, C# meets SQL): the Owner saves a Cash settlement rule through the setup screen's model into the
+    /// real service; SQL refuses an overlapping rule (THROW 52000) and a provider of another mode (52001) even when C# is bypassed;
+    /// the deposit then reads "Overdue" on Deposits in transit for the Owner and for a Store Manager (who reads the rule through
+    /// the schema grant, probed non-pooled with REVERT in the batch, and cannot write it); the Owner records the bank credit by
+    /// hand (no bank line), the statement says "Bank credited" and the Owner's Excel export carries the bank columns while the
+    /// Store Manager's does not; a credited date in the future is refused (52002); the Owner withdraws the credit with a reason
+    /// and the deposit is in transit again, with both history rows kept.
+    /// </summary>
+    [SqlFact]
+    public async Task P2_settlement_rule_marks_a_deposit_overdue_and_a_credit_recorded_by_hand_shows_and_is_withdrawn()
+    {
+        var evidence = await PrepareAsync("COLP");
+        try
+        {
+            var connections = new TestConnections(database.ConnectionString);
+            var setup = new SqlServerCollectionsSetupService(connections);
+            var account = await setup.SaveBankAccountAsync(new(null, "SYN_COLP", "Synthetic COLP account", "Synthetic Bank", "0003", "COLP", true, true), "Synthetic test account");
+            await database.ExecuteAsync("""
+                INSERT dbo.manual_operational_inputs(store_code,business_date,field_code,numeric_value,entered_by,modified_by,change_reason)
+                VALUES('COLP','2026-08-01','CASH_DEPOSIT',5000,N'test',N'test',N'Synthetic deposit');
+                INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc)
+                VALUES('COLP','2026-08-01','LOCKED',N'test',SYSUTCDATETIME());
+                """);
+
+            // The Owner's rule through the screen's model: Cash at COLP is overdue after 3 days, from 1 Jul 2026.
+            var rules = new CollectionsSetupModel(() => setup, Etp.Reporting.Desktop.ShellAccess.Owner, new NoDialogs());
+            await rules.LoadAsync();
+            rules.NewPolicy();
+            rules.Policy.StoreCode = "COLP"; rules.Policy.OverdueAfterDays = "3"; rules.Policy.EffectiveFrom = new DateOnly(2026, 7, 1); rules.Policy.Reason = "Synthetic rule";
+            Assert.True(await rules.SavePolicyAsync(), rules.Message);
+            Assert.Equal(1, await IntAsync("SELECT COUNT(*) FROM dbo.collection_policies WHERE store_code='COLP' AND mode='Cash' AND overdue_after_days=3"));
+            Assert.True(await IntAsync("SELECT COUNT(*) FROM dbo.collections_setup_history WHERE table_name='collection_policies' AND action='I'") >= 1);
+
+            // SQL says the same as C#, even when the screen's check is bypassed.
+            var overlap = await Assert.ThrowsAsync<InvalidOperationException>(() => setup.SavePolicyAsync(
+                new(null, "COLP", "Cash", null, null, 5, null, new DateOnly(2026, 8, 1), null), "Synthetic overlap"));
+            Assert.StartsWith("Another settlement rule", overlap.Message, StringComparison.Ordinal);
+            Assert.Equal(52000, Assert.IsType<SqlException>(overlap.InnerException).Number);
+            var mode = await Assert.ThrowsAsync<InvalidOperationException>(() => setup.SavePolicyAsync(
+                new(null, "COLP", "UPI", "CARD_ACQUIRER", 1, 2, null, new DateOnly(2026, 7, 1), null), "Synthetic wrong provider"));
+            Assert.Equal(52001, Assert.IsType<SqlException>(mode.InnerException).Number);
+            Assert.Equal(1, await IntAsync("SELECT COUNT(*) FROM dbo.collection_policies WHERE store_code='COLP'"));
+
+            // The rule reaches Deposits in transit for the Owner and for a Store Manager.
+            var owner = new DepositsInTransitModel(() => new SqlServerCashDepositService(connections), Etp.Reporting.Desktop.ShellAccess.Owner, "COLP");
+            await owner.LoadAsync();
+            var row = Assert.Single(owner.Rows);
+            Assert.Equal(3, row.Deposit.OverdueAfterDays);
+            Assert.StartsWith("Overdue, ", row.AgeWord, StringComparison.Ordinal);
+            Assert.Equal(Etp.Reporting.Desktop.StatusTone.Critical, row.AgeTone);
+            var manager = new DepositsInTransitModel(() => new SqlServerCashDepositService(new RoleSession(connections, AccessRole.StoreManager)),
+                Etp.Reporting.Desktop.ShellAccess.StoreManager, "COLP");
+            await manager.LoadAsync();
+            Assert.True(Assert.Single(manager.Rows).Deposit.IsOverdue);
+            await database.ExecuteAsync("""
+                IF DATABASE_PRINCIPAL_ID(N'p2_manager') IS NULL BEGIN CREATE USER p2_manager WITHOUT LOGIN; ALTER ROLE etp_store_manager ADD MEMBER p2_manager; END;
+                """);
+            Assert.Equal(0, await ProbeAsync("p2_manager", "SELECT TOP(1) overdue_after_days FROM dbo.collection_policies"));
+            Assert.NotEqual(0, await ProbeAsync("p2_manager", "UPDATE dbo.collection_policies SET overdue_after_days=90"));
+
+            // The Owner records the credit by hand: no bank line, the audit row, the credited list.
+            var audits = await IntAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='CashDepositConfirmed' AND outcome='Succeeded'");
+            var accounts = await owner.LoadAccountsAsync(row);
+            Assert.Contains(accounts, item => item.BankAccountId == account);
+            Assert.DoesNotContain(accounts, item => item.StoreCode is not null && item.StoreCode != "COLP");
+            var entry = owner.Suggestion(row, accounts) with { CreditedDate = new DateOnly(2026, 8, 2), BankAccountId = account, BankReference = "SYN-PASSBOOK-1" };
+            Assert.True(await owner.RecordByHandAsync(row, entry), owner.NoticeText);
+            Assert.Empty(owner.Rows);
+            var credited = Assert.Single(owner.Credited);
+            Assert.True(credited.Credit.RecordedByHand);
+            Assert.Equal((5000m, 5000m, "Same amount"), (credited.Credit.CreditedAmount, credited.Credit.SentAmount, credited.Agreement));
+            Assert.Equal(1, await IntAsync("SELECT COUNT(*) FROM dbo.cash_deposit_confirmations WHERE store_code='COLP' AND bank_line_id IS NULL AND proposal_rule IS NULL AND withdrawn_utc IS NULL"));
+            Assert.Equal(audits + 1, await IntAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='CashDepositConfirmed' AND outcome='Succeeded'"));
+
+            // The statement says "Bank credited"; the Owner's export has the bank columns, the Store Manager's has none.
+            var ownerStatement = new CollectionsStatementModel(() => new SqlServerCollectionsStatementQuery(connections), Etp.Reporting.Desktop.ShellAccess.Owner,
+                "COLP", new DateOnly(2026, 8, 5), () => new DateOnly(2026, 8, 6));
+            await ownerStatement.LoadAsync();
+            var cash = Assert.Single(ownerStatement.Rows, line => line.Mode == "Cash" && line.Date == "01 Aug 2026");
+            Assert.Equal("Bank credited", cash.StatusWord);
+            var ownerFile = ownerStatement.BuildExportData();
+            var referenceAt = ownerFile.Columns.Select(column => column.Header).ToList().IndexOf("Bank reference");
+            Assert.True(referenceAt > 0);
+            Assert.Contains(ownerFile.Rows, cells => Equals(cells[referenceAt], "SYN-PASSBOOK-1"));
+            var managerStatement = new CollectionsStatementModel(() => new SqlServerCollectionsStatementQuery(new RoleSession(connections, AccessRole.StoreManager)),
+                Etp.Reporting.Desktop.ShellAccess.StoreManager, "COLP", new DateOnly(2026, 8, 5), () => new DateOnly(2026, 8, 6));
+            await managerStatement.LoadAsync();
+            var managerFile = managerStatement.BuildExportData();
+            Assert.DoesNotContain(managerFile.Columns, column => column.Header is "Bank reference" or "Credited on");
+            Assert.DoesNotContain(managerFile.Rows.SelectMany(cells => cells), cell => Equals(cell, "SYN-PASSBOOK-1"));
+
+            // A credit dated in the future is refused by SQL (52002).
+            var deposits = new SqlServerCashDepositService(connections);
+            var future = await Assert.ThrowsAsync<InvalidOperationException>(() => deposits.ConfirmManuallyAsync(
+                new("COLP", new DateOnly(2026, 8, 5), DateOnly.FromDateTime(DateTime.Today).AddDays(5), account, 100m, null, "Synthetic future")));
+            Assert.Equal(52002, Assert.IsType<SqlException>(future.InnerException).Number);
+
+            // The Owner withdraws it with a reason: in transit again, nothing deleted, two history rows.
+            var cancelled = await IntAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='CashDepositConfirmed' AND outcome='Cancelled'");
+            Assert.True(await owner.WithdrawAsync(credited, "Recorded on the wrong day"), owner.NoticeText);
+            Assert.Empty(owner.Credited);
+            Assert.Single(owner.Rows);
+            Assert.Equal(2, await IntAsync($"SELECT COUNT(*) FROM dbo.cash_deposit_confirmation_history WHERE cash_deposit_confirmation_id={credited.Credit.ConfirmationId}"));
+            Assert.Equal(cancelled + 1, await IntAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='CashDepositConfirmed' AND outcome='Cancelled'"));
+            Assert.Empty(await deposits.LoadCreditedAsync(["COLP"], new DateOnly(2026, 7, 1), new DateOnly(2026, 8, 31)));
+        }
+        finally { if (Directory.Exists(evidence)) Directory.Delete(evidence, true); }
+    }
+
+    /// <summary>The setup model's dialogs are not used by the rule save (no file choice, no question).</summary>
+    private sealed class NoDialogs : ICollectionsDialogs
+    {
+        public IReadOnlyList<string> ChooseStatementFiles() => [];
+        public string? ChooseSampleFile() => null;
+        public string? AskReason(string title, string prompt, string? suggestion = null) => null;
+        public bool Confirm(string action, string detail) => false;
+        public ManualCreditEntry? AskManualCredit(string title, string prompt, ManualCreditEntry suggestion, IReadOnlyList<DepositAccount> accounts) => null;
     }
 
     private async Task<string> PrepareAsync(string store)
