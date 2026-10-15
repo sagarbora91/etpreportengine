@@ -84,6 +84,26 @@ then write it into `$script:EtpObfuscarPackageSha256` and into the table above, 
 `-Protect` refuses and prints the hash it found. The build never downloads anything. Changing the version = new folder,
 new hash, a protected-build smoke and a VM run.
 
+### Checked with the installed tool at integration (15 Oct 2026, small probe assembly in a scratch folder, not the app)
+
+Using the same `Var` settings as `obfuscar.xml` on a .NET 10 probe library (public service, internal helpers, a nested type,
+two private records deserialised by System.Text.Json through their constructors):
+
+- Obfuscar 2.2.50 runs on Workpc with `DOTNET_ROLL_FORWARD=Major`; the `LogFile` var writes `Mapping.txt`; `RegenerateDebugInfo`
+  writes a PDB beside the rewritten DLL (the script moves it to `protected-pdb`).
+- `SkipType` matches the **`/`** form for nested types (`Etp.Probe.Store/StoredIssue` was reported "skipped: type rule"); the `+`
+  duplicates are harmless.
+- **`skipMethods="true"` keeps constructor parameter names** (StoredIssue deserialised fine). The identical record WITHOUT it
+  failed only in the protected build: "The deserialization constructor for type 'A.B+a' contains parameters with null names".
+  Every private/internal type that STJ builds through a constructor must be in the exclusion list; the protected-build
+  smoke is what catches one that is missing.
+- Non-public types lose their namespace too (`Etp.Probe.Helper -> A.A`), so renamed frames no longer start with `Etp.`
+  (section 6). `KeepPublicApi=true` kept the public type and its public method.
+- HideStrings: ilspycmd 11.1.0.9782 shows the probe's SQL literal before and not after; the internal type name `Helper` is gone,
+  `PublicService` stays. The decompilation comparison on the real build is still to be done (VERIFICATION.md).
+- `Mapping.txt` shape: members are listed inline in each type's `{ }` block, as `[asm]Type::Name[arity]( params ) -> a`
+  (no "Renamed Methods" heading). `Resolve-EtpStackTrace.ps1` reads this shape (pinned by Verification.Tests.ps1).
+
 ## 4. Configuration (`scripts\release\obfuscar.xml`)
 
 | Setting | Value | Why |
