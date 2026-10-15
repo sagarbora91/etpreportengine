@@ -47,6 +47,7 @@ The Morning page for the Owner, Fix buttons on import problems, month-start targ
 - [Mapping register](docs/05_MAPPING_REGISTER.md)
 - [Approved rebuild plan](docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md)
 - [Security and operations setup](docs/OPERATIONS.md)
+- [Security, recovery and release protection](docs/security/SECURITY.md) (also [RECOVERY](docs/security/RECOVERY.md), [RELEASE-PROTECTION](docs/security/RELEASE-PROTECTION.md), [CODE-SIGNING](docs/security/CODE-SIGNING.md), [VERIFICATION](docs/security/VERIFICATION.md)); standing instructions for Claude sessions are in [CLAUDE.md](CLAUDE.md); the release pipeline scripts are in [ops/pipeline](ops/pipeline/README.md)
 - [Phase 5 acceptance walkthrough (printable)](docs/audit/PHASE-5-ACCEPTANCE-WALKTHROUGH.md)
 - [Phase 7 report (Tally transfer, in progress)](docs/audit/PHASE-7-REPORT.md)
 - [Phase 4 implementation and validation](docs/audit/claude-audit-2026-09/PHASE-4-REPORT.md)

@@ -18,12 +18,12 @@ Manager, Viewer. Runs on Workpc (office) and, later, three shop PCs on one LAN w
 |---|---|
 | Repository (GitHub `sagarbora91/etpreportengine`, private) | main clone `E:\ETP\Code\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f`; lane worktrees `E:\ETP\Code\Worktrees\<lane>` |
 | Your worktree | the one you were started in. Never `cd` into another worktree, never edit another lane's files |
-| Release/gate/VM scripts (NOT in the repo) | `E:\ETP\Migration 2026-10-04\` (`Start-FastGate.ps1`, `Start-Gate.ps1`, `Chain-Gate-Then-Installer-<ver>.ps1`, `Build-Installer.ps1`, `Publish-Release.ps1`, `Run-VM-<ver>-Sequence.ps1`) |
+| Release/gate/VM scripts | run from `E:\ETP\Migration 2026-10-04\` (`Start-FastGate.ps1`, `Start-Gate.ps1`, `Chain-Gate-Then-Installer-<ver>.ps1`, `Build-Installer.ps1`, `Publish-Release.ps1`, `Run-VM-<ver>-Sequence.ps1`); since 1.13 a copy is in git under `ops/pipeline/` (build lock in `ops/pipeline/tools`, VM harness without business figures in `ops/pipeline/harness`; layout in its README) |
 | Build lock | `E:\ETP\Code\Worktrees\_tools\Invoke-Serialized.ps1` (+ `PAUSE-LANE-BUILDS`, `heavy-jobs.log`) |
 | Lane notes, plans, reviews | `E:\ETP\Reference\Work in progress <date>\` |
 | Gate results | `E:\ETP\Reference\FastGate\`, `E:\ETP\Reference\Gate-<ver>-<time>\` |
 | Installers | `E:\ETP\Installers\ETP Reporting Engine <ver>\` (copied to the USB kit and OneDrive feed - never put symbols there) |
-| Tools | `E:\Tools` (Inno Setup 6, PowerShell 7 at `E:\Tools\PowerShell\7\pwsh.exe`, NuGet cache) |
+| Tools | `E:\Tools` (Inno Setup 6, PowerShell 7 at `E:\Tools\PowerShell\7\pwsh.exe`, NuGet cache; release-only, pinned with package SHA-256 in `E:\Tools\TOOLS-SHA256.txt`: Obfuscar 2.2.50 `E:\Tools\Obfuscar\2.2.50`, ilspycmd 11.1.0.9782 `E:\Tools\ilspycmd`). Never install or upgrade a tool without Sagar's approval |
 | Helper scripts for driving the app | `E:\ETP\.claude\tools\` (shot/ui/dlg/walk, README inside) |
 | Folders named `(CONTAINS BUSINESS DATA)` | customer data. Read only when the task needs it; never copy into the repo, notes or chat |
 | `E:\` root | not writable unelevated; create folders under `E:\ETP\` |

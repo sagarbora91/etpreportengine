@@ -14,11 +14,12 @@ Markers: **SAGAR** = an account, password or decision only Sagar can do. **ADMIN
 - A Windows 11 Pro x64 PC, 30 GB free on C:, internet for the downloads and GitHub.
 - **SAGAR:** the GitHub account `sagarbora91` (passkey / authenticator; recovery codes are on paper in the USB-kit
   envelope). The repository `sagarbora91/etpreportengine` is private.
-- A copy of the `E:\ETP` folder (old PC, or its backup on G:). It holds what is **not in git**: the gate/release/VM scripts
-  (`E:\ETP\Migration 2026-10-04\`), the build lock (`E:\ETP\Code\Worktrees\_tools\Invoke-Serialized.ps1`), the handoff
-  (`E:\ETP\NEW-PC-HANDOFF.md`), plans and notes (`E:\ETP\Reference\`), installers (`E:\ETP\Installers\`), the USB-kit
-  source (`E:\ETP\USB-KIT\`), and the Hyper-V acceptance VM. Without it you can still build and unit-test from git alone
-  (sections 1-4), but not run the gates, the installer chain or the VM.
+- A copy of the `E:\ETP` folder (old PC, or its backup on G:). It holds what is **not in git**: the handoff
+  (`E:\ETP\NEW-PC-HANDOFF.md`), plans and notes (`E:\ETP\Reference\`), the VM harness data and business-figure file,
+  installers (`E:\ETP\Installers\`), the USB-kit source (`E:\ETP\USB-KIT\`), and the Hyper-V acceptance VM. Since 1.13
+  the gate/release/VM scripts, the build lock and the VM harness scripts are also in git under `ops/pipeline/` (copy them
+  to `E:\ETP\Migration 2026-10-04\`, `E:\ETP\Code\Worktrees\_tools\` and the harness folder as its README says). Without
+  the E:\ETP copy you can build, unit-test and run the gates from git; the VM checks still need the VM and its data.
 - **For a release only:** the two USB key sticks (section 7). Not needed to build or test.
 
 ## 1. Tools (versions as on Workpc, Oct 2026)

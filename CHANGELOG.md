@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.13.0] - unreleased (DRAFT; code protection, decision 65 / CODE-PROTECTION-PLAN 15 Oct 2026; integrated 15 Oct 2026 on protect/integrate-113, not gated)
+
+Code protection for the shipped build. Nothing changes in reports, imports or the database (no migration). Dev builds, `dotnet test`, the gates and CI are unchanged: obfuscation and signing happen only in the installer build (`build-windows-release.ps1 -Protect`, called by `Build-Installer-1.13.0.ps1`).
+
+**What ships differently**
+
+- Folder layout instead of one large exe (decision D4): Program Files holds `Etp.Reporting.Desktop.exe` beside the .NET runtime and ETP DLLs. In-app update and rollback are checked on the VM.
+- No debug symbols (`*.pdb`) in the installer, also without `-Protect`; the installer build refuses a folder that holds PDBs, an obfuscation map or the unprotected comparison build. Symbols and the obfuscation map are archived privately under `E:\ETP\Reference\Symbols\<version>-<sha7>\`.
+- The six ETP library DLLs and the Desktop DLL are processed by Obfuscar 2.2.50 (decision D3): private names renamed, string literals (SQL text, messages) hidden; public names, properties, fields and events kept (WPF and JSON need them; exclusions in `docs/security/RELEASE-PROTECTION.md`). Structure and arithmetic stay readable; the SQL files are untouched.
+- Every ETP exe, DLL and script and the installer are Authenticode-signed with Saagar Traders' self-signed certificate (decision D5; ceremony `scripts\release\New-EtpCodeSigningCertificate.ps1`). A PC trusts it only after Sagar runs `scripts\Install-EtpPublisherCertificate.ps1` by hand, elevated, and compares the fingerprint with the paper card (decision D10). SmartScreen may still warn.
+- Crash reports from a protected build carry renamed names; `scripts\release\Resolve-EtpStackTrace.ps1` turns them back with the archived map. Error fingerprints from protected builds differ from unprotected ones.
+
+**In-app update (U1)**
+
+- After the signed `release.json` check, ETP also checks the held setup file's Authenticode signature against a compiled-in list of publisher thumbprints. The list ships EMPTY in this draft, so the check is "not set up" and updates behave as in 1.12; it is filled only after Sagar has trusted the certificate on Workpc. When set up, ETP refuses (and says why) a setup file that is unsigned, changed after signing, untrusted on this PC or signed by someone else.
+
+**Release tooling**
+
+- `scripts/release/`: Obfuscar step with a pinned tool check (version + package SHA-256), symbol archive, protected-vs-unprotected smoke (`Test-EtpProtectedBuild.ps1`), decompilation comparison (`Compare-EtpDecompilation.ps1`, ilspycmd 11.1.0.9782), performance comparison (`Measure-EtpPerformance.ps1`: over 5 % slower drops string hiding, over 10 % withholds obfuscation), Pester-free script tests in `scripts/release/tests`.
+- `ops/pipeline/`: the gate, chain, installer, publish and VM scripts and the build lock are now in git (the VM harness without business figures).
+- Fixed on the way: the signing scripts' code-signing check never matched any certificate (so signing and trusting always refused); the ceremony command lines in the docs used `-File`, which cannot pass two USB folders.
+- Docs: `CLAUDE.md`, `docs/security/` (SECURITY, RECOVERY, RELEASE-PROTECTION, CODE-SIGNING, VERIFICATION).
+
+Gate line and installer hash: to be added after the elevated gate, the first `-Protect` build and the VM run.
+
 ## [1.12.0] - unreleased (wave 1 gated 13 Oct 2026; wave 2 integrated 13 Oct 2026, not gated)
 
 Wave 1 of 1.12: seams and engines (migrations 0062-0066). Wave 2: the screens on top of them, the no-sale day, the startup wait and the G: backup copy (migrations 0067-0069; 0070 was not needed). Wave 2 is listed first.
