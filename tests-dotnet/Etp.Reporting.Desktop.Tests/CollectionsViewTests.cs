@@ -154,13 +154,90 @@ public sealed class CollectionsViewTests
             var owner = new CollectionsSetupView(new CollectionsSetupModel(() => service, ShellAccess.Owner, new FakeDialogs()));
             owner.ReloadAsync().GetAwaiter().GetResult();
             Assert.Equal(Visibility.Visible, owner.Sections.Visibility);
-            Assert.Equal(6, owner.Sections.Children.Count);
+            // 1.12.1 P2 added "Settlement rules" (between File layouts and Statement folder).
+            Assert.Equal(7, owner.Sections.Children.Count);
+            Assert.Equal("Settlement rules", System.Windows.Automation.AutomationProperties.GetName(owner.Sections.Children[5]));
 
             var manager = new CollectionsSetupView(new CollectionsSetupModel(() => service, ShellAccess.StoreManager, new FakeDialogs()));
             manager.ReloadAsync().GetAwaiter().GetResult();
             Assert.Equal(Visibility.Collapsed, manager.Sections.Visibility);
             Assert.Equal(CollectionsScreens.SetupOwnerOnlyText, manager.Frame.Notice.Title);
             Assert.Equal(1, service.Loads);
+        });
+    }
+
+    // ---- 1.12.1 P2 ----------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void The_Owners_deposits_screen_records_by_hand_and_withdraws_and_the_Store_Managers_has_neither()
+    {
+        RunSta(() =>
+        {
+            var deposit = FakeDepositService.Deposit("COLA", 3, 8000m, 3);
+            var service = new FakeDepositService { Transit = [deposit], CreditedList = [FakeDepositService.Credit(61, "COLA", 1, 12500m, 12500m, byHand: false)] };
+            var dialogs = new FakeDialogs { ReasonAnswer = "Wrong line chosen", ConfirmAnswer = true };
+            var view = new DepositsInTransitView(new DepositsInTransitModel(() => service, ShellAccess.Owner, "COLA", () => new DateOnly(2026, 8, 6)), dialogs);
+            view.RefreshAsync().GetAwaiter().GetResult();
+
+            Assert.False(view.RecordButton.IsEnabled);
+            Assert.Equal("Select a deposit first.", view.RecordButton.ToolTip);
+            Assert.Single(view.CreditedTable.ItemsSource!.Cast<object>());
+            Assert.False(view.WithdrawButton.IsEnabled);
+
+            view.Table.SelectedIndex = 0;
+            Assert.True(view.RecordButton.IsEnabled);
+            dialogs.ManualAnswer = new ManualCreditEntry(new DateOnly(2026, 8, 4), 7, "8000", null, "Seen on the bank passbook");
+            view.RecordByHandAsync().GetAwaiter().GetResult();
+            Assert.Equal("Record by hand", dialogs.Asked[^1]);
+            Assert.Single(service.Manual);
+            Assert.Equal(StatusTone.Success, view.Frame.Notice.Tone);
+
+            view.CreditedTable.SelectedIndex = 0;
+            Assert.True(view.WithdrawButton.IsEnabled);
+            view.WithdrawAsync().GetAwaiter().GetResult();
+            Assert.Equal("Wrong line chosen", Assert.Single(service.Withdrawn).Reason);
+
+            var manager = new DepositsInTransitView(new DepositsInTransitModel(() => service, ShellAccess.StoreManager, "COLA"), new FakeDialogs());
+            manager.RefreshAsync().GetAwaiter().GetResult();
+            Assert.Null(manager.RecordButton.Parent);
+            Assert.Null(manager.WithdrawButton.Parent);
+            Assert.Same(manager.Table, manager.Frame.Body);
+        });
+    }
+
+    [Fact]
+    public void The_statement_exports_the_lines_on_screen_with_the_roles_columns()
+    {
+        RunSta(() =>
+        {
+            var line = new CollectionsStatementLine("COLA", new DateOnly(2026, 8, 1), "Cash", null, 12500m, 12500m, 0m, CollectionsLineState.DepositCredited,
+                "Bank credited on 02 Aug 2026", 14000m, new DateOnly(2026, 8, 2), "DEP0001");
+            var written = new List<(string Path, Etp.Reporting.Reporting.ExcelReportMetadata Metadata, Etp.Reporting.Reporting.ExcelReportData Data)>();
+            CollectionsExcelExport export = (path, metadata, data) => { written.Add((path, metadata, data)); return Task.CompletedTask; };
+
+            var plain = new CollectionsStatementView(new CollectionsStatementModel(() => new FakeStatementQuery { Statement = new([line], false) }, ShellAccess.Owner, "COLA", Business));
+            Assert.Null(plain.ExportButton.Parent);
+
+            var owner = new CollectionsStatementView(new CollectionsStatementModel(() => new FakeStatementQuery { Statement = new([line], false) }, ShellAccess.Owner, "COLA", Business), export);
+            Assert.NotNull(owner.ExportButton.Parent);
+            owner.ShowAsync().GetAwaiter().GetResult();
+            Assert.True(owner.ExportButton.IsEnabled);
+            owner.ExportToPathAsync(@"C:\Synthetic\owner.xlsx").GetAwaiter().GetResult();
+            Assert.Contains(written[0].Data.Columns, column => column.Header == "Bank reference");
+            Assert.Equal("Exported 1 line to owner.xlsx.", owner.Frame.Notice.Title);
+
+            var manager = new CollectionsStatementView(new CollectionsStatementModel(() => new FakeStatementQuery { Statement = new([line], false) }, ShellAccess.StoreManager, "COLA", Business), export);
+            manager.ShowAsync().GetAwaiter().GetResult();
+            manager.ExportToPathAsync(@"C:\Synthetic\manager.xlsx").GetAwaiter().GetResult();
+            Assert.DoesNotContain(written[1].Data.Columns, column => column.Header is "Bank reference" or "Credited on");
+            Assert.EndsWith(CollectionsStatementModel.ExportWithoutBankColumnsText, manager.Frame.Notice.Title, StringComparison.Ordinal);
+
+            CollectionsExcelExport failing = (_, _, _) => Task.FromException(new IOException("The file is open in another program."));
+            var failed = new CollectionsStatementView(new CollectionsStatementModel(() => new FakeStatementQuery { Statement = new([line], false) }, ShellAccess.Owner, "COLA", Business), failing);
+            failed.ShowAsync().GetAwaiter().GetResult();
+            failed.ExportToPathAsync(@"C:\Synthetic\open.xlsx").GetAwaiter().GetResult();
+            Assert.Equal(StatusTone.Critical, failed.Frame.Notice.Tone);
+            Assert.Equal("The export could not be saved. The file is open in another program.", failed.Frame.Notice.Title);
         });
     }
 
