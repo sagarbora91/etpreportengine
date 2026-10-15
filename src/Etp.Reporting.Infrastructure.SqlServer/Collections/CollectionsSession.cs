@@ -117,11 +117,11 @@ internal static class CollectionsAccess
         return await reader.ReadAsync(info.FullName, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>A SQL refusal from the collections objects (THROW 51950-51959) or a constraint, as a plain sentence; null when
-    /// the error is something else and must surface as it is.</summary>
+    /// <summary>A SQL refusal from the collections objects (THROW 51950-51959; 1.12.1 P2: 52000-52009) or a constraint, as a
+    /// plain sentence; null when the error is something else and must surface as it is.</summary>
     public static string? Plain(SqlException exception)
     {
-        if (exception.Number is >= 51950 and <= 51959) return exception.Message;
+        if (exception.Number is (>= 51950 and <= 51959) or (>= 52000 and <= 52009)) return exception.Message;
         var text = exception.Message;
         if (exception.Number is 2601 or 2627)
         {

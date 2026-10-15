@@ -28,11 +28,18 @@ public sealed class SqlServerCashDepositService : ICashDepositService
 
     internal static async Task<IReadOnlyList<DepositInTransit>> LoadInTransitCoreAsync(ICollectionsSession session, IReadOnlyList<string>? storeCodes, CancellationToken cancellationToken)
     {
+        // 1.12.1 P2: the Owner's Cash settlement rules come back in the same batch, so each deposit carries the "Overdue after"
+        // days in force on its date (CollectionPolicyResolver). Nested IF: an older database without the table returns none.
         const string sql = """
             IF OBJECT_ID(N'dbo.v_cash_deposits_in_transit',N'V') IS NOT NULL
+            BEGIN
               SELECT store_code,deposit_business_date,sent_amount,age_days FROM dbo.v_cash_deposits_in_transit
               WHERE @stores IS NULL OR store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
               ORDER BY deposit_business_date,store_code;
+              IF OBJECT_ID(N'dbo.collection_policies',N'U') IS NOT NULL
+                SELECT policy_id,store_code,mode,provider_key,settlement_window_days,overdue_after_days,cash_tolerance,effective_from,effective_to
+                FROM dbo.collection_policies WHERE mode='Cash' AND overdue_after_days IS NOT NULL;
+            END;
             """;
         await using var connection = await session.OpenAsync(cancellationToken);
         await using var command = new SqlCommand(sql, connection);
@@ -41,8 +48,17 @@ public sealed class SqlServerCashDepositService : ICashDepositService
         var rows = new List<DepositInTransit>();
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetString(0), RequiredDate(reader, 1), reader.GetDecimal(2), reader.GetInt32(3)));
-        return rows;
+        var policies = new List<CollectionPolicyRow>();
+        if (await reader.NextResultAsync(cancellationToken))
+            while (await reader.ReadAsync(cancellationToken))
+                policies.Add(ReadPolicy(reader));
+        if (policies.Count == 0) return rows;
+        return rows.Select(row => row with { OverdueAfterDays = CollectionPolicyResolver.CashOverdueAfterDays(policies, row.StoreCode, row.DepositDate) }).ToList();
     }
+
+    internal static CollectionPolicyRow ReadPolicy(SqlDataReader reader) =>
+        new(reader.GetInt32(0), OptionalString(reader, 1), reader.GetString(2), OptionalString(reader, 3), OptionalInt(reader, 4),
+            OptionalInt(reader, 5), OptionalDecimal(reader, 6), RequiredDate(reader, 7), OptionalDate(reader, 8));
 
     public async Task<IReadOnlyList<DepositProposal>> LoadProposalsAsync(IReadOnlyList<string>? storeCodes, CancellationToken cancellationToken = default)
     {
@@ -131,6 +147,8 @@ public sealed class SqlServerCashDepositService : ICashDepositService
         const string sql = """
             SET XACT_ABORT ON; BEGIN TRANSACTION;
             DECLARE @id bigint;
+            IF @credited>CONVERT(date,SYSDATETIME())
+              THROW 52002,'The bank cannot have credited it on a day that has not come yet. Check the credited date.',1;
             IF NOT EXISTS(SELECT 1 FROM dbo.bank_accounts WHERE bank_account_id=@account AND active=1 AND (store_code IS NULL OR store_code=@store))
               THROW 51958,'Choose an active bank account of this store.',1;
             IF EXISTS(SELECT 1 FROM dbo.cash_deposit_confirmations WITH(UPDLOCK,HOLDLOCK)
@@ -180,6 +198,60 @@ public sealed class SqlServerCashDepositService : ICashDepositService
             Add(command, "@id", SqlDbType.BigInt, confirmationId);
             Add(command, "@reason", SqlDbType.NVarChar, why, 500);
         }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CreditedDeposit>> LoadCreditedAsync(IReadOnlyList<string>? storeCodes, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    {
+        if (to < from) throw new ArgumentException("The end date is before the start date.");
+        if (to.DayNumber - from.DayNumber >= 366) throw new ArgumentException("Choose at most one year.");
+        await RequireAsync(session, CanAdminister, DepositAudit, OwnerRequired, cancellationToken);
+        // Owner only: the table is denied to the Viewer, and the list is the Owner's tool to withdraw a mistake.
+        const string sql = """
+            IF OBJECT_ID(N'dbo.cash_deposit_confirmations',N'U') IS NOT NULL
+            BEGIN
+              IF OBJECT_ID(N'dbo.v_cash_deposits_sent',N'V') IS NOT NULL
+                SELECT c.cash_deposit_confirmation_id,c.store_code,c.deposit_business_date,c.credited_date,c.amount,s.sent_amount,
+                       c.bank_account_id,a.display_name,c.bank_reference,CONVERT(bit,CASE WHEN c.bank_line_id IS NULL THEN 1 ELSE 0 END),
+                       c.confirmed_by,c.confirmed_utc,c.change_reason
+                FROM dbo.cash_deposit_confirmations c
+                JOIN dbo.bank_accounts a ON a.bank_account_id=c.bank_account_id
+                LEFT JOIN dbo.v_cash_deposits_sent s ON s.store_code=c.store_code AND s.business_date=c.deposit_business_date
+                WHERE c.withdrawn_utc IS NULL AND c.deposit_business_date BETWEEN @from AND @to
+                  AND (@stores IS NULL OR c.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+                ORDER BY c.deposit_business_date DESC,c.store_code,c.cash_deposit_confirmation_id DESC;
+            END;
+            """;
+        await using var connection = await session.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        Add(command, "@from", SqlDbType.Date, Date(from));
+        Add(command, "@to", SqlDbType.Date, Date(to));
+        Add(command, "@stores", SqlDbType.NVarChar, StoresJson(storeCodes), -1);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<CreditedDeposit>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new(reader.GetInt64(0), reader.GetString(1), RequiredDate(reader, 2), RequiredDate(reader, 3), reader.GetDecimal(4), OptionalDecimal(reader, 5),
+                reader.GetInt32(6), reader.GetString(7), OptionalString(reader, 8), reader.GetBoolean(9), reader.GetString(10), reader.GetDateTime(11), reader.GetString(12)));
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<DepositAccount>> LoadDepositAccountsAsync(string storeCode, CancellationToken cancellationToken = default)
+    {
+        var store = Store(storeCode);
+        await RequireAsync(session, CanAdminister, DepositAudit, OwnerRequired, cancellationToken);
+        // The same accounts ConfirmManuallyAsync accepts: active, the store's own or shared; cash-deposit accounts first.
+        const string sql = """
+            SELECT bank_account_id,account_key,display_name,store_code,takes_cash_deposits FROM dbo.bank_accounts
+            WHERE active=1 AND (store_code IS NULL OR store_code=@store)
+            ORDER BY takes_cash_deposits DESC,CASE WHEN store_code IS NULL THEN 1 ELSE 0 END,display_name;
+            """;
+        await using var connection = await session.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        Add(command, "@store", SqlDbType.VarChar, store, 30);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<DepositAccount>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), OptionalString(reader, 3), reader.GetBoolean(4)));
+        return rows;
     }
 
     private static string Store(string? storeCode)
