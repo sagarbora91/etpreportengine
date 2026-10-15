@@ -161,6 +161,8 @@ public sealed class DailyReportingPackService(string connectionString)
         var dsr = await operational.LoadDsrAsync(businessDate, [storeCode], cancellationToken);
         var tender = await executor.ExecuteTenderReconciliationAsync(scope, cancellationToken);
         var stock = await executor.ExecuteStockReconciliationAsync(scope, cancellationToken);
+        // Decision 69 (1.12.1 F2): stock value leaves out lines with no cost price; the pack's stock line says how many.
+        var uncostedStock = Etp.Reporting.Application.Reports.UncostedStockNote.PackSentence((await operational.LoadUncostedStockAsync(scope, latestOnOrBefore: false, cancellationToken)).Select(x => new Etp.Reporting.Application.Reports.UncostedStockRecord(x.StoreCode, x.Brand, x.Items)).ToArray());
         var physicalStock = await operational.LoadBrandPhysicalStockAsync(storeCode, businessDate, cancellationToken);
         var staff = await operational.LoadStaffPerformanceAsync(scope, cancellationToken);
         var service = await operational.LoadServiceSalesAsync(businessDate, [storeCode], cancellationToken);
@@ -201,7 +203,7 @@ public sealed class DailyReportingPackService(string connectionString)
                     OperationalReportRepository.FailedSourceTenderShortfalls(tender, sourceShortfalls))),
             new("Daily Cash Reconciliation", CashSectionStatus(cash), cash.CalculatedClosing, cash.Variance, CashSectionMessage(cash)),
             new("System Closing Stock", stock.Status, stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.ReportedClosing),
-                stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.Variance), stock.Message),
+                stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.Variance), stock.Message + (uncostedStock.Length == 0 ? "" : " " + uncostedStock)),
             new("Physical Closing Stock", physicalFailures > 0 ? ReconciliationStatus.Failed : physicalMissing > 0 || physicalStock.Count==0 ? ReconciliationStatus.NotRun : ReconciliationStatus.Passed,
                 physicalStock.Count==0||physicalMissing>0?null:physicalStock.Sum(x => x.ComponentTotal),
                 physicalStock.Where(x => x.SystemVariance is not null).Sum(x => x.SystemVariance),
@@ -355,7 +357,7 @@ public sealed class DailyReportingPackService(string connectionString)
                     tender.Documents.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(),
                     ["Total","",tender.InvoiceTotal,tender.TenderTotal,tender.Variance,tender.Status.ToString()])),
             new("Cash Book", sections[4].Status.ToString(), sections[4].Message,CashBookTables.Create(cashBook)),
-            new("System Stock", stock.Status.ToString(), stock.Message,
+            new("System Stock", stock.Status.ToString(), sections[5].Message,
                 new([new("Store"),new("Item"),new("Opening","#,##0.00"),new("Movements","#,##0.00"),new("Expected","#,##0.00"),new("System Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status")],
                     stock.Items.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString()]).ToArray(),
                     ["Total","",stock.Items.Sum(x=>x.Opening),stock.Items.Sum(x=>x.SourceSignedMovements),stock.Items.Sum(x=>x.ExpectedClosing),stock.Items.Sum(x=>x.ReportedClosing),stock.Items.Sum(x=>x.Variance),stock.Status.ToString()])),
