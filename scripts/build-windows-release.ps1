@@ -178,6 +178,20 @@ if ($Protect) {
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $publishDirectory "release.json") -Encoding utf8
 }
 
+else {
+    # Plan 4.2 (integration 15 Oct): PDBs never ship, also without -Protect (S1's installer refuses a folder holding one). They are
+    # kept for crash reading in <OutputDirectory>-symbols, outside the folder that is packed.
+    $plainPdbs = @(Get-ChildItem -LiteralPath $output -Recurse -File -Filter '*.pdb')
+    if ($plainPdbs.Count -gt 0) {
+        if (Test-Path -LiteralPath $symbolsOutput) { throw "Symbols folder already exists. Choose a new OutputDirectory: $symbolsOutput" }
+        foreach ($pdb in $plainPdbs) {
+            $target = Join-Path $symbolsOutput $pdb.FullName.Substring($output.Length + 1)
+            [void](New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force)
+            Move-Item -LiteralPath $pdb.FullName -Destination $target
+        }
+    }
+}
+
 $packagedScripts = Join-Path $output "scripts"
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }

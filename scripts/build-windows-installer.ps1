@@ -101,9 +101,16 @@ if (-not $SkipReleaseBuild) {
     & (Join-Path $PSScriptRoot "build-windows-release.ps1") @releaseArguments
 }
 # Code protection 4.2: debug symbols never ship. Symbols belong in <ReleaseDirectory>-symbols, outside the folder that is packed.
-$symbolFiles = @(Get-ChildItem -LiteralPath $release -Recurse -File -Include '*.pdb','Mapping.txt','obfuscation-report.json' -ErrorAction SilentlyContinue)
+$symbolFiles = @(Get-ChildItem -LiteralPath $release -Recurse -File -Include '*.pdb','Mapping.txt','obfuscation-report.json','obfuscar.filled.xml' -ErrorAction SilentlyContinue)
 if ($symbolFiles.Count -gt 0) {
-    throw ("The release folder contains debug symbols or obfuscation maps and cannot be packed: " + (($symbolFiles | Select-Object -First 5 | ForEach-Object { $_.FullName.Substring($release.Length).TrimStart('') }) -join ', ') + $(if ($symbolFiles.Count -gt 5) { " and $($symbolFiles.Count - 5) more" }) + ". Move them to the symbols folder first.")
+    throw ("The release folder contains debug symbols or obfuscation maps and cannot be packed: " + (($symbolFiles | Select-Object -First 5 | ForEach-Object { $_.FullName.Substring($release.Length).TrimStart('\') }) -join ', ') + $(if ($symbolFiles.Count -gt 5) { " and $($symbolFiles.Count - 5) more" }) + ". Move them to the symbols folder first.")
+}
+# O1: the unprotected comparison publish (<release>-unprotected) carries this marker and must never be packed.
+if (Test-Path -LiteralPath (Join-Path $release 'NOT-FOR-RELEASE.txt')) { throw "The release folder is the unprotected comparison build (NOT-FOR-RELEASE.txt) and cannot be packed: $release" }
+# A -Protect build must really be the protected one: its receipt says so (no unprotected build labelled protected).
+if ($Protect) {
+    $protectReceipt = Get-Content -Raw -LiteralPath (Join-Path $release 'release.json') | ConvertFrom-Json
+    if ($null -eq $protectReceipt.protection -or $protectReceipt.protection.obfuscated -ne $true) { throw "-Protect was given but $release\release.json does not record an obfuscated build." }
 }
 [xml]$props = Get-Content -LiteralPath (Join-Path $repoRoot "Directory.Build.props")
 $version = $props.SelectSingleNode('/Project/PropertyGroup/VersionPrefix').InnerText
@@ -123,9 +130,11 @@ if ($signWithPfx) {
     $signArguments = @{ Paths = $pfxPayloads; PfxPath = $PfxPath; Passphrase = $pfxPassphrase; TimestampServer = $TimestampServer }
     if ($AllowFixedDrive) { $signArguments.AllowFixedDrive = $true }
     & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') @signArguments
-    # The exe changed when it was signed: the release folder's checksum file must describe the signed exe.
-    $exeHash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
-    "$($exeHash.Hash)  $(Split-Path -Leaf $executable)" | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding ascii
+    # The exe and the ETP assemblies changed when they were signed: the release folder's checksum file must describe the signed
+    # files, in the same shape build-windows-release.ps1 writes (exe, plus the Etp.Reporting.*.dll files of a folder publish).
+    $sumFiles = @($executable) + @(Get-ChildItem -LiteralPath $release -Filter 'Etp.Reporting.*.dll' -File | Sort-Object Name | ForEach-Object FullName)
+    @($sumFiles | ForEach-Object { $h = Get-FileHash -LiteralPath $_ -Algorithm SHA256; "$($h.Hash)  $(Split-Path -Leaf $h.Path)" }) |
+        Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding ascii
     # Refuse an unsigned payload: every file must now carry a signature from one single signer, with a timestamp.
     $signers = @()
     foreach ($payload in $pfxPayloads) {
