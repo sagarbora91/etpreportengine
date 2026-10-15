@@ -425,14 +425,20 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// staff name and the discounts. For a sales return R013 states a different value than R025 (R013 SR NETAMOUNT is
     /// positive while its quantity is negative), so the old sum of R013's own value left staff totals Rs 435 to Rs 10,702 a
     /// month off the store total in 18 of 25 months at the Titan store and 8 of 25 at the Helios store; now the two agree whenever every line has a CRO.
+    /// Decision 68 (1.12.1): gift-card lines are left out (#1) and a bill cancelled the same day is not a CRO transaction (#2,
+    /// decision 41, the DSR INVOICE rule), so the CRO ATV and AUPT denominators are the DSR's. Read through
+    /// <see cref="CancelledBillsSqlFor"/> so a database below 0060 still loads.
     /// </summary>
     internal static readonly string StaffSql = $"""
         SELECT e.store_code,e.source_cro_number,COALESCE(SUM(l.source_gross_amount),0),COALESCE(SUM(l.source_quantity),0),
                SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
-               COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
+               COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' AND cancelled.document_number IS NULL THEN CONCAT(e.invoice_year,'|',e.document_number) END),
                MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
         FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
         JOIN dbo.sales_lines l ON l.sales_line_id=e.effective_sales_line_id
+        JOIN dbo.sales_invoices si ON si.sales_invoice_id=l.sales_invoice_id
+        LEFT JOIN dbo.v_sales_cancelled_same_day cancelled
+          ON cancelled.store_code=si.store_code AND cancelled.document_number=si.document_number AND cancelled.transaction_date=si.transaction_date
         LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
         WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(l.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
           AND NOT {NonMerchandiseSql.SalesLine("l")}
@@ -469,7 +475,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
             """;
         await using var connection = await OpenAsync(cancellationToken);
         var raw = new List<(string Store, string Cro, decimal Sales, decimal Quantity, decimal Discount, int Transactions, string Name)>();
-        await using (var command = ScopeCommand(connection, StaffSql, scope))
+        var cancelledViewExists = await CancelledViewExistsAsync(connection, cancellationToken);
+        await using (var command = ScopeCommand(connection, CancelledBillsSqlFor(StaffSql, cancelledViewExists), scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
                 raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5), reader.GetString(6)));
@@ -811,9 +818,21 @@ public sealed partial class OperationalReportRepository(string connectionString)
     internal const string NoCancelledBillsSql =
         "(SELECT CONVERT(varchar(30),NULL) store_code,CONVERT(nvarchar(80),NULL) document_number,CONVERT(date,NULL) transaction_date WHERE 1=0)";
 
-    internal static string DsrFactsSqlFor(bool cancelledViewExists) => cancelledViewExists
-        ? DsrFactsSql
-        : DsrFactsSql.Replace("dbo.v_sales_cancelled_same_day", NoCancelledBillsSql, StringComparison.Ordinal);
+    internal static string DsrFactsSqlFor(bool cancelledViewExists) => CancelledBillsSqlFor(DsrFactsSql, cancelledViewExists);
+
+    /// <summary>
+    /// <paramref name="sql"/> unchanged when dbo.v_sales_cancelled_same_day exists, else with the view replaced by
+    /// <see cref="NoCancelledBillsSql"/> (no bill is cancelled). Used by the DSR, Staff/CRO and Management Trend.
+    /// </summary>
+    internal static string CancelledBillsSqlFor(string sql, bool cancelledViewExists) => cancelledViewExists
+        ? sql
+        : sql.Replace("dbo.v_sales_cancelled_same_day", NoCancelledBillsSql, StringComparison.Ordinal);
+
+    internal static async Task<bool> CancelledViewExistsAsync(SqlConnection connection, CancellationToken token)
+    {
+        await using var probe = new SqlCommand("SELECT CASE WHEN OBJECT_ID(N'dbo.v_sales_cancelled_same_day', N'V') IS NULL THEN 0 ELSE 1 END", connection);
+        return Convert.ToInt32(await probe.ExecuteScalarAsync(token)) == 1;
+    }
 
     private static async Task<Dictionary<string, DsrFacts>> LoadDsrFactsAsync(
         SqlConnection connection,
@@ -821,9 +840,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         IReadOnlyList<string> stores,
         CancellationToken token)
     {
-        bool cancelledViewExists;
-        await using (var probe = new SqlCommand("SELECT CASE WHEN OBJECT_ID(N'dbo.v_sales_cancelled_same_day', N'V') IS NULL THEN 0 ELSE 1 END", connection))
-            cancelledViewExists = Convert.ToInt32(await probe.ExecuteScalarAsync(token)) == 1;
+        var cancelledViewExists = await CancelledViewExistsAsync(connection, token);
         await using var command = new SqlCommand(DsrFactsSqlFor(cancelledViewExists), connection);
         command.Parameters.AddWithValue("@currentFrom", period.Current.Start);
         command.Parameters.AddWithValue("@currentTo", period.Current.End);

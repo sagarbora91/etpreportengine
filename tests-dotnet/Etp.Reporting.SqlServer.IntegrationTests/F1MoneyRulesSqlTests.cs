@@ -93,6 +93,32 @@ public sealed class F1MoneyRulesSqlTests(SqlDatabaseFixture database) : IClassFi
         Assert.Equal((3000m, 1), (trend.NetSales, trend.Invoices));
     }
 
+    // Decision 68 #2 / decision 41: C7 sells K1 2,000 (cancelled whole the same day by KB1 -2,000) and K2 600 and K3 400.
+    [SqlFact]
+    public async Task A_bill_cancelled_the_same_day_is_not_a_cro_transaction_nor_a_trend_invoice()
+    {
+        const string store = "F1CANC";
+        var day = new DateOnly(2033, 3, 10);
+        await SeedAsync(store,
+            new("K1", day, "INV", "ITEMK1", "WB", 1, 2000, Cro: "C7"),
+            new("KB1", day, "BC", "ITEMK1", "WB", -1, -2000, Ref: "K1", Cro: "C7"),
+            new("K2", day, "INV", "ITEMK2", "WB", 1, 600, Cro: "C7"),
+            new("K3", day, "INV", "ITEMK3", "WB", 2, 400, Cro: "C7"));
+
+        // C7: value 2,000 - 2,000 + 600 + 400 = 1,000; units 1 - 1 + 1 + 2 = 3; transactions K2, K3 = 2 (was 3: K1 counted),
+        // so ATV 1,000 / 2 = 500 (was 333.33) and UPT 3 / 2 = 1.5 (was 1).
+        var staff = await new OperationalReportRepository(database.ConnectionString).LoadStaffPerformanceAsync(new(day, day, [store]));
+        var c7 = Assert.Single(staff.Rows);
+        Assert.Equal((1000m, 3m, 2, 500m, 1.5m), (c7.NetSales, c7.NetQuantity, c7.Transactions, c7.Atv, c7.Upt));
+        Assert.Equal(ReconciliationStatus.Passed, staff.Status);
+
+        // Trend: 1,000, 3 units, 2 invoices (was 3), 1 return (KB1). The DSR INVOICE agrees.
+        var trend = Assert.Single(await new Phase2OperationsRepository(database.ConnectionString).LoadManagementTrendAsync(day, day), x => x.StoreCode == store);
+        Assert.Equal((1000m, 3m, 2, 1), (trend.NetSales, trend.Units, trend.Invoices, trend.Returns));
+        var ftd = (await new OperationalReportRepository(database.ConnectionString).LoadDsrAsync(day, [store])).Single(x => x.Period == "FTD" && x.Store == store);
+        Assert.Equal(trend.Invoices, ftd.TyInvoices);
+    }
+
     /// <summary>One synthetic sales line; <paramref name="Ref"/> is the R025 INVREFNO of a BC row (same day); <paramref name="Cro"/> adds a paired R013 row.</summary>
     private sealed record Line(string Doc, DateOnly Date, string Type, string Item, string Brand, decimal Qty, decimal Amount, string? Ref = null, string? Cro = null);
 

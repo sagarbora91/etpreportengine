@@ -103,8 +103,8 @@ public sealed class PolishOpsMessageTests
         Assert.Contains($"SUM(CASE WHEN {line} THEN l.source_quantity ELSE 0 END) units", select);
         Assert.DoesNotContain("SUM(l.source_gross_amount)", select);
         Assert.DoesNotContain("SUM(l.source_quantity)", select);
-        // Decision 68 #1 (1.12.1): a gift-card-only bill is not an invoice, like DSR INVOICE; returns keep their rule.
-        Assert.Contains($"UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END) invoices", select);
+        // Decision 68 #1/#2 (1.12.1): a gift-card-only bill and a bill cancelled the same day are not invoices, like DSR INVOICE; returns keep their rule.
+        Assert.Contains($"UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} AND cancelled.document_number IS NULL THEN i.sales_invoice_id END) invoices", select);
         Assert.Contains("UPPER(l.source_transaction_type) IN('SR','BC') THEN i.sales_invoice_id END) returns", select);
     }
 }
