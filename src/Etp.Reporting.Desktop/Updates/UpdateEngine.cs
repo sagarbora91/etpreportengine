@@ -16,6 +16,8 @@ internal enum UpdateInstallStatus
     StagingFailed,
     BackupFailed,
     LaunchFailed,
+    /// <summary>1.13 (U1): the held setup file's Authenticode signature is missing, changed, untrusted or not ETP's.</summary>
+    SignatureRefused,
 }
 
 internal sealed record UpdateInstallResult(UpdateInstallStatus Status, string Message, IReadOnlyList<UpdateGateBlock> Blocks, string? AttemptId)
@@ -37,10 +39,14 @@ internal sealed record UpdateInstallResult(UpdateInstallStatus Status, string Me
 /// 6. the gate again (a backup takes minutes; an import may have started);
 /// 7. the attempt record, flushed to disk;
 /// 8. setup starts; ETP must then exit. No step ever restores anything.
+/// 1.13 (U1): after step 3 the held copy's Authenticode signature is checked against <see cref="ReleasePublisherCertificates"/>
+/// (additional to the ECDSA check, never instead of it). While that list is empty the check is not set up and nothing changes.
 /// </summary>
-internal sealed class UpdateEngine(string updatesRoot)
+internal sealed class UpdateEngine(string updatesRoot, IAuthenticodeVerifier authenticode)
 {
     public UpdateEngine() : this(UpdatePaths.UpdatesRoot) { }
+
+    public UpdateEngine(string updatesRoot) : this(updatesRoot, new WindowsAuthenticodeVerifier()) { }
 
     public string UpdatesRoot { get; } = updatesRoot;
 
@@ -71,6 +77,14 @@ internal sealed class UpdateEngine(string updatesRoot)
         var stage = await UpdateInstallerStager.StageAsync(Path.Combine(feedPath, fresh.OfferFolderName!), current, UpdatesRoot, cancellationToken).ConfigureAwait(false);
         if (!stage.Succeeded) return UpdateInstallResult.Fail(UpdateInstallStatus.StagingFailed, UpdateInstallerStager.Describe(stage.Problem));
         using var staged = stage.Staged!;
+
+        // 3b (1.13, U1). Windows' signature check of the held copy, before the backup (no backup for a setup ETP will not start).
+        var signature = InstallerAuthenticodeCheck.Evaluate(staged.Path, authenticode);
+        if (!signature.MayLaunch)
+        {
+            DesktopDiagnostics.Record(null, "Updates.Authenticode", "UPDATE_SETUP_SIGNATURE_REFUSED", DesktopDiagnosticSeverity.Warning, operation: signature.Outcome.ToString());
+            return UpdateInstallResult.Fail(UpdateInstallStatus.SignatureRefused, signature.RefusalMessage!);
+        }
 
         // 4.
         UpdateRetention.Apply(UpdatesRoot, current.Version);

@@ -149,6 +149,7 @@ internal sealed class UpdateShellCoordinator(Func<UpdateShellServices> createSer
                 UpdateInstallStatus.Blocked => "ETP cannot start the update yet",
                 UpdateInstallStatus.ReleaseChanged => "The update has changed",
                 UpdateInstallStatus.BackupFailed => "The backup did not complete",
+                UpdateInstallStatus.SignatureRefused => "The setup file's signature was not accepted",
                 _ => "The update did not start",
             };
             services.ShowResult(new(title, UpdateTextTone.Warning, UpdateScreenText.InstallRefusal(result.Message, result.Blocks), true, null));
