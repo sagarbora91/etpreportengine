@@ -61,6 +61,7 @@ public sealed class TodayChecklistTests
         Assert.Equal([true, true, true, false], manager.Select(x => x.CanOpen));
         Assert.Contains("needs a different role", manager[3].Tooltip);
         Assert.EndsWith("Brands and targets → Monthly targets", manager[2].Tooltip);
+        Assert.Equal("Open Import → Import folder", manager[0].Tooltip);
 
         Assert.All(TodayChecklist.Lines(result, ShellAccess.Owner), line => Assert.True(line.CanOpen));
         Assert.All(TodayChecklist.Lines(result, ShellAccess.Viewer), line => Assert.False(line.CanOpen));

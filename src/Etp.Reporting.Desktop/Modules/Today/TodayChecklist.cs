@@ -139,7 +139,7 @@ public static class TodayChecklist
         var taskId = TaskFor(item.Destination);
         var task = TaskNavigation.Find(taskId) ?? throw new InvalidOperationException($"Task {taskId} is not registered.");
         var allowed = task.IsAllowed(access);
-        var path = item.Destination == DailyReadinessDestination.SettingsMonthlyTargets ? task.Path + " → " + MonthlyTargetsTab : task.Path;
+        var path = item.Destination == DailyReadinessDestination.SettingsMonthlyTargets ? task.ShortPath + " → " + MonthlyTargetsTab : task.ShortPath;
         return new(item.Message, ActionLabel(item.Destination), taskId, allowed,
             allowed ? "Open " + path : $"{path} needs a different role. Ask the Owner.",
             item.StoreCode, shop, PlainMessage(item, shop), SectionFor(item.Kind), item.Code);
