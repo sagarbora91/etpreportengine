@@ -115,3 +115,8 @@ No parameters, `WITH EXECUTE AS OWNER` - EXECUTE: etp_owner, etp_automation. Out
 1. permissions: `role_name, class_desc, schema_name, object_name, permission_name, state_desc` (`state_desc` GRANT, DENY or GRANT_WITH_GRANT_OPTION; grants to `public` and to individual users are not listed);
 2. memberships: `role_name, member_name, is_active_application_user bit, application_role_code, member_count int` - `member_name` filled (one row per member, `member_count` 1) only when the caller `IS_ROLEMEMBER('etp_owner') = 1`; otherwise NULL and grouped by the other columns;
 3. owners without `ALTER ANY LOGIN WITH GRANT OPTION`: `member_name, owners_without_grant_option int` - `member_name` NULL for a non-Owner caller (one row with the count), the count repeated on every row.
+
+### diag.load_schema_object_state (1.12.1)
+No parameters, `WITH EXECUTE AS N'diag_catalog_reader'` (like `diag.load_role_permissions`) - EXECUTE: etp_owner, etp_automation. Object file `database/objects/40-diag.load_schema_object_state.sql`. Health check DB-07 calls it so the nightly run (automation account: no VIEW DEFINITION, no SELECT on `sys.sql_expression_dependencies`) can compare the objects with the release; before 1.12.1 DB-07 read the catalog itself and the nightly run was Skipped NOT_PERMITTED (VM acceptance, 16 Oct 2026). Two result sets:
+1. journal: `object_name, object_type, file_sha256, definition_sha256` (`dbo.schema_objects`, through the ownership chain);
+2. live objects: `object_name, type_code, definition` for every view, procedure and function of `dbo` and `diag` (no `pinned_by`: only setup needs it, and only db_owner may read `sys.sql_expression_dependencies`).

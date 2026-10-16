@@ -540,21 +540,53 @@ internal static class SchemaObjectSql
     internal static async Task<bool> JournalExistsAsync(SqlCommand command, CancellationToken cancellationToken) =>
         (bool)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
 
+    /// <summary>
+    /// 1.12.1 (VM finding 1): the journal and the live definitions for health check DB-07, readable by the automation account.
+    /// The procedure (<c>database/objects/40-diag.load_schema_object_state.sql</c>) runs as <c>diag_catalog_reader</c>; it has
+    /// no <c>pinned_by</c> column (<see cref="LiveSchemaObject.PinnedBy"/> is null), because only db_owner may read
+    /// <c>sys.sql_expression_dependencies</c>.
+    /// </summary>
+    internal const string ObjectStateProcedure = "diag.load_schema_object_state";
+
     internal static async Task<IReadOnlyList<SchemaObjectJournalEntry>> ReadJournalAsync(SqlCommand command, CancellationToken cancellationToken)
     {
-        var result = new List<SchemaObjectJournalEntry>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await ReadJournalRowsAsync(reader, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task<IReadOnlyList<LiveSchemaObject>> ReadLiveAsync(SqlCommand command, CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await ReadLiveRowsAsync(reader, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Both result sets of <see cref="ObjectStateProcedure"/> (journal, then live objects) from one call.</summary>
+    internal static async Task<(IReadOnlyList<SchemaObjectJournalEntry> Journal, IReadOnlyList<LiveSchemaObject> Live)> ReadObjectStateAsync(
+        SqlCommand command, CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var journal = await ReadJournalRowsAsync(reader, cancellationToken).ConfigureAwait(false);
+        if (!await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException(ObjectStateProcedure + " returned no live object result set.");
+        var live = await ReadLiveRowsAsync(reader, cancellationToken).ConfigureAwait(false);
+        return (journal, live);
+    }
+
+    private static async Task<IReadOnlyList<SchemaObjectJournalEntry>> ReadJournalRowsAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var result = new List<SchemaObjectJournalEntry>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             result.Add(new(reader.GetString(0), reader.GetString(1).Trim(), reader.GetString(2).Trim(), reader.GetString(3).Trim()));
         return result;
     }
 
-    internal static async Task<IReadOnlyList<LiveSchemaObject>> ReadLiveAsync(SqlCommand command, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<LiveSchemaObject>> ReadLiveRowsAsync(SqlDataReader reader, CancellationToken cancellationToken)
     {
         var result = new List<LiveSchemaObject>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var pinned = reader.FieldCount > 3;
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            result.Add(new(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3)));
+            result.Add(new(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2),
+                pinned && !reader.IsDBNull(3) ? reader.GetString(3) : null));
         return result;
     }
 

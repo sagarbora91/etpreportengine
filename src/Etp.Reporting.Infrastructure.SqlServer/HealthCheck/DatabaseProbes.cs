@@ -208,15 +208,44 @@ public static class DatabaseProbes
             return Line(HealthCheckId.Db07, HealthOutcome.Skipped, "OBJECTS_NOT_FOUND", HealthCheckTexts.DbObjectsNotFound, null, TimeSpan.Zero);
 
         await using var connection = await DatabaseProbeSql.OpenAsync(connectionString, cancellationToken).ConfigureAwait(false);
-        await using (var exists = DatabaseProbeSql.Command(connection, SchemaObjectSql.JournalExistsSql))
-            if (!await SchemaObjectSql.JournalExistsAsync(exists, cancellationToken).ConfigureAwait(false))
-                return Line(HealthCheckId.Db07, HealthOutcome.Warning, "OBJECTS_NOT_RECORDED", HealthCheckTexts.DbObjectsNotRecorded, null, TimeSpan.Zero);
+        return await ObjectsAsync(connection, files, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>SQL Server error 2812: the stored procedure does not exist.</summary>
+    internal const int ProcedureMissing = 2812;
+
+    /// <summary>
+    /// DB-07 on an open connection (the cross-layer test passes one that impersonates the automation account). 1.12.1 (VM
+    /// finding 1): the journal and the definitions come from <c>diag.load_schema_object_state</c>, which runs as
+    /// <c>diag_catalog_reader</c>, so the nightly run (automation account: no VIEW DEFINITION, and no SELECT on
+    /// <c>sys.sql_expression_dependencies</c>, which only db_owner has) is no longer Skipped NOT_PERMITTED. A stored
+    /// procedure call is not SQL text, so the read-only guard does not apply to it (as for the SEC probes); the procedure
+    /// only reads. When the procedure is missing (a database whose objects step has not applied 1.12.1 yet) DB-07 reads the
+    /// catalog itself, as in 1.12.0: that works for db_owner and is Skipped NOT_PERMITTED for anyone else.
+    /// </summary>
+    internal static async Task<HealthCheckResult> ObjectsAsync(SqlConnection connection, SchemaObjectSet files, CancellationToken cancellationToken)
+    {
         IReadOnlyList<SchemaObjectJournalEntry> journal;
-        await using (var command = DatabaseProbeSql.Command(connection, SchemaObjectSql.JournalSql))
-            journal = await SchemaObjectSql.ReadJournalAsync(command, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<LiveSchemaObject> live;
-        await using (var command = DatabaseProbeSql.Command(connection, SchemaObjectSql.LiveObjectsSql))
-            live = await SchemaObjectSql.ReadLiveAsync(command, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var command = new SqlCommand(SchemaObjectSql.ObjectStateProcedure, connection)
+            {
+                CommandType = System.Data.CommandType.StoredProcedure,
+                CommandTimeout = DatabaseProbeSql.CommandTimeoutSeconds
+            };
+            (journal, live) = await SchemaObjectSql.ReadObjectStateAsync(command, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SqlException exception) when (DatabaseConnectionFailure.SqlNumbers(exception).Contains(ProcedureMissing))
+        {
+            await using (var exists = DatabaseProbeSql.Command(connection, SchemaObjectSql.JournalExistsSql))
+                if (!await SchemaObjectSql.JournalExistsAsync(exists, cancellationToken).ConfigureAwait(false))
+                    return Line(HealthCheckId.Db07, HealthOutcome.Warning, "OBJECTS_NOT_RECORDED", HealthCheckTexts.DbObjectsNotRecorded, null, TimeSpan.Zero);
+            await using (var command = DatabaseProbeSql.Command(connection, SchemaObjectSql.JournalSql))
+                journal = await SchemaObjectSql.ReadJournalAsync(command, cancellationToken).ConfigureAwait(false);
+            await using (var command = DatabaseProbeSql.Command(connection, SchemaObjectSql.LiveObjectsSql))
+                live = await SchemaObjectSql.ReadLiveAsync(command, cancellationToken).ConfigureAwait(false);
+        }
         return EvaluateObjects(files, journal, live);
     }
 
