@@ -165,8 +165,8 @@ public sealed class RedatedSnapshotImportSqlTests(SqlDatabaseFixture database) :
         Assert.Equal("CLOSING_STOCK:3", await Effective(store, "20260929"));
         var issue = Assert.Single(result.Issues, i => i.Code == Etp.Reporting.Application.Imports.ImportCodes.ImportRedatedRetired);
         Assert.Equal(Etp.Reporting.Application.Imports.ImportIssueSeverity.Warning, issue.Severity);
-        Assert.Equal($"Import {wrong} for 29 Sep 2026 was retired (same file, re-dated to 07 Sep 2026). "
-            + "1 BinWise row that stood in for missing Closing Stock rows on 29 Sep 2026 was archived with it.", issue.Message);
+        Assert.Equal($"Import {wrong} for 29 Sept 2026 was retired (same file, re-dated to 07 Sept 2026). "
+            + "1 BinWise row that stood in for missing Closing Stock rows on 29 Sept 2026 was archived with it.", issue.Message);
     }
 
     // 1.12.1 review M-3: the re-import that leaves a day with no reading at all says so (here 29 Sep had only the copy).
@@ -184,7 +184,7 @@ public sealed class RedatedSnapshotImportSqlTests(SqlDatabaseFixture database) :
 
         Assert.StartsWith("Duplicate", result.Status, StringComparison.Ordinal);
         var issue = Assert.Single(result.Issues, i => i.Code == Etp.Reporting.Application.Imports.ImportCodes.ImportRedatedRetired);
-        Assert.Equal($"Import {wrong} for 29 Sep 2026 was retired (same file, re-dated to 07 Sep 2026). 29 Sep 2026 now has no stock reading.", issue.Message);
+        Assert.Equal($"Import {wrong} for 29 Sept 2026 was retired (same file, re-dated to 07 Sept 2026). 29 Sept 2026 now has no stock reading.", issue.Message);
         Assert.Equal(issue.Message, Etp.Reporting.Application.Imports.ImportDiagnosticCatalogue.SafeMessage(issue.Code, issue.Message));
         // An ordinary duplicate afterwards says nothing about a retire.
         var again = await useCase.PersistAsync(new(accepted, accepted.Scope.PeriodEnd!.Value, store, "Synthetic importer"));

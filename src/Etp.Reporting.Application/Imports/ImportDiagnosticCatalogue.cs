@@ -323,7 +323,7 @@ public static class ImportDiagnosticCatalogue
             ? message
             : Template(code);
 
-    private const string DatePattern = @"\d{2} [A-Z][a-z]{2} \d{4}";
+    private const string DatePattern = @"\d{2} [A-Z][a-z]{2,3} \d{4}";
     private const string RangePattern = DatePattern + "( to " + DatePattern + ")?";
     private const string DaysPattern = DatePattern + "(, " + DatePattern + @")*( and \d+ more days)?";
 
@@ -347,12 +347,12 @@ public static class ImportDiagnosticCatalogue
         if (lostDays.Count > 0)
             text.Append(' ').Append(Days(lostDays)).Append(lostDays.Count == 1 ? " now has" : " now have").Append(" no stock reading.");
         if (fallbackRows > 0 && fallbackDays.Count > 0)
-            text.Append(' ').Append(fallbackRows.ToString("N0", System.Globalization.CultureInfo.InvariantCulture))
+            text.Append(' ').Append(fallbackRows.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture))
                 .Append(fallbackRows == 1 ? " BinWise row" : " BinWise rows").Append(" that stood in for missing Closing Stock rows on ")
                 .Append(Days(fallbackDays)).Append(fallbackRows == 1 ? " was" : " were").Append(" archived with it.");
         return text.ToString();
 
-        static string Day(DateOnly day) => day.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        static string Day(DateOnly day) => Formatting.DisplayText.Date(day);
         static string Range(DateOnly start, DateOnly end) => start == end ? Day(start) : $"{Day(start)} to {Day(end)}";
         static string Days(IReadOnlyList<DateOnly> days)
         {

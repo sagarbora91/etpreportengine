@@ -56,13 +56,13 @@ public sealed class ImportDiagnosticCatalogueTests
         Assert.Equal("Import 10092 for 02 Oct 2026 was retired (same file, re-dated to 03 Oct 2026).", plain);
         var lost = ImportDiagnosticCatalogue.RedatedRetiredMessage(26, new(2026, 9, 29), new(2026, 9, 29), new(2026, 9, 7), new(2026, 9, 7),
             [new(2026, 9, 29)], 1234, [new(2026, 9, 29)]);
-        Assert.Equal("Import 26 for 29 Sep 2026 was retired (same file, re-dated to 07 Sep 2026). 29 Sep 2026 now has no stock reading. "
-            + "1,234 BinWise rows that stood in for missing Closing Stock rows on 29 Sep 2026 were archived with it.", lost);
+        Assert.Equal("Import 26 for 29 Sept 2026 was retired (same file, re-dated to 07 Sept 2026). 29 Sept 2026 now has no stock reading. "
+            + "1,234 BinWise rows that stood in for missing Closing Stock rows on 29 Sept 2026 were archived with it.", lost);
         var many = ImportDiagnosticCatalogue.RedatedRetiredMessage(5, new(2026, 9, 1), new(2026, 9, 7), new(2026, 9, 8), new(2026, 9, 14),
             Enumerable.Range(1, 7).Select(day => new DateOnly(2026, 9, day)).ToArray(), 1, [new(2026, 9, 2)]);
-        Assert.Contains("01 Sep 2026 to 07 Sep 2026", many, StringComparison.Ordinal);
-        Assert.Contains("05 Sep 2026 and 2 more days now have no stock reading.", many, StringComparison.Ordinal);
-        Assert.Contains("1 BinWise row that stood in for missing Closing Stock rows on 02 Sep 2026 was archived with it.", many, StringComparison.Ordinal);
+        Assert.Contains("01 Sept 2026 to 07 Sept 2026", many, StringComparison.Ordinal);
+        Assert.Contains("05 Sept 2026 and 2 more days now have no stock reading.", many, StringComparison.Ordinal);
+        Assert.Contains("1 BinWise row that stood in for missing Closing Stock rows on 02 Sept 2026 was archived with it.", many, StringComparison.Ordinal);
 
         foreach (var message in new[] { plain, lost, many })
         {
