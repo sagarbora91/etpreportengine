@@ -13,9 +13,15 @@ What it does, per build (unprotected first, then protected), against its OWN scr
   2. `--plan-database-changes --connection-string ...` must report no pending migrations or objects.
   3. A small probe host (generated here, compiled once with the dev SDK, run once per build; it loads the build's own Etp.*.dll
      files) imports the fixture folder with FolderImportService, builds the combined daily report pack with
-     DailyReportingPackService, and exports it to .xlsx and .pdf with the shipped exporters.
+     DailyReportingPackService, and exports it to .xlsx and .pdf with the shipped exporters. Then (R1-02) it runs the reflection-
+     sensitive read paths the obfuscar.xml "both profiles" exclusions protect: Import History read-back of a recorded failed attempt
+     (StoredIssue), a TEST Tally company with a cost centre saved and loaded (StoreCostCentre), the embedded SEC-01 permission matrix
+     (MatrixFile) and the report family registry; results go to reflection.json. A wrong exclusion throws there (exit 3).
   4. This script then checksums every fact table (columns and tables listed in $Script:ExcludedNondeterministic are skipped), reads
      every Excel cell, normalises the PDF, runs DBCC CHECKDB, and compares the two builds.
+  5. (R1-06) Each build must also be complete on its own: no fixture file failed, at least $Script:MinimumExcelCells Excel cells, a PDF
+     with pages, at least $Script:MinimumChecksummedTables checksummed tables with rows, every reflection probe answered. Identical
+     failures are INCOMPLETE (exit 3), never IDENTICAL.
 
 Scratch databases are named <Database>_U and <Database>_P and must match EtpAccept_*. The script refuses if either already exists,
 creates them only through the exe, and drops only those two at the end (unless -KeepDatabases). EtpReporting is never touched: the
@@ -271,9 +277,70 @@ internal static class Program
         new SimplePdfReportPackExporter().Export(Path.Combine(output, "pack.pdf"), fixedPack);
         timings["pdfMs"] = clock.ElapsedMilliseconds;
 
+        // R1-02 (16 Oct): run the code paths the "both profiles" SkipType exclusions in obfuscar.xml protect. Each reads a private
+        // record/class that System.Text.Json binds by constructor parameter or property names; a missing or misspelt exclusion throws
+        // here ONLY in the protected build (STJ "parameters with null names"), so the smoke stops with exit 3 instead of shipping it.
+        clock.Restart();
+        var reflection = await ReflectionProbesAsync(cs, stores).ConfigureAwait(false);
+        timings["reflectionMs"] = clock.ElapsedMilliseconds;
+        File.WriteAllText(Path.Combine(output, "reflection.json"), JsonSerializer.Serialize(reflection), new UTF8Encoding(false));
+
         File.WriteAllText(Path.Combine(output, "timings.json"), JsonSerializer.Serialize(timings), new UTF8Encoding(false));
-        Console.WriteLine("PROBE-OK date=" + businessDate.ToString("yyyy-MM-dd") + " tables=" + fixedPack.Tables.Count);
+        Console.WriteLine("PROBE-OK date=" + businessDate.ToString("yyyy-MM-dd") + " tables=" + fixedPack.Tables.Count + " reflection=" + reflection.Count);
         return 0;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<SortedDictionary<string, string>> ReflectionProbesAsync(string cs, IReadOnlyList<string> stores)
+    {
+        var r = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var store = stores.OrderBy(s => s, StringComparer.Ordinal).FirstOrDefault()
+            ?? throw new InvalidOperationException("The scratch database has no active store; the reflection probes need one.");
+
+        // 1. SqlServerImportHistoryQuery.StoredIssue (Imports > History): one artificial failed attempt with two issues, recorded on a
+        //    date no fixture uses, read back through LoadAsync, which deserialises import_attempt_issues FOR JSON into StoredIssue[].
+        var day = new DateOnly(2000, 1, 3);
+        await new SqlServerImportHistoryQuery(cs).RecordAttemptAsync(new FolderImportFileResult("protection-smoke.xlsx", "R025", store, day, day, "Failed",
+            Diagnostics: new[]
+            {
+                new ImportIssue(ImportIssueSeverity.Blocker, "REQUIRED_COLUMN_MISSING", "smoke", 4, "ITEMNUMBER"),
+                new ImportIssue(ImportIssueSeverity.Warning, "UNEXPECTED_COLUMN", "smoke", 1, null, 2, null, 3)
+            })).ConfigureAwait(false);
+        var entries = await new SqlServerImportHistoryQuery(cs).LoadAsync(new ImportHistoryScope(day, day)).ConfigureAwait(false);
+        var attempt = entries.Single(e => e.Result.FileName == "protection-smoke.xlsx");
+        var issues = (attempt.Result.Diagnostics ?? Array.Empty<ImportIssue>()).OrderBy(i => i.Code, StringComparer.Ordinal)
+            .Select(i => string.Join("|", i.Code, i.Severity.ToString(), "row=" + i.SourceRow, "col=" + i.SourceColumn, "block=" + i.BlockNo, "n=" + i.Occurrences, i.Message))
+            .ToArray();
+        if (!issues.Any(i => i.StartsWith("REQUIRED_COLUMN_MISSING|Blocker|row=4|col=ITEMNUMBER|", StringComparison.Ordinal))
+            || !issues.Any(i => i.StartsWith("UNEXPECTED_COLUMN|Warning|row=1|col=|block=2|n=3|", StringComparison.Ordinal)))
+            throw new InvalidOperationException("Import History did not read back the two recorded issues (StoredIssue): " + string.Join(" ; ", issues));
+        r["importHistory.status"] = attempt.Result.Status;
+        r["importHistory.issues"] = string.Join(" ; ", issues);
+
+        // 2. SqlServerTallyProfileService.StoreCostCentre (Tally > Companies): save a TEST company with one store and a cost centre, load it.
+        var tally = new Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyProfileService(cs);
+        var profile = Etp.Reporting.Application.Accounting.TallyProfile.NewTest("PROTECTSMOKE", "TEST - Protection smoke", new[] { store })
+            with { StoreCostCentres = new Dictionary<string, string>(StringComparer.Ordinal) { [store.ToUpperInvariant()] = "Smoke Centre" } };
+        var id = await tally.SaveAsync(profile, "Protected-build smoke").ConfigureAwait(false);
+        var loaded = (await tally.LoadAsync().ConfigureAwait(false)).Single(p => p.Id == id);
+        var centre = loaded.CostCentreFor(store.ToUpperInvariant());
+        if (centre != "Smoke Centre") throw new InvalidOperationException("The Tally company's cost centre did not read back (StoreCostCentre): '" + centre + "'.");
+        r["tally.profile"] = string.Join("|", loaded.ProfileCode, loaded.CompanyName, loaded.Environment, string.Join(",", loaded.StoreCodes));
+        r["tally.costCentres"] = string.Join(",", (loaded.StoreCostCentres ?? new Dictionary<string, string>()).OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + "=" + p.Value));
+
+        // 3. ExpectedRolePermissionMatrix.MatrixFile (health check SEC-01): the embedded matrix, parsed exactly as SecurityProbes does.
+        var matrix = Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermissionMatrix.LoadEmbedded()
+            ?? throw new InvalidOperationException("The expected permission matrix resource is missing (" + Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermissionMatrix.ResourceName + ").");
+        if (matrix.Entries.Count == 0) throw new InvalidOperationException("The expected permission matrix parsed to no entries (MatrixFile).");
+        var keys = string.Join("\n", matrix.Entries.Select(e => e.Key.SortKey).Order(StringComparer.Ordinal));
+        r["sec01.matrix"] = "entries=" + matrix.Entries.Count + ";expected=" + matrix.Expected.Count + ";absent=" + matrix.Absent.Count
+            + ";sha256=" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(keys)));
+
+        // 4. The embedded report family registry (ctor-bound public records; kept by Standard, listed for Strong).
+        var families = Etp.Reporting.Import.Profiles.EtpReportFamilyRegistry.Families;
+        if (families.Count == 0) throw new InvalidOperationException("The report family registry parsed to no families.");
+        r["families"] = families.Count + ":" + string.Join(",", families.Select(f => f.FamilyCode + "/" + f.ReportCode + "/" + f.Columns.Count).Order(StringComparer.Ordinal));
+        return r;
     }
 }
 '@
@@ -453,8 +520,14 @@ function Invoke-EtpBuildProbe([string]$Label, [string]$BuildFolder, [string]$Dat
     foreach ($line in @($import.files)) { $n++; $importMap[('{0:D3}' -f $n)] = [string]$line }
     $importMap['failed-files'] = [string]$import.failed
     $timings = Get-Content -LiteralPath (Join-Path $out 'timings.json') -Raw | ConvertFrom-Json
+    # R1-02: the reflection-sensitive read paths (Import History, Tally cost centres, SEC-01 matrix, report families), as text.
+    $reflectionMap = [ordered]@{}
+    $reflectionPath = Join-Path $out 'reflection.json'
+    if (-not (Test-Path -LiteralPath $reflectionPath)) { throw "$Label probe host wrote no reflection.json (the reflection probes did not run)." }
+    $reflection = Get-Content -LiteralPath $reflectionPath -Raw | ConvertFrom-Json
+    foreach ($property in $reflection.PSObject.Properties) { $reflectionMap[$property.Name] = [string]$property.Value }
     return [pscustomobject]@{
-        Label = $Label; Database = $DatabaseName; Checksums = $checksums; Health = $health; Import = $importMap
+        Label = $Label; Database = $DatabaseName; Checksums = $checksums; Health = $health; Import = $importMap; Reflection = $reflectionMap
         Cells = (Get-EtpXlsxCells (Join-Path $out 'pack.xlsx')); Pdf = (Get-EtpPdfFingerprint (Join-Path $out 'pack.pdf'))
         PackJsonHash = (Get-EtpFileHashOrNull (Join-Path $out 'pack.json')); Timings = $timings; ProbeOutput = $probe.Stdout.Trim()
     }
@@ -465,11 +538,36 @@ function Compare-EtpProbeResults($Unprotected, $Protected) {
     foreach ($x in (Compare-EtpMaps $Unprotected.Checksums $Protected.Checksums 'fact-table checksum')) { [void]$d.Add($x) }
     foreach ($x in (Compare-EtpMaps $Unprotected.Health $Protected.Health 'health')) { [void]$d.Add($x) }
     foreach ($x in (Compare-EtpMaps $Unprotected.Import $Protected.Import 'import result')) { [void]$d.Add($x) }
+    foreach ($x in (Compare-EtpMaps $Unprotected.Reflection $Protected.Reflection 'reflection probe')) { [void]$d.Add($x) }
     foreach ($x in (Compare-EtpMaps $Unprotected.Cells $Protected.Cells 'DSR Excel cell')) { [void]$d.Add($x) }
     if ($Unprotected.PackJsonHash -ne $Protected.PackJsonHash) { [void]$d.Add("report pack data (pack.json): unprotected $($Unprotected.PackJsonHash) but protected $($Protected.PackJsonHash)") }
     if ($Unprotected.Pdf.Pages -ne $Protected.Pdf.Pages) { [void]$d.Add("PDF page count: $($Unprotected.Pdf.Pages) vs $($Protected.Pdf.Pages)") }
     if ($Unprotected.Pdf.Hash -ne $Protected.Pdf.Hash) { [void]$d.Add("PDF normalised content: unprotected $($Unprotected.Pdf.Hash) but protected $($Protected.Pdf.Hash)") }
     return @($d)
+}
+
+# R1-06 (16 Oct): identical FAILURES must not pass. Each build must on its own have imported every fixture file, produced a
+# report pack with cells and pages, checksummed real fact tables and run the reflection probes. Returns the problems (empty = complete).
+$Script:MinimumExcelCells = 50
+$Script:MinimumChecksummedTables = 5
+$Script:RequiredReflectionKeys = @('importHistory.issues', 'tally.costCentres', 'sec01.matrix', 'families')
+function Get-EtpProbeCountSummary($Result) {
+    $withRows = @($Result.Checksums.Keys | Where-Object { [string]$Result.Checksums[$_] -match '^rows=([1-9]\d*);chk=' })
+    $failed = 0; [void][int]::TryParse([string]$Result.Import['failed-files'], [ref]$failed)
+    $lines = @($Result.Import.Keys | Where-Object { $_ -ne 'failed-files' }).Count
+    return [pscustomobject]@{ FailedFiles = $failed; ImportLines = $lines; Cells = $Result.Cells.Count; PdfPages = [int]$Result.Pdf.Pages; ChecksummedTablesWithRows = $withRows.Count; ReflectionKeys = @($Result.Reflection.Keys).Count }
+}
+function Test-EtpProbeCompleteness($Result) {
+    $problems = New-Object System.Collections.ArrayList
+    $c = Get-EtpProbeCountSummary $Result
+    $n = $Result.Label
+    if ($c.FailedFiles -gt 0) { [void]$problems.Add("$n build: $($c.FailedFiles) fixture file(s) failed to import (every fixture file must import; identical failures are not a pass)") }
+    if ($c.ImportLines -eq 0) { [void]$problems.Add("$n build: the import reported no files") }
+    if ($c.Cells -lt $Script:MinimumExcelCells) { [void]$problems.Add("$n build: only $($c.Cells) Excel cells (floor $Script:MinimumExcelCells)") }
+    if ($c.PdfPages -le 0) { [void]$problems.Add("$n build: the PDF has no pages") }
+    if ($c.ChecksummedTablesWithRows -lt $Script:MinimumChecksummedTables) { [void]$problems.Add("$n build: only $($c.ChecksummedTablesWithRows) checksummed tables with rows (floor $Script:MinimumChecksummedTables; listed-only and empty tables do not count)") }
+    foreach ($key in $Script:RequiredReflectionKeys) { if (-not $Result.Reflection.Contains($key) -or [string]::IsNullOrWhiteSpace([string]$Result.Reflection[$key])) { [void]$problems.Add("$n build: reflection probe '$key' has no result") } }
+    return @($problems)
 }
 
 function Write-EtpVerificationReport([string]$Path, $Unprotected, $Protected, $Differences, [string]$Status, [string]$Sha) {
@@ -484,6 +582,11 @@ function Write-EtpVerificationReport([string]$Path, $Unprotected, $Protected, $D
         [void]$lines.Add(''); [void]$lines.Add('## Compared')
         [void]$lines.Add(('- Fact tables: {0} (unprotected) / {1} (protected); Excel cells: {2} / {3}; PDF pages: {4} / {5}, decoded streams: {6} / {7}' -f $Unprotected.Checksums.Count, $Protected.Checksums.Count, $Unprotected.Cells.Count, $Protected.Cells.Count, $Unprotected.Pdf.Pages, $Protected.Pdf.Pages, $Unprotected.Pdf.Streams, $Protected.Pdf.Streams))
         [void]$lines.Add('- Import: ' + $Unprotected.Import.Count + ' result lines; DBCC CHECKDB clean; no pending migrations or objects in either database.')
+        foreach ($r in $Unprotected, $Protected) {
+            $c = Get-EtpProbeCountSummary $r
+            [void]$lines.Add(('- Counts ({0}): failed fixture files {1}; import lines {2}; Excel cells {3}; PDF pages {4}; checksummed tables with rows {5}; reflection probes {6}' -f $r.Label, $c.FailedFiles, $c.ImportLines, $c.Cells, $c.PdfPages, $c.ChecksummedTablesWithRows, $c.ReflectionKeys))
+        }
+        if ($Unprotected.Reflection) { foreach ($k in $Unprotected.Reflection.Keys) { if ($k -ne 'families') { [void]$lines.Add("- Reflection probe ${k}: $($Unprotected.Reflection[$k])") } } }
     }
     [void]$lines.Add(''); [void]$lines.Add('## Excluded as nondeterministic (explicit list)')
     foreach ($k in $Script:ExcludedNondeterministic.Keys) { [void]$lines.Add("- **$k**: $($Script:ExcludedNondeterministic[$k])") }
@@ -531,12 +634,16 @@ try {
     $u = Invoke-EtpBuildProbe 'unprotected' $Unprotected $scratch.Unprotected $Server $hostDll $FixtureFolder (Join-Path $OutputFolder 'unprotected') $Date
     $p = Invoke-EtpBuildProbe 'protected' $Protected $scratch.Protected $Server $hostDll $FixtureFolder (Join-Path $OutputFolder 'protected') $Date
     $differences = @(Compare-EtpProbeResults $u $p)
-    $status = if ($differences.Count -eq 0) { 'IDENTICAL' } else { 'DIFFERENT' }
+    $incomplete = @(@(Test-EtpProbeCompleteness $u) + @(Test-EtpProbeCompleteness $p))
+    $status = if ($incomplete.Count -gt 0) { 'INCOMPLETE' } elseif ($differences.Count -eq 0) { 'IDENTICAL' } else { 'DIFFERENT' }
     $reportPath = Join-Path $OutputFolder 'protected-build-report.md'
-    Write-EtpVerificationReport $reportPath $u $p $differences $status $sha
+    Write-EtpVerificationReport $reportPath $u $p (@($incomplete | ForEach-Object { "INCOMPLETE: $_" }) + $differences) $status $sha
+    foreach ($x in $incomplete) { Write-Host "INCOMPLETE  $x" }
     foreach ($x in $differences) { Write-Host "DIFF  $x" }
+    foreach ($r in $u, $p) { $c = Get-EtpProbeCountSummary $r; Write-Host ("COUNTS {0}: failed-files={1} import-lines={2} cells={3} pdf-pages={4} checksummed-tables-with-rows={5} reflection-probes={6}" -f $r.Label, $c.FailedFiles, $c.ImportLines, $c.Cells, $c.PdfPages, $c.ChecksummedTablesWithRows, $c.ReflectionKeys) }
     Write-Host "Report: $reportPath"
-    if ($differences.Count -eq 0) { Write-Host 'IDENTICAL: the protected build produced exactly the same results.'; $exitCode = 0 } else { $exitCode = 1 }
+    if ($incomplete.Count -gt 0) { Write-Host 'INCOMPLETE: a build did not drive every step to a real result; identical failures are not a pass.'; $exitCode = 3 }
+    elseif ($differences.Count -eq 0) { Write-Host 'IDENTICAL: the protected build produced exactly the same results.'; $exitCode = 0 } else { $exitCode = 1 }
 }
 catch {
     $message = $_.Exception.Message

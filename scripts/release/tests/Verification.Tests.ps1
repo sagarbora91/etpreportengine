@@ -113,6 +113,31 @@ try {
     Assert-True ($pa.Hash -ceq $pb.Hash) 'pdf: creation date and offsets are excluded from the comparison'
     Assert-True ($pa.Hash -cne $pc.Hash) 'pdf: a changed digit inside a compressed content stream is detected'
 
+    # ---------------------------------------------------------------- R1-06: identical FAILURES must not pass; R1-02: reflection probes compared
+    function New-FakeProbeResult([string]$label, [int]$failed, [int]$cellCount, [int]$pages, [int]$tables, [bool]$withReflection) {
+        $sums = [ordered]@{}; for ($i = 1; $i -le $tables; $i++) { $sums["dbo.t$i"] = "rows=$i;chk=$i;sum=$i;cols=2/3" }
+        $sums['dbo.import_log'] = 'rows=4;listed-only'; $sums['dbo.empty'] = 'rows=0;chk=;sum=;cols=1/1'
+        $cellMap = [ordered]@{}; for ($i = 1; $i -le $cellCount; $i++) { $cellMap["DSR!A$i"] = "$i" }
+        $refl = [ordered]@{}
+        if ($withReflection) { $refl['importHistory.issues'] = 'REQUIRED_COLUMN_MISSING|Blocker|row=4'; $refl['tally.costCentres'] = 'HEMW=Smoke Centre'; $refl['sec01.matrix'] = 'entries=10'; $refl['families'] = '31:...' }
+        return [pscustomobject]@{ Label = $label; Checksums = $sums; Import = [ordered]@{ '001' = 'R025.xlsx|R025'; 'failed-files' = [string]$failed }; Cells = $cellMap; Pdf = [pscustomobject]@{ Pages = $pages; Streams = 1; Hash = 'H' }; Reflection = $refl; Health = [ordered]@{}; PackJsonHash = 'J' }
+    }
+    $good = New-FakeProbeResult 'unprotected' 0 60 2 6 $true
+    Assert-True (@(Test-EtpProbeCompleteness $good).Count -eq 0) 'a complete probe result has no completeness problem'
+    Assert-True (@(@(Test-EtpProbeCompleteness (New-FakeProbeResult 'p' 2 60 2 6 $true)) -match 'failed to import').Count -eq 1) 'failed fixture files make the run INCOMPLETE even when both builds fail alike'
+    Assert-True (@(@(Test-EtpProbeCompleteness (New-FakeProbeResult 'p' 0 0 2 6 $true)) -match 'Excel cells').Count -eq 1) 'an empty Excel cell map is INCOMPLETE (empty equals empty is not a pass)'
+    Assert-True (@(@(Test-EtpProbeCompleteness (New-FakeProbeResult 'p' 0 60 0 6 $true)) -match 'no pages').Count -eq 1) 'a PDF without pages is INCOMPLETE'
+    Assert-True (@(@(Test-EtpProbeCompleteness (New-FakeProbeResult 'p' 0 60 2 2 $true)) -match 'checksummed tables').Count -eq 1) 'too few checksummed tables with rows (listed-only and empty ones do not count) is INCOMPLETE'
+    Assert-True (@(@(Test-EtpProbeCompleteness (New-FakeProbeResult 'p' 0 60 2 6 $false)) -match 'reflection probe').Count -eq 4) 'a missing reflection probe result is INCOMPLETE'
+    $other = New-FakeProbeResult 'protected' 0 60 2 6 $true
+    Assert-True (@(Compare-EtpProbeResults $good $other).Count -eq 0) 'two complete, equal probe results compare as identical'
+    $other.Reflection['tally.costCentres'] = 'HEMW='
+    Assert-True (@(@(Compare-EtpProbeResults $good $other) -match 'reflection probe \[tally\.costCentres\]').Count -eq 1) 'a differing reflection probe result is a difference'
+    $probeSource = $Script:ProbeProgram
+    foreach ($needle in 'SqlServerImportHistoryQuery(cs).LoadAsync', 'SqlServerTallyProfileService(cs)', 'ExpectedRolePermissionMatrix.LoadEmbedded()', 'EtpReportFamilyRegistry.Families', 'reflection.json') {
+        Assert-True ($probeSource.Contains($needle)) "the probe host runs the reflection path: $needle"
+    }
+
     # ---------------------------------------------------------------- Test-EtpProtectedBuild as a program: refusals exit 2 and touch nothing
     Assert-True ((Invoke-Child 'Test-EtpProtectedBuild.ps1' @()) -eq 2 -and $script:LastOutput -match 'REFUSED') 'no arguments: refused, exit 2'
     Assert-True ((Invoke-Child 'Test-EtpProtectedBuild.ps1' @('-Protected', (Join-Path $root 'p'), '-Unprotected', (Join-Path $root 'u'), '-FixtureFolder', $root, '-Database', 'EtpReporting')) -eq 2 -and $script:LastOutput -match 'EtpAccept_') 'EtpReporting as the database: refused before anything else, exit 2'
