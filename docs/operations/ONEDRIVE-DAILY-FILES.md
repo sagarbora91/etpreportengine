@@ -66,6 +66,16 @@ These come from the 12 Oct 2026 security and recovery audits.
 4. The `Inbound` folder is protected by ETP setup, so the receive script must run **as administrator**. Try it first, in an administrator PowerShell, with: `powershell -ExecutionPolicy Bypass -File .\Receive-ShopDailyFiles.ps1 -WhatIf`
 5. Register both Workpc tasks with one command, in an administrator PowerShell, as Sagar: `powershell -ExecutionPolicy Bypass -File .\Register-WorkpcTasks.ps1` (default: 'ETP Receive Shop Daily Files' at 07:00, before ETP's automatic import, and 'ETP Copy Backup To OneDrive' at 23:30; change with `-ReceiveAt` / `-BackupCopyAt`, remove with `-Unregister`). Pass `-ReceiveConfigPath` / `-BackupConfigPath` if the configs are not beside the scripts. It refuses to run when the window is not elevated, OneDrive is not running, a config has no `oneDriveRoot`, ordinary users can write to the scripts folder, a key is inside OneDrive or the backup key is missing, and it checks the registered tasks afterwards. Windows asks for Sagar's password once (S4U task).
 
+### Which shops are expected: shop-live.json (1.12.1)
+
+By default ETP and the receive script expect every shop, every day. While only some shops are really sending, tell them which:
+
+1. Copy `shop-live.example.json` (beside the scripts) to `C:\ProgramData\EtpReporting\Operations\shop-live.json`.
+2. Set TITAN's `sendingFrom` to the first day Titan really sends (that day is included). Leave HELIOS and SERVICE as `null`, which means "not sending yet".
+3. When Helios starts, set its `sendingFrom` to its first day (and add its key and PC name as in step 3 above). The same for SERVICE later. `roles` in `workpc-receive.config.json` can keep all three; this file decides who is expected.
+
+A shop that is not sending yet is not listed as missing by the receive script, Today, Morning or the health check (which adds "(not sending yet: ...)" to DATA-01). Files such a shop sends anyway are still checked and taken. A shop or role missing from the file is expected. To undo, delete the file: everyone is expected again. If the file is broken, the receive script stops with the reason (fix the file); ETP ignores a broken file and expects everything.
+
 ### Backup to OneDrive (Workpc)
 
 1. Copy `workpc-backup.config.example.json` to `workpc-backup.config.json`. Set `keyFile` to a local path that OneDrive does not sync (the example is under `C:\ProgramData\EtpReporting\Keys`).
