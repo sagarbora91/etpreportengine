@@ -63,7 +63,7 @@ public sealed record InstallerAuthenticodeResult(InstallerAuthenticodeOutcome Ou
     {
         InstallerAuthenticodeOutcome.NotSigned => "The downloaded setup file is not signed by Saagar Traders, so ETP did not start it. Nothing was installed. Install this version by hand from the setup file you trust.",
         InstallerAuthenticodeOutcome.Tampered => "The downloaded setup file was changed after it was signed, so ETP did not start it. Nothing was installed. Download it again, or install by hand.",
-        InstallerAuthenticodeOutcome.NotTrusted => "This PC does not trust the Saagar Traders publisher certificate yet, so ETP did not start the setup file. Nothing was installed. Run Install-EtpPublisherCertificate.ps1 as administrator, then try again.",
+        InstallerAuthenticodeOutcome.NotTrusted => "This PC does not trust the Saagar Traders publisher certificate yet, so ETP did not start the setup file. Nothing was installed. Run scripts\\Install-EtpPublisherCertificate.ps1 from the ETP program folder as administrator, compare the fingerprints with the paper card, then try again.",
         InstallerAuthenticodeOutcome.WrongPublisher => "The downloaded setup file is signed by someone other than Saagar Traders, so ETP did not start it. Nothing was installed.",
         InstallerAuthenticodeOutcome.CouldNotCheck => "ETP could not check who signed the setup file, so it did not start it. Nothing was installed. Try again, or install by hand.",
         _ => null,

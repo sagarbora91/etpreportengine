@@ -118,6 +118,14 @@ New-Item -ItemType Directory -Path $packagedScripts -Force | Out-Null
 foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database.ps1','install-daily-backup-task.ps1','copy-etp-backup-to-disk.ps1','install-monthly-recovery-drill-task.ps1','install-etp-automation-task.ps1','remove-etp-scheduled-tasks.ps1','invoke-monthly-recovery-drill-runner.ps1','invoke-etp-recovery-drill.ps1','new-etp-support-package.ps1','etp-operations-common.ps1','invoke-database-maintenance.ps1','initialize-etp-operation-folders.ps1','install-etp-sql-operations.ps1','restore-etp-database.ps1','Test-EtpRestoredPc.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $scriptName) -Destination $packagedScripts -Force
 }
+# R1-11 (16 Oct): the manual trust step (U1's NotTrusted text, the VM's Release113 check) needs the trust script and the PUBLIC
+# certificate on every PC: {app}\scripts\Install-EtpPublisherCertificate.ps1 finds etp-codesign.cer beside itself. The .cer exists
+# only after Sagar's ceremony (installer\certs\); until then only the script ships and the check stays REVIEW.
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-EtpPublisherCertificate.ps1') -Destination $packagedScripts -Force
+$publisherCer = Join-Path $repoRoot 'installer\certs\etp-codesign.cer'
+if (Test-Path -LiteralPath $publisherCer -PathType Leaf) { Copy-Item -LiteralPath $publisherCer -Destination $packagedScripts -Force }
+elseif ($PfxPath) { throw "installer\certs\etp-codesign.cer is missing: a signed release must ship the public certificate for the trust step (copy it from the USB stick after the ceremony)." }
+else { Write-Warning 'installer\certs\etp-codesign.cer is not in the repository yet (before the certificate ceremony); the trust script ships without it.' }
 
 # S-05. The OneDrive shop/Workpc scripts ship inside the installer, in {app}\scripts\onedrive (Program Files:
 # Users read-only), so the elevated tasks never run code from a folder an ordinary user can edit. Real

@@ -71,6 +71,8 @@ $pfxPassphrase = $null
 if ($signWithPfx) {
     # Fail early (wrong drive, missing file) before the long build; ask the passphrase once.
     if (-not (Test-Path -LiteralPath $PfxPath -PathType Leaf)) { throw "The signing certificate file was not found: $PfxPath" }
+    # R1-11: a signed release ships the public certificate for the per-PC trust step (scripts\etp-codesign.cer).
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'installer\certs\etp-codesign.cer') -PathType Leaf)) { throw 'installer\certs\etp-codesign.cer is missing: copy the public certificate from the USB stick into the repository (after the ceremony) before a signed build.' }
     $pfxPassphrase = Read-Host -AsSecureString 'Code-signing key passphrase'
 }
 # Check the SQL media before anything is built, so media that cannot work stops here and
@@ -145,6 +147,12 @@ if ($signWithPfx) {
         $signers += $signature.SignerCertificate.Thumbprint
     }
     if (@($signers | Select-Object -Unique).Count -ne 1) { throw 'The payload is signed by more than one certificate.' }
+    # R1-11: the public certificate shipped for the trust step must be the one that signed the payload.
+    $shippedCer = Join-Path $release 'scripts\etp-codesign.cer'
+    if (-not (Test-Path -LiteralPath $shippedCer -PathType Leaf)) { throw "The release folder does not carry scripts\etp-codesign.cer for the per-PC trust step." }
+    $shipped = New-Object Security.Cryptography.X509Certificates.X509Certificate2($shippedCer)
+    try { if ($shipped.HasPrivateKey -or $shipped.Thumbprint -ine @($signers)[0]) { throw 'scripts\etp-codesign.cer is not the public certificate of the key that signed this release (wrong .cer in installer\certs?).' } }
+    finally { $shipped.Dispose() }
 }
 elseif ($signRelease) {
     foreach ($payload in $payloads) {
