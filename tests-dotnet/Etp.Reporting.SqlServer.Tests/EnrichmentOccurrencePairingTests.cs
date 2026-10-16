@@ -53,15 +53,55 @@ public sealed partial class EnrichmentOccurrencePairingTests
         Assert.Contains("ROW_NUMBER() OVER(PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code ORDER BY x.source_lineage_id,x.sales_line_enrichment_id) occurrence", sql);
         // The sales-line side numbers only the R013 row's own invoice lines for its item (correlated OUTER APPLY),
         // in source order, so a report call never sorts the whole sales_lines table.
-        Assert.Contains("OUTER APPLY (SELECT q.sales_line_id FROM (SELECT sl.sales_line_id,ROW_NUMBER() OVER(ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence", sql);
-        Assert.Contains("WHERE pe.enrichment_type='R013' AND si.store_code=pe.store_code AND si.transaction_date=pe.transaction_date AND si.document_number=pe.document_number AND sl.product_code=pe.product_code) q", sql);
+        Assert.Contains("OUTER APPLY (SELECT q.sales_line_id,q.line_count FROM (SELECT sl.sales_line_id,ROW_NUMBER() OVER(ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence,COUNT(*) OVER() line_count", sql);
+        Assert.Contains("AND si.store_code=pe.store_code AND si.transaction_date=pe.transaction_date AND si.document_number=pe.document_number AND sl.product_code=pe.product_code) q", sql);
         Assert.DoesNotContain("LEFT JOIN", sql);
         // The nth R013 row takes the nth line, so a line takes at most one R013 row and a surplus row reads Missing.
         Assert.Contains("WHERE q.occurrence=pe.occurrence) pl", sql);
-        Assert.Contains("WHEN pl.sales_line_id IS NULL THEN 'Missing' ELSE 'Matched' END effective_match_status", sql);
-        // R003 carries one row per discount on a line, so it is never capped at one row per line.
-        Assert.Contains("CASE WHEN pe.enrichment_type<>'R013' THEN pe.match_status", sql);
-        Assert.Contains("CASE WHEN pe.enrichment_type='R013' THEN pl.sales_line_id ELSE pe.matched_sales_line_id END effective_sales_line_id", sql);
+        Assert.Contains("CASE WHEN pe.enrichment_type='R013' THEN CASE WHEN pl.sales_line_id IS NULL THEN 'Missing' ELSE 'Matched' END", sql);
+        Assert.Contains("CASE WHEN pe.enrichment_type='R013' OR pl.line_count=pe.key_rows THEN pl.sales_line_id ELSE pe.matched_sales_line_id END effective_sales_line_id", sql);
+    }
+
+    [Fact]
+    public void Only_an_all_ambiguous_R003_key_is_paired_and_only_when_its_rows_equal_its_lines()
+    {
+        // P12 (1.12.1, DQ-UNMATCHED-ENRICHMENT): 137 live Titan R003 rows on invoices that repeat an item on 2..18 identical
+        // lines read Ambiguous. They are paired with the R013 numbering (same partition, same source order on both sides).
+        var sql = Squash(EnrichmentOccurrencePairing.EffectiveEnrichments);
+        const string key = "PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code";
+        Assert.Contains($"COUNT(*) OVER({key}) key_rows", sql);
+        Assert.Contains($"COUNT(CASE WHEN x.match_status='Ambiguous' THEN 1 END) OVER({key}) key_ambiguous", sql);
+        // Lines are numbered for R013, and for R003 only when every row of the key is stored Ambiguous: a Matched R003 row
+        // keeps its stored line (several discounts on one line are correct), so re-pairing its neighbours could double a line.
+        Assert.Contains("WHERE (pe.enrichment_type='R013' OR (pe.enrichment_type='R003' AND pe.match_status='Ambiguous' AND pe.key_ambiguous=pe.key_rows)) AND si.store_code=pe.store_code", sql);
+        // Unequal counts (two discounts on each of two lines, a missing or a surplus row) keep the stored status: genuinely ambiguous.
+        Assert.Contains("WHEN pl.line_count=pe.key_rows THEN 'Matched' ELSE pe.match_status END effective_match_status", sql);
+        // Identical R003 rows are real (one per repeated line) and are never dropped as duplicates.
+        Assert.Contains("WHERE x.enrichment_type<>'R013' OR x.same_content=1) pe", sql);
+    }
+
+    [Theory]
+    [InlineData("R003", "Ambiguous", "Discount enrichment", "R003_AMBIGUOUS")]
+    [InlineData("R003", "Missing", "Discount enrichment", "R003_MISSING")]
+    [InlineData("R013", "Ambiguous", "Staff enrichment", "R013_AMBIGUOUS")]
+    [InlineData("R013", "Missing", "Staff enrichment", "R013_MISSING")]
+    [InlineData("r003 ", "Ambiguous", "Discount enrichment", "R003_AMBIGUOUS")]
+    public void Daily_exceptions_label_an_enrichment_row_by_its_own_family(string type, string status, string area, string code)
+    {
+        var (actualArea, actualCode, message) = OperationalReportRepository.EnrichmentException(type, status);
+        Assert.Equal(area, actualArea);
+        Assert.Equal(code, actualCode);
+        // Only an R013 row may claim to be a staff/CRO problem.
+        Assert.Equal(code.StartsWith("R013_", StringComparison.Ordinal), message.Contains("staff/CRO enrichment", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_exceptions_query_reads_the_family_and_no_label_is_hard_coded()
+    {
+        var text = File.ReadAllText(Path.Combine(SourceDirectory(), "OperationalReportRepository.cs"));
+        Assert.DoesNotContain("$\"R013_{", text);
+        Assert.Contains("s.source_row_number,\n                   e.enrichment_type\n", text.ReplaceLineEndings("\n"));
+        Assert.Contains("EnrichmentException(reader.GetString(8), reader.GetString(4))", text);
     }
 
     [Fact]

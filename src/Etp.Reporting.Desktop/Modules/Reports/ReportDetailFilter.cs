@@ -52,12 +52,13 @@ public sealed class ReportDetailFilter : WrapPanel
     }
 
     /// <summary>
-    /// RA-OPS-10 (1.9.9): the "Unmapped" chip shows staff rows that could not be linked (R013_UNMATCHED, R013_AMBIGUOUS)
+    /// RA-OPS-10 (1.9.9): the "Unmapped" chip shows staff rows that could not be linked (R013_UNMATCHED, R013_AMBIGUOUS;
+    /// P12 1.12.1: R003_MISSING / R003_AMBIGUOUS discount rows, now labelled by their own family)
     /// and codes that say UNMAPPED or AMBIGUOUS; not every code containing MISSING (SOURCE_MISSING, MANUAL_INPUT_MISSING,
     /// PHYSICAL_COUNT_MISSING are inputs not entered, under the Source, Stock and Cash chips).
     /// </summary>
     public static bool IsUnmappedCode(string? code) =>
-        !string.IsNullOrEmpty(code) && (code.StartsWith("R013_", StringComparison.OrdinalIgnoreCase)
+        !string.IsNullOrEmpty(code) && (code.StartsWith("R013_", StringComparison.OrdinalIgnoreCase) || code.StartsWith("R003_", StringComparison.OrdinalIgnoreCase)
             || code.Contains("UNMAPPED", StringComparison.OrdinalIgnoreCase) || code.Contains("AMBIGUOUS", StringComparison.OrdinalIgnoreCase));
     /// <summary>RA-UI-16 / RA-EXPORT-09 (9 Oct 2026): the filter reads the row type's variance column (<see cref="ReportGridColumns.VarianceProperty"/>), not a property that happens to be called Variance.</summary>
     public static bool HasVariance(object? row) =>

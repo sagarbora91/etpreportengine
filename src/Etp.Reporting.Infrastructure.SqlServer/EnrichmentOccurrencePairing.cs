@@ -10,7 +10,13 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// L4 (1.11.2, AUDIT-1 fix 3): an R013 row identical in every content column to an earlier row for the same key is an exact duplicate
 /// in the Titan export; the importer already keeps one sales line for it, so the extra R013 row is dropped here and no longer reads Missing.
 /// R003 (All Discount Type) carries one row per discount applied to a line, so several R003 rows on one line are
-/// correct: R003 keeps its stored status and line.
+/// correct: a Matched or Missing R003 row keeps its stored status and line, and identical R003 rows are never dropped.
+/// P12 (1.12.1, DQ-UNMATCHED-ENRICHMENT): an invoice that repeats the same item on 2..18 identical R025 lines made every R003 row
+/// for that key Ambiguous at import (137 Titan rows on 11 invoices read as UNMATCHED_ENRICHMENT, DATA-05). An Ambiguous R003 row is
+/// now paired by occurrence with the same ordering as R013 (nth R003 row in source order takes the nth R025 line in line order), but
+/// only when every R003 row for the key is stored Ambiguous and the R003 row count equals the R025 line count. With unequal counts
+/// (for example two discounts on each of two lines) the rows stay Ambiguous: that case is genuinely ambiguous. No report reads an
+/// R003 value, so this changes only the unmatched counts and the exceptions list.
 /// The date and store columns are window partition keys, so a filter on them reaches the enrichment table; the
 /// sales-line side is an OUTER APPLY correlated on the R013 row's key, so only that invoice's lines for that item are
 /// numbered (IX_sales_invoices_date, IX_sales_lines_report), never the whole sales_lines table.
@@ -27,10 +33,13 @@ internal static class EnrichmentOccurrencePairing
     /// </summary>
     public const string EffectiveEnrichments = """
         (SELECT pe.*,
-                CASE WHEN pe.enrichment_type='R013' THEN pl.sales_line_id ELSE pe.matched_sales_line_id END effective_sales_line_id,
-                CASE WHEN pe.enrichment_type<>'R013' THEN pe.match_status WHEN pl.sales_line_id IS NULL THEN 'Missing' ELSE 'Matched' END effective_match_status
+                CASE WHEN pe.enrichment_type='R013' OR pl.line_count=pe.key_rows THEN pl.sales_line_id ELSE pe.matched_sales_line_id END effective_sales_line_id,
+                CASE WHEN pe.enrichment_type='R013' THEN CASE WHEN pl.sales_line_id IS NULL THEN 'Missing' ELSE 'Matched' END
+                     WHEN pl.line_count=pe.key_rows THEN 'Matched' ELSE pe.match_status END effective_match_status
          FROM (SELECT x.*,ROW_NUMBER() OVER(PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code
-                                            ORDER BY x.source_lineage_id,x.sales_line_enrichment_id) occurrence
+                                            ORDER BY x.source_lineage_id,x.sales_line_enrichment_id) occurrence,
+                      COUNT(*) OVER(PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code) key_rows,
+                      COUNT(CASE WHEN x.match_status='Ambiguous' THEN 1 END) OVER(PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code) key_ambiguous
                FROM (SELECT d.*,ROW_NUMBER() OVER(PARTITION BY d.enrichment_type,d.store_code,d.transaction_date,d.document_number,d.product_code,
                                                            d.source_transaction_type,d.source_quantity,d.source_net_value,d.source_cro_number,
                                                            d.scheme_discount,d.user_discount,d.pre_discount,d.other_charges,d.activation_details,d.user_discount_details,
@@ -38,10 +47,11 @@ internal static class EnrichmentOccurrencePairing
                                                   ORDER BY d.source_lineage_id,d.sales_line_enrichment_id) same_content
                      FROM dbo.sales_line_enrichments d) x
                WHERE x.enrichment_type<>'R013' OR x.same_content=1) pe
-         OUTER APPLY (SELECT q.sales_line_id
-                      FROM (SELECT sl.sales_line_id,ROW_NUMBER() OVER(ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence
+         OUTER APPLY (SELECT q.sales_line_id,q.line_count
+                      FROM (SELECT sl.sales_line_id,ROW_NUMBER() OVER(ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence,COUNT(*) OVER() line_count
                             FROM dbo.sales_invoices si JOIN dbo.sales_lines sl ON sl.sales_invoice_id=si.sales_invoice_id
-                            WHERE pe.enrichment_type='R013' AND si.store_code=pe.store_code AND si.transaction_date=pe.transaction_date
+                            WHERE (pe.enrichment_type='R013' OR (pe.enrichment_type='R003' AND pe.match_status='Ambiguous' AND pe.key_ambiguous=pe.key_rows))
+                              AND si.store_code=pe.store_code AND si.transaction_date=pe.transaction_date
                               AND si.document_number=pe.document_number AND sl.product_code=pe.product_code) q
                       WHERE q.occurrence=pe.occurrence) pl)
         """;

@@ -165,6 +165,8 @@ public sealed class PolishUiStatusTests
     [Theory]
     [InlineData("R013_UNMATCHED", true)]
     [InlineData("R013_AMBIGUOUS", true)]
+    [InlineData("R003_AMBIGUOUS", true)]
+    [InlineData("R003_MISSING", true)]
     [InlineData("BRAND_UNMAPPED", true)]
     [InlineData("SOURCE_MISSING", false)]
     [InlineData("MANUAL_INPUT_MISSING", false)]
