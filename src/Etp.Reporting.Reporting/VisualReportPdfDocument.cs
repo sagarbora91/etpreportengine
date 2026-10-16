@@ -112,7 +112,7 @@ internal sealed class VisualReportPdfDocument : IDisposable
         Line($"{model.Metadata.DateFrom:yyyy-MM-dd} to {model.Metadata.DateTo:yyyy-MM-dd}  |  {section}", normal, navy, Margin, y); y += 23;
         if (!string.IsNullOrWhiteSpace(model.Metadata.AppliedScope))
             foreach (var line in Wrap(model.Metadata.AppliedScope, normal, ContentWidth)) { Line(line, normal, navy, Margin, y); y += 13; }
-        foreach(var line in Wrap(string.Join("; ",model.Controls.Select(c=>$"{c.Status}: {c.Message}"))+ $" · Rule {model.Metadata.RuleVersion}",normal,ContentWidth)){Line(line,normal,navy,Margin,y);y+=13;} y+=8;
+        foreach(var line in Wrap(string.Join("; ",model.Controls.Select(c=>$"{OutputText.StatusWord(c.Status)}: {c.Message}"))+ $" · Rule {model.Metadata.RuleVersion}",normal,ContentWidth)){Line(line,normal,navy,Margin,y);y+=13;} y+=8;
     }
 
     // RA-EXPORT-05 (1.9.8): the KPI cards and the one visual of the report family, on their own page before the rows.
@@ -191,7 +191,7 @@ internal sealed class VisualReportPdfDocument : IDisposable
         var numeric=Enumerable.Range(0,count).Select(c=>model.Detail.Rows.Any(r=>c<r.Count && r[c] is decimal or int or long or double)).ToArray();
         var desired=Enumerable.Range(0,count).Select(c=>Math.Max(54,Math.Max(
             graphics.MeasureString(model.Detail.Columns[c].Header,bold).Width+12,
-            model.Detail.Rows.Concat(model.Detail.Totals is null?[]:new[]{model.Detail.Totals}).Select(r=>c<r.Count?graphics.MeasureString(Format(r[c],model.Detail.Columns[c].NumberFormat),normal).Width+12:0).DefaultIfEmpty(0).Max()))).ToArray();
+            model.Detail.Rows.Concat(model.Detail.Totals is null?[]:new[]{model.Detail.Totals}).Select(r=>c<r.Count?graphics.MeasureString(Cell(model.Detail.Columns[c],r[c]),normal).Width+12:0).DefaultIfEmpty(0).Max()))).ToArray();
         for(var c=0;c<count;c++)if(!numeric[c])desired[c]=Math.Min(145,desired[c]);
         var bandList=new List<int[]>();var pending=new List<int>();var used=0d;
         foreach(var c in Enumerable.Range(0,count))
@@ -225,7 +225,7 @@ internal sealed class VisualReportPdfDocument : IDisposable
             foreach (var (row, label, total) in rows)
             {
                 var font = total ? bold : normal;
-                var cells = columns.Select((c,i) => Wrap(Format(c < row.Count ? row[c] : null, model.Detail.Columns[c].NumberFormat), font, widths[i] - 12)).ToArray();
+                var cells = columns.Select((c,i) => Wrap(Cell(model.Detail.Columns[c], c < row.Count ? row[c] : null), font, widths[i] - 12)).ToArray();
                 var lineCount = cells.Max(lines => lines.Count); var offset = 0;
                 while (offset < lineCount)
                 {
@@ -242,6 +242,11 @@ internal sealed class VisualReportPdfDocument : IDisposable
             }
         }
     }
+
+    /// <summary>A Status column prints the plain status word (OK, Check, Problem, Cannot run, Not checked yet), never the raw enum name.</summary>
+    internal static string Cell(ExcelReportColumn column, object? value) =>
+        value is string status && string.Equals(column.Header, "Status", StringComparison.OrdinalIgnoreCase)
+            ? OutputText.StatusWord(status) : Format(value, column.NumberFormat);
 
     private static string Format(object? value, string format) => value switch
     {

@@ -37,10 +37,21 @@ public static class ReportPackCoverBuilder
                 var prefix = group.Key.Length == 0 ? string.Empty : group.Key + " · ";
                 object? Pick(string section, int? column) => column is null ? null
                     : group.FirstOrDefault(candidate => string.Equals(Convert.ToString(candidate[report], CultureInfo.InvariantCulture), section, StringComparison.OrdinalIgnoreCase)) is { } match ? match[column.Value] : null;
-                figures.Add(Money(prefix + "Sales today", Pick(DsrSection, total), "the DSR for the day, incl. GST", difference: false));
-                figures.Add(Money(prefix + "Tender difference", Pick(TenderSection, variance), "bills against tenders", difference: true));
-                figures.Add(Money(prefix + "Cash difference", Pick(CashSection, variance), "counted against calculated cash", difference: true));
-                figures.Add(Units(prefix + "Stock difference", Pick(StockSection, variance), "system closing stock against expected"));
+                // A check that did not run has no number to show: say so in the neutral tone, never a reconciled green zero.
+                string? NotChecked(string section)
+                {
+                    var match = group.FirstOrDefault(candidate => string.Equals(Convert.ToString(candidate[report], CultureInfo.InvariantCulture), section, StringComparison.OrdinalIgnoreCase));
+                    if (match is null) return null;
+                    var word = OutputText.StatusWord(Convert.ToString(match[status], CultureInfo.InvariantCulture));
+                    return word is StatusWords.CannotRun or StatusWords.NotChecked ? word : null;
+                }
+                ReportPackCoverFigure Figure(string label, string section, int? column, string meaning, bool difference, bool units = false)
+                    => NotChecked(section) is { } unavailable ? new(prefix + label, unavailable, meaning, OutputTone.Neutral)
+                    : units ? Units(prefix + label, Pick(section, column), meaning) : Money(prefix + label, Pick(section, column), meaning, difference);
+                figures.Add(Figure("Sales today", DsrSection, total, "the DSR for the day, incl. GST", difference: false));
+                figures.Add(Figure("Tender difference", TenderSection, variance, "bills against tenders", difference: true));
+                figures.Add(Figure("Cash difference", CashSection, variance, "counted against calculated cash", difference: true));
+                figures.Add(Figure("Stock difference", StockSection, variance, "system closing stock against expected", difference: true, units: true));
                 foreach (var row in group)
                 {
                     var word = Convert.ToString(row[status], CultureInfo.InvariantCulture);

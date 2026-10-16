@@ -20,10 +20,13 @@ public sealed class DailyWorkflowPresentationTests
 
         Assert.True(session.HasSnapshot);
         Assert.Equal(DailyWorkflowTone.Warning, presentation.Tone);
-        Assert.Equal("Missing ETP sources: R022", presentation.SourceStatus);
+        Assert.Equal("Missing ETP sources: Invoice tenders", presentation.SourceStatus);
         Assert.Equal("Missing manual inputs: MONTHLY_TARGET", presentation.InputStatus);
         Assert.Same(manual, Assert.Single(presentation.ManualInputs));
         Assert.True(presentation.CanFinalise);
+
+        var many = session.Show(state with { MissingReports = ["R025", "R022", "R013", "R003", "STOCK_LEDGER", "CLOSING_STOCK"] }, []);
+        Assert.Equal("Missing ETP sources: Sales lines, Invoice tenders, Sales detail file, Stock ledger, Closing stock", many.SourceStatus);
 
         var unavailable = session.ShowUnavailable("SQL unavailable");
         Assert.False(session.HasSnapshot);

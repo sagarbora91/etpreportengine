@@ -460,7 +460,7 @@ public sealed class ServiceUiRulesTests
             new Dictionary<string, string> { ["S009"] = "RAW" }, (new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 30)));
         var pending = chips.Single(chip => chip.Group == "Pending lists");
         Assert.Equal((AsAt.AddDays(-3), ServiceFreshnessColour.Fresh), (pending.LatestSnapshotDate!.Value, pending.Colour));
-        Assert.Equal("last export 02 Oct 2026 (raw) · never exported: S010", pending.Text);
+        Assert.Equal("last export 02 Oct 2026 (raw) · never exported: Pending delivery list", pending.Text);
         Assert.Equal(["S010"], pending.NeverExported!);
         // A group with no exported family is still "no export yet".
         var tests = chips.Single(chip => chip.Group == "Tests");
@@ -469,7 +469,9 @@ public sealed class ServiceUiRulesTests
         var claims = chips.Single(chip => chip.Group == "Claims");
         Assert.Equal(ServiceFreshnessColour.Amber, claims.Colour);
         Assert.EndsWith(" · no GPRC lines 06 Aug 2026 - 30 Sept 2026", claims.Text, StringComparison.Ordinal);
-        Assert.Contains("never exported: S024, S025, S026, S039, S040", claims.Text, StringComparison.Ordinal);
+        Assert.Contains("never exported: Claims file", claims.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("S039", claims.Text, StringComparison.Ordinal);
+        Assert.Equal("GPRC claim lines", ServiceFreshness.FamilyName("Claims", "S041"));
     }
 
     [Fact]

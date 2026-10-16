@@ -67,7 +67,7 @@ public sealed class ServiceScreenViewTests
             Assert.Equal(new DateOnly(2026, 10, 9), query.LastFreshnessAsOf);
             Assert.Equal(ServiceFreshness.Groups.Select(group => group.Group), view.Freshness.Select(chip => chip.Group));
             // S009 is at 5 Oct but S010 was never exported: the chip is dated by S009 and names S010 (R-SQL-14 b); Money has S004 only.
-            Assert.Equal("Pending lists: last export 05 Oct 2026 (raw) · never exported: S010", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Pending lists")));
+            Assert.Equal("Pending lists: last export 05 Oct 2026 (raw) · never exported: Pending delivery list", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Pending lists")));
             Assert.Equal(ServiceFreshnessColour.NoData, view.Freshness.Single(chip => chip.Group == "Jobs").Colour);
             Assert.Equal("Jobs: no export yet", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Jobs")));
             var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
