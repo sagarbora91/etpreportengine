@@ -21,6 +21,10 @@ public sealed class MoneyTenderToleranceTests
     public void Production_tender_rule_allows_one_rupee()
     {
         Assert.Equal(1m, RetailReportingPolicy.Tender.AbsoluteTolerance);
+        // 1.12.1 review m-5: the Rs 1 rule says so in its own version, distinct from the Rs 0 rule's.
+        Assert.Equal(RetailReportingPolicy.TenderVersion, RetailReportingPolicy.Tender.Version);
+        Assert.NotEqual(RetailReportingPolicy.Version, RetailReportingPolicy.Tender.Version);
+        Assert.Equal(RetailReportingPolicy.TenderVersion, Run(1129.40m, RetailReportingPolicy.Tender, ("CASH", 1129.00m)).RuleVersion);
     }
 
     [Fact]
