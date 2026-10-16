@@ -1,4 +1,4 @@
-# ETP Reporting Engine user guide (1.11.1; 1.12 chapters added)
+# ETP Reporting Engine user guide (1.11.1; 1.12 chapters added; 1.12.1 changes added)
 
 This describes ETP Reporting Engine 1.11.1, including the changes of 1.9.7 to 1.11.0. Screenshots in Help and in this folder may still show August data and the demo store; the Import, Today and Settings pictures are due to be retaken. The [Phase 5 report](audit/PHASE-5-REPORT.md) holds the earlier test evidence.
 
@@ -82,9 +82,19 @@ On supported reports, expand Filters, set query criteria and Apply. The applied 
 
 **DSR.** When the R025 sales lines export does not cover the business date for a store, the DSR is Blocked and says "R025 not imported for <date>"; FTD and MTD are blank, not zero. Import R025 for that date. The DSR's Service figures count only the shop where Service money is entered (Titan World); for the other shops they are not applicable.
 
+**Money rules (1.12.1).** These change some figures, so the same day can read slightly differently from 1.12.0.
+- **Gift cards are not sales.** A gift card, and any line that is not an ordinary sale, return or bill cancellation, is left out of every store total (Staff / CRO, Sales summary, Brand-wise, Customer-wise, Management trend). They now agree with the DSR. A bill that holds only a gift card is no longer listed.
+- **A bill cancelled the same day** is not counted as a CRO transaction or a Management trend invoice. If only some lines of a bill were cancelled the same day, the bill still counts as one invoice with the remaining value.
+- **Partial periods.** When the sales files cover only part of last year's (or this year's) month-to-date, the DSR still shows the figures but marks them **Partial**, with a note such as "Partial: the sales export covers only part of LY MTD", and leaves the growth percentage blank instead of showing a wrong one. A day you marked as a no-sale day counts as known. A no-sale mark also completes the combined growth, invoices and conversion figures.
+- **REQ ADS** (the sales needed each remaining day) divides what is left of the target by the days left **after today**. On the last day of the month it is blank.
+- **Tender check.** A difference of up to Rs 1 per document (either way) between the invoice tenders and the cash tender now passes; the small difference is still shown. Rs 1.01 still fails.
+- **WDC tile** on the DSR counts only the shop where Service money is entered, so it matches the Service total.
+
+**Stock value and items with no cost (1.12.1).** Stock value is worked out as before and leaves out items that have no cost price. Closing Stock, Slow / Exception Stock and Brand Stock now say so in an amber note under the status line, for example "3 items have no cost price; stock value leaves them out", with the count by store and brand. The same sentence is in their Excel and PDF exports and in the daily pack's system stock lines. A store whose stock is fully costed shows no note. On Slow / Exception Stock the note counts every uncosted item in the scope, not only the rows listed.
+
 **Stock.** Closing, Brand, Slow / Exception and Physical stock use each store's latest closing-stock snapshot on or before the chosen date, and say "Snapshot of <date> (latest on or before <date>)". They are Blocked, naming the store, only when no earlier snapshot exists. Stock Variance, the daily pack and Enter stock by brand still need the snapshot of the same day; import the Closing Stock export for that date. Stock Variance over several stores gives each store's own result first.
 
-**Which day a stock export counts for (1.12.1).** A Closing Stock or BinWise export made from 12:00 is the closing stock of the day it was made; one made before 12:00 is the closing stock of the previous day, whatever the date inside the file says (ETP reads the time from the file name, so keep the name ETP gave it). Export Closing Stock after the last bill of the day, or next morning before the first bill. When a day has no Closing Stock and ETP uses the BinWise export instead, it counts the retail bin only, as Closing Stock does. If a stock file was stored under a wrong date, import the same file again: ETP stores it under the right day and retires the earlier copy by itself, recording the reason "re-dated"; nothing is deleted.
+**Which day a stock export counts for (1.12.1).** A Closing Stock or BinWise export made from 12:00 is the closing stock of the day it was made; one made before 12:00 is the closing stock of the previous day, whatever the date inside the file says (ETP reads the time from the file name, so keep the name ETP gave it). Export Closing Stock after the last bill of the day, or next morning before the first bill. When a day has no Closing Stock and ETP uses the BinWise export instead, it counts the retail bin only, as Closing Stock does. If a stock file was stored under a wrong date, import the same file again: ETP stores it under the right day and retires the earlier copy by itself, recording the reason "re-dated"; nothing is deleted. That day then has no stock reading until the right copy is in, so re-import only a file you know was wrongly dated. A morning BinWise export counts as the previous day's closing; a consolidated copy of the same export keeps the date written inside it, so the two can be one day apart (decision 70). An export with no rows is shown in History as "Empty export - no rows; dated by its export day, the days it covers are not known".
 
 **Exports.** Export to Excel or PDF from the current result. The Save dialog starts in `Documents\ETP Reporting Engine\Exports`, the folder that **Open export folder** opens, and the file is named after the report (for example "Combined Sales Summary"). If the file is open in Excel, close it and export again.
 
@@ -132,13 +142,15 @@ Monthly store targets (Settings → Stores & masters → Brands and targets → 
 
 **Copy from previous month** (on both screens, Owner only; from 1.12 also **Copy all stores from last month**, see Month start) fills an editable list with last month's targets. Nothing is saved until you press **Save copied targets**. Clear a value to skip that row. A target already saved for the month is replaced only if you confirm.
 
+**Staff target dates (1.12.1).** On Close day the staff-target From and To dates follow the header month while you have not typed them. Dates you pick yourself are kept when you move the header to another month, even if they equal the usual first and last day; clear both boxes to let ETP fill them again.
+
 ## Morning (Owner)
 
 The Owner opens on **Morning**; a Store Manager or Viewer opens on Today > Sales and does not see Morning.
 
 - **Top line and button.** One sentence says how the day stands. **Finalise N ready stores** closes every store whose day is complete. It asks once, naming the stores, then finalises each store separately. A store that is blocked is listed afterwards with the reason; the others are not held back. Finalising locks the day (Reopen is under More on Close day).
 - **Three chips.** *System check* (the last health check and its top finding), *Shop files* (what each shop sent today, and the answers waiting or sent back), *Service* (how recent the Service Centre exports are).
-- **One card per store.** Files, Entries, Checks and Sent back, each with a word and a chip; what is missing is said in words, with **Fix**, **Enter** or **Open Close day** buttons. A store marked as a no-sale day says so, with who marked it and a **Withdraw** button. A blocked store shows the **Fix** buttons for its problem.
+- **One card per store.** Files, Entries, Checks and Sent back, each with a word and a chip; what is missing is said in words, with **Fix**, **Enter** or **Open Close day** buttons. A store marked as a no-sale day says so, with who marked it and a **Withdraw** button. A blocked store shows the **Fix** buttons for its problem. From 1.12.1 a **Fix** on a file problem opens the problems screen for that one file, for that card's day and shop, not the whole list of problems.
 - **Month start card** on days 1 to 7 when a target is missing: **Copy all stores from last month** (see Month start).
 - **Quiet footer.** How old the last off-PC backup is. **Publish shop results now** (top of the page) sends the shops their answers at once instead of waiting for 07:40, and says in one sentence what happened.
 - **Pins and recents.** Press the star beside a page title to pin it. Ctrl+K with nothing typed lists pinned screens, then the last eight you used, then everything else. Only the screen is remembered, never anything you typed.
@@ -174,7 +186,7 @@ Use this when a shop genuinely had no sales (a holiday, or a day it did not open
 3. ETP stops asking that shop for its daily files and daily entries for that day. **Targets are still asked for.** The day then finalises and locks like any other day.
 4. The Daily Sales Report, its PDF and the pack say "No sales (marked by <name> on <date>)". The health check counts the day as complete: "(1 store-day marked no-sale)".
 
-ETP **refuses** to mark a day when it already holds sales for that store and day, when a daily entry other than zero is saved, when the day is locked, or for a date in the future. The refusal says which. To undo: press **Withdraw no-sale day** in the same place, type a reason, and the day asks for its files again. If the day is already locked, reopen it first. Marking and withdrawing are in the audit trail.
+ETP **refuses** to mark a day for a shop that is switched off in Settings > Stores ("This shop is inactive in ETP, so a no-sale day cannot be marked for it. Ask the Owner to enable it in Settings > Stores first."), when it already holds sales for that store and day, when a daily entry other than zero is saved, when the day is locked, or for a date in the future. The refusal says which. To undo: press **Withdraw no-sale day** in the same place, type a reason, and the day asks for its files again. If the day is already locked, reopen it first. Marking and withdrawing are in the audit trail.
 
 If sales or a daily entry other than zero are saved for a marked day afterwards (for example the sales file arrives late), the mark **no longer applies**: ETP asks for the day's files and entries as usual, the Daily Sales Report shows the sales, and Close day, Morning and the Today checklist say "No-sale mark no longer applies". Press **Withdraw** there to remove the mark.
 
@@ -186,6 +198,7 @@ All Tally work uses a TEST company in a test copy of Tally inside the virtual ma
 - **Accounting.** **Prepare**, **Save**, **Approve**, **Reject**, **Write file**; the next button to press is highlighted.
 - **Settings > Tally vouchers, Send to Tally card.** **Write masters** (the ledger setup for a new company, plus a review file for the accountant), **Write file**, **Read back**, **Read back from file**, **Send**, **Compare** and **Open evidence folder**. The next button to press is highlighted.
 - **Send** is shown only on the PC named in the profile. Elsewhere you see "Sending is set up for <PC name> only. On this PC, write the file and import it in Tally by hand, then read back." Every send reads back first and refuses when Tally already holds those vouchers.
+- **Read back** follows the same rule as Send (1.12.1): it works only on the PC named as the Test PC for that company. On any other PC it refuses with a sentence naming the rule. On Workpc it works only if Workpc is that PC.
 - **Compare** says RECONCILED when ETP and Tally agree; anything else lists each difference. Never import the same file twice.
 - Only the Owner can approve, write, send or edit the profile.
 
@@ -195,8 +208,11 @@ Details and who sees what: [COLLECTIONS-STATEMENT](operations/COLLECTIONS-STATEM
 
 1. **Settings > Integrations > Collections setup (Owner):** bank accounts (last four digits only), payment providers and merchant ids, and file layouts. Press **Test on this file** with a real statement before saving a layout.
 2. **Import > Bank and settlement files:** choose the file. ETP shows the layout it matched; choose the account if several fit. Each file says what happened. Lines that look like ones already imported wait for **Import as new lines** or **Replace the earlier file** (with a reason).
-3. **Reports > Deposits in transit:** cash sent and not yet credited, oldest first, age as a coloured chip. The Owner presses **Bank credited** to accept ETP's proposal. A Store Manager sees the deposits without bank details; a Viewer cannot open it.
+3. **Reports > Deposits in transit:** cash sent and not yet credited, oldest first, age as a coloured chip. The Owner presses **Bank credited** to accept ETP's proposal. A Store Manager sees the deposits without bank details; a Viewer cannot open it. With a settlement rule (item 5) an old deposit shows **Overdue, N days** in red, for the Owner and the Store Manager.
 4. **Reports > Collections: expected vs evidence:** pick store, dates and way of payment. UPI and card differences read "totals only, not matched yet". A way of payment with no provider shows "Provider not set up". A Viewer sees totals without bank references; bank narrations and payer names are for the Owner only.
+5. **Settlement rules (Owner, 1.12.1).** Settings > Integrations > Collections setup > **Settlement rules**: for a way of payment, optionally a shop and a provider, say how many days it should take to settle and after how many days it is overdue, with From and To dates. A rule is changed by giving it an end date and adding a new one; two rules may not cover the same day. Only an overdue period on a Cash rule changes anything on screen today, and rules never match payments.
+6. **Export to Excel (1.12.1)** on Reports > Collections: expected vs evidence. The Owner's file has the bank columns Credited on and Bank reference. A Store Manager's file has none (the screen still shows the Store Manager the reference), and a Viewer's file has none either.
+7. **Record by hand and Withdraw (Owner, 1.12.1).** On Deposits in transit, **Record by hand** marks a deposit as credited when the bank line is not in ETP: credited date (not in the future), bank account name, amount, bank reference and a reason. A different amount is allowed and shown as "Credited, different amount". The **Marked as credited** card lists these and the accepted bank lines; **Withdraw** (with a reason) sends a deposit back to in transit. Both are audited and nothing is deleted.
 
 ## Software update (Owner)
 
@@ -205,7 +221,14 @@ Updates come from a signed folder in OneDrive that only Sagar can publish to. Ba
 1. When a newer release is waiting, a banner appears on every page for the Owner: "ETP 1.12.x is available", with the notes, **Install now** and **Not now**. Nobody else sees it.
 2. **Install now** opens a sheet listing what must be quiet first (no import, nightly check or backup running, no open entry draft, no other ETP window), the backup ETP takes before updating, and that ETP will close. Press **Install now** to go on (it stays off while anything listed blocks it).
 3. ETP updates and starts again by itself (not as administrator). At the next start a result screen says what happened. After a failure it says that some database changes may already be in place, names the backup taken before the update, and has **Open setup log folder**. Call Sagar before using ETP: ETP never restores the database by itself.
+   If ETP cannot read the database at that moment it will not install: the sheet says "ETP could not check the database, so it cannot tell whether an import or a backup is running. Try again in a minute." (1.12.1). It clears by itself when the database is back.
 4. **Settings > Software update:** the update folder, **Check now**, the result of the last check, and the on/off switch for checking. Leave checking off until Sagar says to turn it on.
+
+## Starting ETP, and after a reboot (1.12.1)
+
+- When ETP starts and checking the database takes more than half a second, a small **Checking the database...** window shows and closes by itself. It has no buttons; wait for ETP to open.
+- After the PC restarts, the nightly backup and the monthly recovery drill wait up to two minutes for SQL Server to be ready instead of failing at once. The backup log shows "ETP-STARTUP-WAIT" lines while it waits. If SQL Server is still not ready after two minutes the task fails with "SQL Server did not become ready" and Sagar should be told.
+- When you install an update, the old database object files are removed first so a renamed one cannot leave a copy behind. Nothing for you to do.
 
 ## Stores and automatic import
 
@@ -217,7 +240,7 @@ Help is searchable from Settings → Help and includes screenshots of the naviga
 
 ## Service Centre
 
-ETP imports the Service Centre (AW330) exports and shows them under **Service** on the left: six read-only tabs, Today, Pending, Jobs, Claims, Parts and Money. Nothing in Retail changes, and nothing on these screens writes to the database. Viewers, Store Managers and the Owner can open every Service tab. There is no store picker: Service is always "Service Centre AW330". No Service screen or export shows a customer phone number, e-mail or address.
+ETP imports the Service Centre (AW330) exports and shows them under **Service** on the left: six read-only tabs, Today, Pending, Jobs, Claims, Parts and Money. Nothing in Retail changes, and nothing on these screens writes to the database. Viewers, Store Managers and the Owner can open every Service tab. The header store picker does not apply to Service. With one Service Centre, Service is always that centre. With two or more, a **Service Centre** choice appears beside the title (see below). No Service screen or export shows a customer phone number, e-mail or address.
 
 ### Weekly refresh (consolidated workbooks)
 
@@ -260,6 +283,16 @@ Not imported: technician productivity and the tender collection summary (both re
   An amber or red chip does not mean the numbers are wrong. They are true as at that export date; import a newer export to bring them up to date.
 - **Refresh** reads the database again. **Export to Excel** writes what the screen shows: the grid's columns, with the period and the as-at line.
 - **A job number in any job grid opens that job's history**: double-click the row, press Enter, or use **Open job history**. **Back** returns to the screen you came from.
+
+### The Service Centre choice (1.12.1)
+
+It shows only when ETP knows two or more Service Centres. The choices are **All Service Centres**, each centre by name, and **Not matched to any centre**. The choice stays when you move from one Service screen to another.
+
+- **A centre** filters Today's counts, Pending, Jobs, Claims, the parts invoices and the closing stock to that centre. A job belongs to the centre whose job-number prefix it starts with. The label beside the title, the line under it and the Excel export name the choice.
+- **Not matched to any centre** shows the jobs whose number starts with no centre's prefix, and the parts invoices and stock rows that name no centre. The centres and this choice add up to All Service Centres.
+- **These always cover all centres**, and a line under the title says so: Money (the manual entries are typed per shop, not per centre), goods in transit, file dates and freshness, money changes, and Job history (which opens any job number).
+- The parts and stock filters read the store code in the Service parts and stock files, which is AW330 for the real centre. If a file carried something else there, a chosen centre would show empty parts and stock; nothing else would change.
+- With only one centre there is no choice and the screens are exactly as before.
 
 ### Where a job is: the stages
 
