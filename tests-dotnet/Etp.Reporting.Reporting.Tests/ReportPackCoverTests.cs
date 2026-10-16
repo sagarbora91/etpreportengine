@@ -49,6 +49,39 @@ public sealed class ReportPackCoverTests
     }
 
     [Fact]
+    public void A_check_that_could_not_run_shows_its_status_word_in_neutral_never_a_green_zero()
+    {
+        var pack = StorePack() with
+        {
+            Tables =
+            [
+                new("Control Summary", "NotRun", "Synthetic",
+                    new([new("Report"), new("Status"), new("Control Total", "#,##0.00"), new("Variance", "#,##0.00"), new("Message")],
+                    [
+                        ["Daily Sales Report", "Passed", 145_970m, 0m, "FTD DSR."],
+                        ["Tender Reconciliation", "Blocked", null, 0m, "Needs the tender file."],
+                        ["Daily Cash Reconciliation", "NotRun", null, 0m, "Not counted."],
+                        ["System Closing Stock", "Passed", 1_812m, 0m, "Expected equals reported."]
+                    ], ["Overall", "NotRun", null, null, "Synthetic"]))
+            ]
+        };
+        var cover = ReportPackCoverBuilder.From(pack);
+        Assert.Equal(("Tender difference", "Cannot run", OutputTone.Neutral), (cover.Figures[1].Label, cover.Figures[1].Value, cover.Figures[1].Tone));
+        Assert.Equal(("Cash difference", "Not checked yet", OutputTone.Neutral), (cover.Figures[2].Label, cover.Figures[2].Value, cover.Figures[2].Tone));
+        Assert.DoesNotContain(cover.Figures.Skip(1).Take(2), x => x.Value.Contains('₹') || x.Tone == OutputTone.Success);
+    }
+
+    [Fact]
+    public void Pack_pdf_status_column_uses_the_plain_status_words()
+    {
+        var status = new ExcelReportColumn("Status");
+        Assert.Equal("Not checked yet", VisualReportPdfDocument.Cell(status, "NotRun"));
+        Assert.Equal("Cannot run", VisualReportPdfDocument.Cell(status, "Blocked"));
+        Assert.Equal("OK", VisualReportPdfDocument.Cell(status, "Passed"));
+        Assert.Equal("NotRun", VisualReportPdfDocument.Cell(new ExcelReportColumn("Message"), "NotRun"));
+    }
+
+    [Fact]
     public void Combined_pack_cover_keeps_each_store_figure_and_never_adds_them_up()
     {
         var pack = StorePack() with
@@ -67,7 +100,7 @@ public sealed class ReportPackCoverTests
         var cover = ReportPackCoverBuilder.From(pack);
         Assert.StartsWith("Titan World + Helios · ", cover.Subject, StringComparison.Ordinal);
         Assert.Contains(cover.Figures, x => x.Label == "WLMHW · Sales today" && x.Value == "₹69,880.00");
-        Assert.Contains(cover.Figures, x => x.Label == "HEMW · Sales today" && x.Value == "—");
+        Assert.Contains(cover.Figures, x => x.Label == "HEMW · Sales today" && x.Value == "Cannot run" && x.Tone == OutputTone.Neutral);
         Assert.Contains(cover.Checks, x => x.Name == "HEMW · Daily Sales Report" && x.StatusWord == "Cannot run" && x.Tone == OutputTone.Critical);
     }
 

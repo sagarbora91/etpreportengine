@@ -109,7 +109,7 @@ public sealed class VisualReportPdfDocumentTests
             Assert.Contains("12.5%", text, StringComparison.Ordinal); // FW R4: percentages print with one decimal
             Assert.Contains("Blank row", text, StringComparison.Ordinal);
             Assert.Contains("—", text, StringComparison.Ordinal);
-            Assert.Contains("Passed: Synthetic only", text, StringComparison.Ordinal);
+            Assert.Contains("OK: Synthetic only", text, StringComparison.Ordinal);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

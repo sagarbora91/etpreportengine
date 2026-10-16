@@ -57,6 +57,13 @@ public sealed class MorningSummaryBuilderTests
     }
 
     [Fact]
+    public void Two_missing_codes_with_one_plain_name_are_listed_once()
+    {
+        var summary = Build(Store("SC904", "Shop Four", Workflow("SC904", missingReports: ["R003", "R013"])));
+        Assert.Equal(["Sales detail file not imported yet"], Assert.Single(summary.Stores).Blockers);
+    }
+
+    [Fact]
     public void A_refused_shop_file_is_named_with_its_reason_and_gets_a_Fix_button_for_that_one_file()
     {
         var refused = Entry("attempt:41", "SC903", "R025", "Failed", "The sheet date and the file name differ.");

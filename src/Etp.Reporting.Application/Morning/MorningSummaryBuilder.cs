@@ -143,8 +143,9 @@ public static class MorningSummaryBuilder
             var why = entry.Result.Failure?.SafeMessage ?? entry.Result.Message;
             result.Add(string.IsNullOrWhiteSpace(why) ? $"{FileName(code)} was refused" : $"{FileName(code)} was refused ({TrimSentence(why)})");
         }
-        foreach (var code in workflow.MissingReports.Where(code => !refusedCodes.Contains(code)))
-            result.Add($"{FileName(code)} not imported yet");
+        // R003 and R013 share one plain name: say it once.
+        foreach (var name in workflow.MissingReports.Where(code => !refusedCodes.Contains(code)).Select(FileName).Distinct(StringComparer.Ordinal))
+            result.Add($"{name} not imported yet");
         foreach (var code in workflow.MissingRequiredInputs)
             result.Add($"{InputName(code)} not entered");
         return result;

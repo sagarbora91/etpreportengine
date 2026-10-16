@@ -234,7 +234,7 @@ public static class ServiceFreshness
                 : exported.Select(code => Colour(latestByFamily[code], asOf, MonthlyFamilies.Contains(code))).Max();
             var text = oldest is { } date
                 ? "last export " + Day(date) + (kind is null ? "" : $" ({kind.ToLowerInvariant()})")
-                    + (never.Length == 0 ? "" : " · never exported: " + string.Join(", ", never))
+                    + (never.Length == 0 ? "" : " · never exported: " + string.Join(", ", never.Select(code => FamilyName(group, code)).Distinct(StringComparer.Ordinal)))
                 : "no export yet";
             if (group == ClaimsGroup && oldest is not null && gprcHole is { } hole)
             {
@@ -247,6 +247,17 @@ public static class ServiceFreshness
     }
 
     private const string ClaimsGroup = "Claims";
+
+    /// <summary>The plain name of a service export family for a sentence (no S-code); a family without its own name is called by its group.</summary>
+    public static string FamilyName(string group, string code) => code.ToUpperInvariant() switch
+    {
+        "S009" => "Pending repair list",
+        "S010" => "Pending delivery list",
+        "S011" => "SRN status list",
+        "S023" => "GPRC claim history",
+        "S041" => "GPRC claim lines",
+        _ => group + " file"
+    };
 
     private static string Day(DateOnly date) => Etp.Reporting.Application.Formatting.DisplayText.Date(date);
 }

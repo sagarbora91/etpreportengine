@@ -85,8 +85,8 @@ public sealed class DailyWorkflowPresentationSession
             Tone(state.Status),
             state.StatusMessage,
             state.MissingReports.Count == 0
-                ? $"ETP sources: complete ({string.Join(", ", state.ImportedReports)})"
-                : $"Missing ETP sources: {string.Join(", ", state.MissingReports)}",
+                ? $"ETP sources: complete ({PlainFileNames(state.ImportedReports)})"
+                : $"Missing ETP sources: {PlainFileNames(state.MissingReports)}",
             state.MissingRequiredInputs.Count == 0
                 ? "Required manual inputs: complete (zero values remain distinct from missing values)."
                 : $"Missing manual inputs: {string.Join(", ", state.MissingRequiredInputs)}",
@@ -99,6 +99,10 @@ public sealed class DailyWorkflowPresentationSession
             NoSaleMarkNoLongerApplies = state.NoSaleMarkNoLongerApplies
         };
     }
+
+    /// <summary>Plain file names for a sentence (no report codes), each once: "Sales lines, Invoice tenders, Sales detail file".</summary>
+    internal static string PlainFileNames(IEnumerable<string> reportCodes) => string.Join(", ",
+        reportCodes.Select(EtpApplication::Etp.Reporting.Application.Morning.MorningSummaryBuilder.FileName).Distinct(StringComparer.Ordinal));
 
     public DailyWorkflowPresentationState ShowUnavailable(string message)
     {
