@@ -54,7 +54,7 @@ Business date checked: yesterday, in manual and nightly runs. Rules against cryi
 
 **Skipped, never Fail, for what cannot be read** (folder permissions and the Windows log need the nightly run's account; CHECKDB needs sysadmin, so DB-03 reads the last good date). **CHECKDB (decision Q6, yes):** the monthly recovery drill, which runs elevated, adds `DBCC CHECKDB WITH PHYSICAL_ONLY` so DB-03 has a fresh date each month. **SQL Server build (Q15):** OPS-06 is a Warning while the engine is on an RTM build without a cumulative update.
 
-**Run order and budget.** Database, Errors, Operations, Security, Data, Imports, Reports. Caps: 10, 10, 15, 5, 10, 10 and 60 seconds; 30 seconds per report; 120 seconds in total. When the total is reached the rest are Skipped (time budget) and the run is still recorded and exported. DATA-02 reuses RPT-16's result; the lane notes record how the order is reconciled.
+**Run order and budget.** Database, Errors, Operations, Security, Data, Imports, Reports. Caps: 20 (Database; 10 before 1.12.1, too little for DB-06 on a 4 GB PC), 10, 15, 5, 10, 10 and 60 seconds; 30 seconds per report; 120 seconds in total. When the total is reached the rest are Skipped (time budget) and the run is still recorded and exported. DATA-02 reuses RPT-16's result; the lane notes record how the order is reconciled.
 
 **Read-only proof.** Every inline SQL text passes `ReadOnlySqlGuard`; report probes never call the view, so no audit row is written; a write-detector integration test compares every `dbo` table before and after a full run; a reflection test forbids probes from referencing persistence types; the nightly account cannot change schema or grants anyway.
 

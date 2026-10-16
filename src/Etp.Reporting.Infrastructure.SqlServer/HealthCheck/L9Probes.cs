@@ -109,10 +109,25 @@ public sealed class LandingCopyProbe(string connectionString) : IHealthProbe
 /// only; the Warning is judged on the second (warm) count, above one second, which is what a screen pays on every open
 /// after the first. A materialised Service table is planned only if the warm count stays slow. Each sub-result carries
 /// <c>cold_ms</c> and <c>warm_ms</c>. Read-only SELECT COUNT(*); a missing view or a refusal is Skipped.
+/// <para>
+/// 1.12.1 (VM acceptance 16 Oct 2026, finding 2): on the 4 GB VM the whole check was Skipped TIME_BUDGET, because the
+/// twelve counts did not fit in what DB-01..05 and DB-07 left of the Database area's 10 s (DB-02 alone took 7.6 s reading
+/// the migration and object files cold). The Database cap is now 20 s (<see cref="HealthCheckBudget.Default"/>), and the
+/// probe keeps its own budget (<see cref="OwnBudget"/>, never more than the runner's allowance less
+/// <see cref="AllowanceMargin"/>): a view it has no time left for is a Skipped TIME_BUDGET sub-result, a view whose repeat
+/// count did not fit is judged on its first count (only <c>cold_ms</c>), and the views already counted still give a verdict
+/// instead of the runner discarding the whole check.
+/// </para>
 /// </summary>
 public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthProbe
 {
     public static readonly TimeSpan SlowAfter = TimeSpan.FromSeconds(1);
+
+    /// <summary>At most this long for all counts (VM: about 7 s for the six views cold and warm, 3,158 jobs).</summary>
+    public static readonly TimeSpan OwnBudget = TimeSpan.FromSeconds(10);
+
+    /// <summary>Kept back from the runner's allowance, so the probe returns its verdict before the runner gives up on it.</summary>
+    public static readonly TimeSpan AllowanceMargin = TimeSpan.FromMilliseconds(750);
 
     /// <summary>The views behind the Service screens (key, view). Job history reads the list events (1.12 A4: sixth view).</summary>
     internal static readonly IReadOnlyList<(string Key, string View)> Views =
@@ -131,40 +146,92 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
     /// <summary>The sub-result field holding the repeat count in milliseconds (the one judged).</summary>
     public const string WarmField = "warm_ms";
 
+    /// <summary>The sub-result finding code of a view the probe had no time left to count.</summary>
+    public const string TimeBudgetCode = "TIME_BUDGET";
+
     public IReadOnlyList<string> CheckIds { get; } = [HealthCheckId.Db06];
 
     internal static string CountSql(string view) => "SELECT COUNT(*) FROM " + view + ";";
 
+    /// <summary>The probe's budget: <see cref="OwnBudget"/>, or less when the runner allows less (<see cref="HealthCheckRunner.ProbeAllowanceItem"/>).</summary>
+    internal static TimeSpan BudgetFor(HealthCheckContext context)
+    {
+        var budget = OwnBudget;
+        if (context.Items.TryGetValue(HealthCheckRunner.ProbeAllowanceItem, out var value) && value is TimeSpan allowance && allowance - AllowanceMargin < budget)
+            budget = allowance - AllowanceMargin;
+        return budget;
+    }
+
     public async Task<IReadOnlyList<HealthCheckResult>> RunAsync(HealthCheckContext context, CancellationToken cancellationToken)
     {
         var timer = Stopwatch.StartNew();
+        var budget = BudgetFor(context);
         var result = await ImportDataProbeSupport.GuardAsync(HealthCheckId.Db06, async () =>
         {
-            var timings = new List<(string Key, TimeSpan? Cold, TimeSpan? Warm)>();
             await using var connection = await DatabaseProbeSql.OpenAsync(connectionString, cancellationToken).ConfigureAwait(false);
-            foreach (var (key, view) in Views)
-            {
-                try
-                {
-                    var cold = await CountAsync(connection, view, cancellationToken).ConfigureAwait(false);
-                    var warm = await CountAsync(connection, view, cancellationToken).ConfigureAwait(false);
-                    timings.Add((key, cold, warm));
-                }
-                catch (SqlException)
-                {
-                    timings.Add((key, null, null)); // view missing (older database) or not permitted
-                }
-            }
-            return Evaluate(timings, timer.Elapsed);
+            var measured = await MeasureAsync(Views, budget, () => timer.Elapsed,
+                (view, timeoutSeconds, token) => CountAsync(connection, view, timeoutSeconds, token), cancellationToken).ConfigureAwait(false);
+            return Evaluate(measured.Timings, timer.Elapsed, measured.OutOfTime);
         }, cancellationToken).ConfigureAwait(false);
         return [result];
     }
 
-    private static async Task<TimeSpan> CountAsync(SqlConnection connection, string view, CancellationToken cancellationToken)
+    /// <summary>
+    /// Counts each view cold then warm while <paramref name="budget"/> lasts. <paramref name="count"/> gets the seconds left
+    /// as its command timeout and throws <see cref="TimeoutException"/> when a count runs out of them; any other
+    /// <see cref="SqlException"/> means the view is missing or not permitted (both counts null, not out of time). Once the
+    /// budget is gone no further count starts.
+    /// </summary>
+    internal static async Task<(IReadOnlyList<(string Key, TimeSpan? Cold, TimeSpan? Warm)> Timings, IReadOnlySet<string> OutOfTime)> MeasureAsync(
+        IReadOnlyList<(string Key, string View)> views, TimeSpan budget, Func<TimeSpan> elapsed,
+        Func<string, int, CancellationToken, Task<TimeSpan>> count, CancellationToken cancellationToken)
+    {
+        var timings = new List<(string Key, TimeSpan? Cold, TimeSpan? Warm)>();
+        var outOfTime = new HashSet<string>(StringComparer.Ordinal);
+        var stopped = false;
+        foreach (var (key, view) in views)
+        {
+            TimeSpan? cold = null;
+            TimeSpan? warm = null;
+            try
+            {
+                if (stopped || budget - elapsed() <= TimeSpan.Zero) throw new TimeoutException();
+                cold = await count(view, TimeoutSeconds(budget - elapsed()), cancellationToken).ConfigureAwait(false);
+                if (budget - elapsed() <= TimeSpan.Zero) throw new TimeoutException();
+                warm = await count(view, TimeoutSeconds(budget - elapsed()), cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                stopped = true;
+                if (cold is null) outOfTime.Add(key);
+            }
+            catch (SqlException)
+            {
+                cold = null; // view missing (older database) or not permitted
+                warm = null;
+            }
+            timings.Add((key, cold, warm));
+        }
+        return (timings, outOfTime);
+    }
+
+    /// <summary>The command timeout for what is left of the budget: at least 1 s, at most the probes' usual 15 s.</summary>
+    internal static int TimeoutSeconds(TimeSpan left) =>
+        (int)Math.Clamp(Math.Ceiling(left.TotalSeconds), 1, DatabaseProbeSql.CommandTimeoutSeconds);
+
+    private static async Task<TimeSpan> CountAsync(SqlConnection connection, string view, int timeoutSeconds, CancellationToken cancellationToken)
     {
         var one = Stopwatch.StartNew();
         await using var command = ImportDataProbeSupport.ReadOnlyCommand(connection, CountSql(view));
-        await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        command.CommandTimeout = timeoutSeconds;
+        try
+        {
+            await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (SqlException exception) when (exception.Number == -2)
+        {
+            throw new TimeoutException("The count ran out of the DB-06 time budget.", exception);
+        }
         return one.Elapsed;
     }
 
@@ -174,31 +241,42 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
 
     /// <summary>
     /// The verdict from each view's first (cold) and repeat (warm) count. Warning only when a warm count is above
-    /// <see cref="SlowAfter"/>; a slow cold count with a fast warm one is a Pass whose text still gives both numbers. The
-    /// metric is the slowest warm count in milliseconds.
+    /// <see cref="SlowAfter"/>; a slow cold count with a fast warm one is a Pass whose text still gives both numbers. A view
+    /// with a cold count only (no time left for the repeat) is judged on the cold count. Views in <paramref name="outOfTime"/>
+    /// are Skipped TIME_BUDGET sub-results. The metric is the slowest judged count in milliseconds.
     /// </summary>
-    internal static HealthCheckResult Evaluate(IReadOnlyList<(string Key, TimeSpan? Cold, TimeSpan? Warm)> timings, TimeSpan duration)
+    internal static HealthCheckResult Evaluate(IReadOnlyList<(string Key, TimeSpan? Cold, TimeSpan? Warm)> timings, TimeSpan duration,
+        IReadOnlySet<string>? outOfTime = null)
     {
-        var subs = timings.Select(item => item.Warm is not { } warm
-                ? new HealthCheckSubResult(item.Key, HealthOutcome.Skipped, "NOT_READABLE")
-                : new HealthCheckSubResult(item.Key, warm > SlowAfter ? HealthOutcome.Warning : HealthOutcome.Pass,
-                    warm > SlowAfter ? "SERVICE_VIEW_SLOW" : null, Ms(warm), Fields(item.Cold, warm)))
+        outOfTime ??= new HashSet<string>(StringComparer.Ordinal);
+        var subs = timings.Select(item => Judged(item) is not { } judged
+                ? new HealthCheckSubResult(item.Key, HealthOutcome.Skipped, outOfTime.Contains(item.Key) ? TimeBudgetCode : "NOT_READABLE")
+                : new HealthCheckSubResult(item.Key, judged > SlowAfter ? HealthOutcome.Warning : HealthOutcome.Pass,
+                    judged > SlowAfter ? "SERVICE_VIEW_SLOW" : null, Ms(judged), Fields(item.Cold, item.Warm)))
             .ToList();
-        var read = timings.Where(item => item.Warm is not null).ToList();
+        var read = timings.Where(item => Judged(item) is not null).ToList();
+        var untimed = timings.Count(item => Judged(item) is null && outOfTime.Contains(item.Key));
         if (read.Count == 0)
-            return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Skipped, "NOT_READABLE",
-                "The Service views could not be read here (not installed or not permitted).", null, duration, null, subs);
-        var slowestWarm = read.Max(item => Ms(item.Warm!.Value));
+            return untimed > 0
+                ? ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Skipped, TimeBudgetCode,
+                    "The Service views could not be counted within the time budget of this check.", null, duration, null, subs)
+                : ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Skipped, "NOT_READABLE",
+                    "The Service views could not be read here (not installed or not permitted).", null, duration, null, subs);
+        var slowestWarm = read.Max(item => Ms(Judged(item)!.Value));
         var slowestCold = read.Where(item => item.Cold is not null).Select(item => Ms(item.Cold!.Value)).DefaultIfEmpty(-1m).Max();
         var both = Describe(slowestCold, slowestWarm);
+        var suffix = untimed > 0 ? ImportDataProbeSupport.Text($" {untimed} view(s) not timed: the time budget ran out.") : "";
         var slow = subs.Count(sub => sub.Outcome == HealthOutcome.Warning);
         if (slow > 0)
             return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Warning, "SERVICE_VIEW_SLOW",
-                ImportDataProbeSupport.Text($"{slow} Service view(s) took over 1 second to count on a repeat read ({both}). Time to plan a faster Service job index."),
+                ImportDataProbeSupport.Text($"{slow} Service view(s) took over 1 second to count on a repeat read ({both}). Time to plan a faster Service job index.") + suffix,
                 null, duration, slowestWarm, subs);
         return ImportDataProbeSupport.Make(HealthCheckId.Db06, HealthOutcome.Pass, HealthCheckTexts.Ok,
-            ImportDataProbeSupport.Text($"The Service views answer quickly ({both})."), null, duration, slowestWarm, subs);
+            ImportDataProbeSupport.Text($"The Service views answer quickly ({both}).") + suffix, null, duration, slowestWarm, subs);
     }
+
+    /// <summary>The count a view is judged on: the repeat (warm) count, or the first one when no repeat count fitted.</summary>
+    private static TimeSpan? Judged((string Key, TimeSpan? Cold, TimeSpan? Warm) item) => item.Warm ?? item.Cold;
 
     /// <summary>"first read after start took N ms (compile), repeat read M ms"; only the repeat read when no first read was timed.</summary>
     internal static string Describe(decimal coldMs, decimal warmMs) => coldMs < 0
@@ -207,9 +285,10 @@ public sealed class ServiceScreenTimingProbe(string connectionString) : IHealthP
 
     private static decimal Ms(TimeSpan elapsed) => (decimal)Math.Round(elapsed.TotalMilliseconds);
 
-    private static Dictionary<string, string>? Fields(TimeSpan? cold, TimeSpan warm)
+    private static Dictionary<string, string> Fields(TimeSpan? cold, TimeSpan? warm)
     {
-        var fields = new Dictionary<string, string>(StringComparer.Ordinal) { [WarmField] = Ms(warm).ToString("0", CultureInfo.InvariantCulture) };
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (warm is { } repeat) fields[WarmField] = Ms(repeat).ToString("0", CultureInfo.InvariantCulture);
         if (cold is { } first) fields[ColdField] = Ms(first).ToString("0", CultureInfo.InvariantCulture);
         return fields;
     }

@@ -178,7 +178,10 @@ public sealed record HealthCheckBudget(
         TimeSpan.FromSeconds(30),
         new Dictionary<HealthCheckArea, TimeSpan>
         {
-            [HealthCheckArea.Database] = TimeSpan.FromSeconds(10),
+            // 20 s from 1.12.1 (10 s before): on the 4 GB VM (16 Oct 2026) DB-01..05 and DB-07 took 8.2 s (DB-02 7.6 s, reading
+            // 69 migrations and 156 object files cold) and DB-06 counts six Service views twice (about 7 s there), so DB-06 was
+            // always Skipped TIME_BUDGET. That night's whole run took 19.5 s of the 120 s total, which stays the hard limit.
+            [HealthCheckArea.Database] = TimeSpan.FromSeconds(20),
             [HealthCheckArea.Security] = TimeSpan.FromSeconds(5),
             [HealthCheckArea.Reports] = TimeSpan.FromSeconds(60),
             [HealthCheckArea.Imports] = TimeSpan.FromSeconds(10),

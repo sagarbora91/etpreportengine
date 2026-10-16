@@ -73,6 +73,13 @@ public sealed class HealthCheckRunner
     /// <summary><see cref="HealthCheckContext.Items"/> key, value <c>true</c>: DB-01 failed, do not open a connection.</summary>
     public const string DatabaseUnreachableItem = "runner:database-unreachable";
 
+    /// <summary>
+    /// <see cref="HealthCheckContext.Items"/> key, value a <see cref="TimeSpan"/>: what the runner allows the probe it is about
+    /// to run (the smaller of what is left of the run and of the area). A probe that times several things (DB-06) stops
+    /// before it, so it returns what it measured instead of being cut to Skipped (1.12.1, VM finding 2).
+    /// </summary>
+    public const string ProbeAllowanceItem = "runner:probe-allowance";
+
     /// <summary>Above this many characters of serialised sub-results the runner trims them (detail_json is 2000).</summary>
     internal const int MaxDetailCharacters = 1800;
 
@@ -160,6 +167,7 @@ public sealed class HealthCheckRunner
                     continue;
                 }
 
+                items[ProbeAllowanceItem] = allowance;
                 foreach (var result in await RunProbeAsync(probe, ids, area, context, allowance, cancellationToken).ConfigureAwait(false))
                 {
                     var line = databaseUnreachable && !RunsWithoutDatabase.Contains(result.CheckId)
