@@ -44,6 +44,12 @@ public static class ImportCodes
     public const string RestatementTargetNotCovered = "RESTATEMENT_TARGET_NOT_COVERED";
 
     /// <summary>
+    /// IF-028 / 1.12.1 review M-3: this import retired an earlier import of the same stock file under another date
+    /// (re-dated). Warning when a day lost its stock reading by it; Information otherwise.
+    /// </summary>
+    public const string ImportRedatedRetired = "IMPORT_REDATED_RETIRED";
+
+    /// <summary>
     /// A restatement replaces one current import per run, and its period also covers another current import whose rows
     /// it changes or drops; promotion cannot take that one over, so no pick can succeed.
     /// </summary>
@@ -78,7 +84,7 @@ public static class ImportCodes
     public static ImportIssueSeverity DefaultSeverity(string code) => code switch
     {
         SnapshotDateFromFolder or SnapshotDateFromSiblings or SnapshotDateFromOverride or InfoBlocksUnusable or RowDateMissing or StockRowRepeated or InvoiceTotalMismatch
-            or EvidenceNotRetained or Contract.RowOutsidePeriod or Contract.HistoryRepeatsData or Contract.CellNotText
+            or EvidenceNotRetained or ImportRedatedRetired or Contract.RowOutsidePeriod or Contract.HistoryRepeatsData or Contract.CellNotText
             // Document holds (spec Appendix B "document held", 6.6-6.7, 7.3): the document waits for the Owner and the rest
             // of the file goes ahead, so the projector, the resolver and the decision engine all report them as warnings.
             or InSourceConflict or LegacyBlocksDiffer or HeaderDateMismatch

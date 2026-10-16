@@ -68,7 +68,15 @@ public sealed record ImportPersistencePackage(
     public ImportRestatementRequest? Restatement { get; init; }
     public Etp.Reporting.Import.Preflight.MatchedImportEnvelope? AcceptedImport { get; init; }
     public IReadOnlyList<EnrichmentPersistence> Enrichments { get; init; } = [];
+    /// <summary>
+    /// IF-028 / 1.12.1 review M-3: where the store notes each wrongly dated copy it retired ("re-dated"), so the import
+    /// result can say so. Null: not collected. Filled inside the import transaction; read only after it committed.
+    /// </summary>
+    public ICollection<RedatedRetirement>? RedatedRetirements { get; init; }
 }
+
+/// <summary>An earlier import of the same stock file that this import retired as re-dated (IF-028).</summary>
+public sealed record RedatedRetirement(long PreviousImportFileId, long ReplacementImportFileId);
 
 public sealed record EnrichmentPersistence(string ReportCode, string StoreCode, DateOnly TransactionDate,
     string DocumentNumber, string ProductCode, string TransactionType, decimal Quantity,

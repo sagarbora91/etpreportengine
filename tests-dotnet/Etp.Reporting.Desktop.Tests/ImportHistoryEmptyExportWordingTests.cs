@@ -46,4 +46,21 @@ public sealed class ImportHistoryEmptyExportWordingTests
 
         Assert.StartsWith("Refused - ", ImportHistoryView.Verdict(failed), StringComparison.Ordinal);
     }
+
+    // 1.12.1 review M-3: a re-dated retire is in the Verdict, not hidden behind "Already imported - nothing changed".
+    [Fact]
+    public void A_re_dated_retire_is_said_in_the_verdict_with_the_day_that_lost_its_reading()
+    {
+        var message = ImportDiagnosticCatalogue.RedatedRetiredMessage(10092, new(2026, 10, 2), new(2026, 10, 2), new(2026, 10, 3), new(2026, 10, 3),
+            [new(2026, 10, 2)], 0, []);
+        var issue = new ImportIssue(ImportIssueSeverity.Warning, ImportCodes.ImportRedatedRetired, message);
+        var duplicate = new FolderImportFileResult("202610031800_Closing Stock.xlsx", "CLOSING_STOCK", "TST01", ExportDay, ExportDay,
+            ImportAttemptOutcomes.Duplicate, Diagnostics: [issue]);
+        Assert.Equal("Already imported under this date - " + message, ImportHistoryView.Verdict(duplicate));
+        Assert.Contains("02 Oct 2026 now has no stock reading.", ImportHistoryView.Verdict(duplicate), StringComparison.Ordinal);
+        var imported = duplicate with { Status = ImportAttemptOutcomes.Imported, NewRows = 3 };
+        Assert.Equal("Imported - 3 new rows - " + message, ImportHistoryView.Verdict(imported));
+        // Without the issue the verdicts are unchanged.
+        Assert.Equal("Already imported - nothing changed", ImportHistoryView.Verdict(duplicate with { Diagnostics = null }));
+    }
 }

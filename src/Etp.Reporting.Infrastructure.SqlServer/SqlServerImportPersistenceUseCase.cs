@@ -113,6 +113,10 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 ImportPersistenceRoute.Family => await PersistFamilyAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false),
                 _ => await PersistSalesAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false)
             };
+            // IF-028 / review M-3: a wrongly dated copy this import retired is said in the result and History, not only
+            // "Duplicate" or "Imported", with any day that lost its stock reading by it.
+            var retired = await RedatedRetirementIssuesAsync(attempt.Retired, cancellationToken).ConfigureAwait(false);
+            if (retired.Count > 0) result = result with { Issues = [.. result.Issues, .. retired] };
             if (result.Status != "Duplicate")
             {
                 ownBatch = result.BatchId;
@@ -282,14 +286,71 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
     {
         public Guid BatchId { get; private set; }
         public bool Committed { get; private set; }
+        /// <summary>The wrongly dated copies the committed import retired (IF-028); read only once it committed.</summary>
+        public List<RedatedRetirement> Retired { get; } = [];
         public async Task<long> PersistAsync(ImportPersistencePackage package, CancellationToken cancellationToken = default)
         {
             BatchId = package.Batch.BatchId;
-            var fileId = await inner.PersistAsync(package, cancellationToken).ConfigureAwait(false);
+            Retired.Clear();
+            var fileId = await inner.PersistAsync(package with { RedatedRetirements = Retired }, cancellationToken).ConfigureAwait(false);
             Committed = true;
             return fileId;
         }
     }
+
+    /// <summary>
+    /// One <see cref="ImportCodes.ImportRedatedRetired"/> issue per retired copy, read after the commit: the old and new
+    /// dates, the days the old import had a reading for that now show none (<c>v_stock_snapshots_effective</c>), and its
+    /// archived Closing Stock stand-in rows (<c>StockSnapshotFallback</c>). Warning when a day lost a reading.
+    /// </summary>
+    private async Task<IReadOnlyList<ImportIssue>> RedatedRetirementIssuesAsync(IReadOnlyList<RedatedRetirement> retired, CancellationToken token)
+    {
+        if (retired.Count == 0) return [];
+        var issues = new List<ImportIssue>();
+        await using var connection = LocalConnection();
+        await connection.OpenAsync(token).ConfigureAwait(false);
+        foreach (var retirement in retired)
+        {
+            await using var command = new SqlCommand(RedatedRetirementSql, connection);
+            command.Parameters.AddWithValue("@previous", retirement.PreviousImportFileId);
+            command.Parameters.AddWithValue("@replacement", retirement.ReplacementImportFileId);
+            await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            if (!await reader.ReadAsync(token).ConfigureAwait(false)) continue;
+            static IReadOnlyList<DateOnly> Days(string? list) => string.IsNullOrEmpty(list) ? []
+                : list.Split(',').Select(day => DateOnly.ParseExact(day.Trim(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            var lost = Days(reader.IsDBNull(4) ? null : reader.GetString(4));
+            var fallbackRows = reader.GetInt32(5);
+            var fallbackDays = Days(reader.IsDBNull(6) ? null : reader.GetString(6));
+            var message = ImportDiagnosticCatalogue.RedatedRetiredMessage(retirement.PreviousImportFileId,
+                reader.GetFieldValue<DateOnly>(0), reader.GetFieldValue<DateOnly>(1), reader.GetFieldValue<DateOnly>(2), reader.GetFieldValue<DateOnly>(3),
+                lost, fallbackRows, fallbackDays);
+            issues.Add(new(lost.Count > 0 || fallbackRows > 0 ? ImportIssueSeverity.Warning : ImportIssueSeverity.Information,
+                ImportCodes.ImportRedatedRetired, message));
+        }
+        return issues;
+    }
+
+    private const string RedatedRetirementSql = """
+        SELECT CONVERT(date,COALESCE(o.period_start,o.business_date)),CONVERT(date,COALESCE(o.period_end,o.business_date)),
+               CONVERT(date,COALESCE(n.period_start,n.business_date)),CONVERT(date,COALESCE(n.period_end,n.business_date)),
+               (SELECT STRING_AGG(CONVERT(char(10),d.snapshot_date,23),',') WITHIN GROUP(ORDER BY d.snapshot_date)
+                FROM (SELECT DISTINCT TRY_CONVERT(date,JSON_VALUE(a.fact_json,'$.snapshot_date')) snapshot_date
+                      FROM dbo.restatement_fact_archive a
+                      WHERE a.import_restatement_id=r.import_restatement_id AND a.fact_type='StockSnapshot') d
+                WHERE d.snapshot_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective e
+                      WHERE e.store_code=o.store_code AND e.snapshot_date=d.snapshot_date)) lost_days,
+               (SELECT COUNT(*) FROM dbo.restatement_fact_archive a
+                WHERE a.import_restatement_id=r.import_restatement_id AND a.fact_type='StockSnapshotFallback') fallback_rows,
+               (SELECT STRING_AGG(CONVERT(char(10),d.snapshot_date,23),',') WITHIN GROUP(ORDER BY d.snapshot_date)
+                FROM (SELECT DISTINCT TRY_CONVERT(date,JSON_VALUE(a.fact_json,'$.snapshot_date')) snapshot_date
+                      FROM dbo.restatement_fact_archive a
+                      WHERE a.import_restatement_id=r.import_restatement_id AND a.fact_type='StockSnapshotFallback') d
+                WHERE d.snapshot_date IS NOT NULL) fallback_days
+        FROM dbo.import_restatements r
+        JOIN dbo.import_files o ON o.import_file_id=r.previous_import_file_id
+        JOIN dbo.import_files n ON n.import_file_id=r.replacement_import_file_id
+        WHERE r.previous_import_file_id=@previous AND r.replacement_import_file_id=@replacement AND r.reason LIKE N're-dated:%';
+        """;
 
     public static ImportRestatementRequest? Map(ImportRestatement? source)
     {

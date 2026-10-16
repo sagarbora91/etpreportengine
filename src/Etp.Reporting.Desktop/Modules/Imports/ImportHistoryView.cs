@@ -139,6 +139,13 @@ public sealed class ImportHistoryView : UserControl
         ArgumentNullException.ThrowIfNull(result);
         if (result.Failed || result.Failure is not null) return "Refused - " + ImportProblems.NextStep(result);
         if (result.ConflictRows > 0) return $"{result.ConflictRows:N0} rows conflict with data already saved - check Problems";
+        // IF-028 / 1.12.1 review M-3: a re-dated copy this import retired is said here, with any day that lost its reading.
+        var redated = string.Join(" ", (result.Diagnostics ?? [])
+            .Where(issue => issue.Code == EtpApplication::Etp.Reporting.Application.Imports.ImportCodes.ImportRedatedRetired)
+            .Select(issue => issue.Message));
+        if (redated.Length > 0)
+            return (ImportHistoryMessages.IsDuplicate(result.Status) ? "Already imported under this date"
+                : result.NewRows > 0 ? $"Imported - {result.NewRows:N0} new rows" : "Imported - no new rows") + " - " + redated;
         if (ImportHistoryMessages.IsDuplicate(result.Status)) return "Already imported - nothing changed";
         // IF-031: the Period of an empty export is its export day, not the window it was asked for.
         if (ImportHistoryMessages.IsEmptyExport(result.Status)) return EmptyExportVerdict;

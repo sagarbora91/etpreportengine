@@ -124,6 +124,73 @@ public sealed class RedatedSnapshotImportSqlTests(SqlDatabaseFixture database) :
         await AssertRetired(before.ImportFileId, after.ImportFileId, "2026-10-03", "2026-10-02");
     }
 
+    // 1.12.1 review M-3, cross-layer through the import use case: the wrongly dated copy's R010 row that stood in for a
+    // Closing Stock row (dbo.stock_snapshot_r011_fallbacks, ON DELETE CASCADE) is archived, not lost silently, and the
+    // result says which import was retired and what 29 Sep lost.
+    [SqlFact]
+    public async Task Re_dated_retire_archives_the_closing_stock_fallback_rows_and_the_result_says_what_the_day_lost()
+    {
+        const string store = "REDATEF";
+        var useCase = new SqlServerImportPersistenceUseCase(database.ConnectionString);
+        var corrected = await new EtpFamilySqlImportOrchestrator(new SqlServerTransactionalImportStore(database.ConnectionString))
+            .PersistAsync(Accept(Single(store, "202609071848", "e5", Units)));
+        var wrong = await InsertMisdatedCopy(store, Hash("e5"), new(2026, 9, 29));
+        // 29 Sep also has a Closing Stock file (UNIT-C only); the copy's UNIT-A row stands in for its missing UNIT-A row.
+        var closing = Convert.ToInt64(await database.ExecuteAsync($"""
+            DECLARE @batch uniqueidentifier=NEWID(),@file bigint,@lineage bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc,completed_utc,source_row_count) VALUES(@batch,'Completed',SYSUTCDATETIME(),SYSUTCDATETIME(),1);
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+             VALUES(@batch,'R011_Closing_Stock.xlsx','{Hash("e6")}',10,'CLOSING_STOCK','{store}','20260929','20260929','20260929',1);
+            SET @file=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,'Sheet0',2,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+            EXEC dbo.persist_stock_snapshot @store='{store}',@date='20260929',@product=N'UNIT-C',@batch=N'LOT-1',@qty=3,@lineage=@lineage,@source='CLOSING_STOCK';
+            INSERT dbo.stock_snapshot_r011_fallbacks(stock_snapshot_id,import_file_id)
+             SELECT s.stock_snapshot_id,@file FROM dbo.stock_snapshots s JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id
+             WHERE l.import_file_id={wrong} AND s.product_code=N'UNIT-A';
+            SELECT @file;
+            """));
+        Assert.Equal("CLOSING_STOCK:3,R010:1", await Effective(store, "20260929"));
+
+        var accepted = Accept(Single(store, "202609071848", "e5", Units));
+        var result = await useCase.PersistAsync(new(accepted, accepted.Scope.PeriodEnd!.Value, store, "Synthetic importer"));
+
+        await AssertRetired(wrong, corrected, "2026-09-07", "2026-09-29");
+        Assert.Equal(1, await database.ExecuteAsync($"""
+            SELECT COUNT(*) FROM dbo.restatement_fact_archive a JOIN dbo.import_restatements r ON r.import_restatement_id=a.import_restatement_id
+            WHERE r.previous_import_file_id={wrong} AND a.fact_type='StockSnapshotFallback'
+              AND JSON_VALUE(a.fact_json,'$.import_file_id')='{closing}' AND JSON_VALUE(a.fact_json,'$.product_code')='UNIT-A'
+            """));
+        Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.stock_snapshot_r011_fallbacks WHERE import_file_id={closing}"));
+        // 29 Sep keeps its Closing Stock reading (UNIT-C); UNIT-A's stand-in is gone, and the result says so.
+        Assert.Equal("CLOSING_STOCK:3", await Effective(store, "20260929"));
+        var issue = Assert.Single(result.Issues, i => i.Code == Etp.Reporting.Application.Imports.ImportCodes.ImportRedatedRetired);
+        Assert.Equal(Etp.Reporting.Application.Imports.ImportIssueSeverity.Warning, issue.Severity);
+        Assert.Equal($"Import {wrong} for 29 Sep 2026 was retired (same file, re-dated to 07 Sep 2026). "
+            + "1 BinWise row that stood in for missing Closing Stock rows on 29 Sep 2026 was archived with it.", issue.Message);
+    }
+
+    // 1.12.1 review M-3: the re-import that leaves a day with no reading at all says so (here 29 Sep had only the copy).
+    [SqlFact]
+    public async Task Re_dated_retire_that_empties_a_day_says_the_day_now_has_no_stock_reading()
+    {
+        const string store = "REDATEG";
+        var useCase = new SqlServerImportPersistenceUseCase(database.ConnectionString);
+        await new EtpFamilySqlImportOrchestrator(new SqlServerTransactionalImportStore(database.ConnectionString))
+            .PersistAsync(Accept(Single(store, "202609071848", "e7", Units)));
+        var wrong = await InsertMisdatedCopy(store, Hash("e7"), new(2026, 9, 29));
+
+        var accepted = Accept(Single(store, "202609071848", "e7", Units));
+        var result = await useCase.PersistAsync(new(accepted, accepted.Scope.PeriodEnd!.Value, store, "Synthetic importer"));
+
+        Assert.StartsWith("Duplicate", result.Status, StringComparison.Ordinal);
+        var issue = Assert.Single(result.Issues, i => i.Code == Etp.Reporting.Application.Imports.ImportCodes.ImportRedatedRetired);
+        Assert.Equal($"Import {wrong} for 29 Sep 2026 was retired (same file, re-dated to 07 Sep 2026). 29 Sep 2026 now has no stock reading.", issue.Message);
+        Assert.Equal(issue.Message, Etp.Reporting.Application.Imports.ImportDiagnosticCatalogue.SafeMessage(issue.Code, issue.Message));
+        // An ordinary duplicate afterwards says nothing about a retire.
+        var again = await useCase.PersistAsync(new(accepted, accepted.Scope.PeriodEnd!.Value, store, "Synthetic importer"));
+        Assert.DoesNotContain(again.Issues, i => i.Code == Etp.Reporting.Application.Imports.ImportCodes.ImportRedatedRetired);
+    }
+
     private async Task AssertRetired(long wrong, long replacement, string newDate, string oldDate)
     {
         Assert.True(await IsSuperseded(wrong));

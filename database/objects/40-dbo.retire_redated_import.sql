@@ -4,6 +4,9 @@ AS BEGIN
  -- retires the earlier, wrongly dated import by itself, with the reason "re-dated". Nothing is lost: the earlier import's
  -- record and landed source rows stay (superseded, with the reason), its snapshot facts are copied to
  -- dbo.restatement_fact_archive before they leave dbo.stock_snapshots, and dbo.import_restatements records who and why.
+ -- 1.12.1 review M-3: a dbo.stock_snapshot_r011_fallbacks row of those snapshots (an R010 row standing in for an R011
+ -- row 0041 could not rebuild) goes with its snapshot (ON DELETE CASCADE), so it is archived too, as 'StockSnapshotFallback'.
+ -- The importer reads both back to tell the user which day lost its stock reading (IMPORT_REDATED_RETIRED).
  -- Called inside the import transaction by SqlServerTransactionalImportStore (PhaseOneImportPersistence.cs).
  SET NOCOUNT ON; SET XACT_ABORT ON;
  IF COALESCE(IS_ROLEMEMBER('etp_store_manager'),0)<>1 AND COALESCE(IS_ROLEMEMBER('etp_owner'),0)<>1
@@ -42,12 +45,17 @@ AS BEGIN
    CASE WHEN @end<>@start THEN CONCAT(N' to ',CONVERT(char(10),@end,23)) END,N'.');
  INSERT dbo.import_restatements(store_code,business_date,report_code,previous_import_file_id,replacement_import_file_id,requested_by,reason,impact_summary)
  VALUES(@store,@date,@report,@previous_file_id,@replacement_file_id,@actor,@reason,
-   N'Snapshot rows of the wrongly dated import archived; the re-import under the corrected date is the current reading. The import record and its source rows are kept.');
+   N'Snapshot rows (and any Closing Stock fallback rows) of the wrongly dated import archived; the re-import under the corrected date is the current reading. The import record and its source rows are kept.');
  SET @restatement=SCOPE_IDENTITY();
  INSERT dbo.restatement_fact_archive(import_restatement_id,fact_type,previous_source_lineage_id,fact_json)
  SELECT @restatement,'StockSnapshot',p.source_lineage_id,
    (SELECT p.stock_snapshot_id,p.store_code,p.snapshot_date,p.product_code,p.ean,p.brand_code,p.brand_name,p.cluster,p.gender,p.batch_number,p.source_uid,p.quantity,p.unit_cost,p.total_cost,p.source_report_code,p.line_seq FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)
  FROM dbo.stock_snapshots p JOIN dbo.source_lineage s ON s.source_lineage_id=p.source_lineage_id WHERE s.import_file_id=@previous_file_id;
+ INSERT dbo.restatement_fact_archive(import_restatement_id,fact_type,previous_source_lineage_id,fact_json)
+ SELECT @restatement,'StockSnapshotFallback',p.source_lineage_id,
+   (SELECT k.stock_snapshot_id,k.import_file_id,p.store_code,p.snapshot_date,p.product_code FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)
+ FROM dbo.stock_snapshot_r011_fallbacks k JOIN dbo.stock_snapshots p ON p.stock_snapshot_id=k.stock_snapshot_id
+ JOIN dbo.source_lineage s ON s.source_lineage_id=p.source_lineage_id WHERE s.import_file_id=@previous_file_id;
  DELETE p FROM dbo.stock_snapshots p JOIN dbo.source_lineage s ON s.source_lineage_id=p.source_lineage_id WHERE s.import_file_id=@previous_file_id;
  UPDATE dbo.import_files SET is_superseded=1,superseded_by_import_file_id=@replacement_file_id,superseded_utc=SYSUTCDATETIME(),
    superseded_by=@actor,restatement_reason=@reason WHERE import_file_id=@previous_file_id;

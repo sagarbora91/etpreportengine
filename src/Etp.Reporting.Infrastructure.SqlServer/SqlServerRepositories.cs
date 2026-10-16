@@ -155,7 +155,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
             // the next import of the file.
             if(plan.ExistingHashFileId is { } existingId)
             {
-                await RetireRedatedAsync(connection,transaction,plan.Redated,existingId,cancellationToken);
+                await RetireRedatedAsync(connection,transaction,plan.Redated,existingId,package.RedatedRetirements,cancellationToken);
                 return await SqlTransactionGuard.CommitOrVerifyAsync(existingId,()=>Commit(transaction,cancellationToken),
                     ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>FileExistsAsync(existingId));
             }
@@ -168,7 +168,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
                string.Equals(workbook.Sha256,package.File.SourceSha256,StringComparison.OrdinalIgnoreCase))
                 await ImportSourceEvidence.RetainAsync(connection,transaction,package.File.SourceSha256,workbook.EvidenceBytes,fileId,cancellationToken);
             // IF-028: the wrongly dated copies of this same file leave the current reading before anything is compared.
-            await RetireRedatedAsync(connection,transaction,plan.Redated,fileId,cancellationToken);
+            await RetireRedatedAsync(connection,transaction,plan.Redated,fileId,package.RedatedRetirements,cancellationToken);
             if(plan.DuplicateContent)
             {
                 await RecordDuplicateAsync(connection,transaction,package,fileId,plan,cancellationToken);

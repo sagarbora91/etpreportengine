@@ -70,13 +70,15 @@ public sealed partial class SqlServerTransactionalImportStore
     }
 
     /// <summary>Retires each re-dated copy in favour of <paramref name="replacement"/>, inside the import transaction.</summary>
-    private static async Task RetireRedatedAsync(SqlConnection c,SqlTransaction t,IReadOnlyList<long> redated,long replacement,CancellationToken token)
+    private static async Task RetireRedatedAsync(SqlConnection c,SqlTransaction t,IReadOnlyList<long> redated,long replacement,
+        ICollection<RedatedRetirement>? retired,CancellationToken token)
     {
         foreach(var previous in redated)
         {
             await using var q=Cmd(c,t,"EXEC dbo.retire_redated_import @previous,@replacement");
             q.Parameters.AddWithValue("@previous",previous);q.Parameters.AddWithValue("@replacement",replacement);
             await q.ExecuteNonQueryAsync(token);
+            retired?.Add(new(previous,replacement));
         }
     }
 

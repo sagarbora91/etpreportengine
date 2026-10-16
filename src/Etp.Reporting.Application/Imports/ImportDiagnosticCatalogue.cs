@@ -123,6 +123,8 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.ImportTimeout] = ["The import timed out and can be retried."],
         [ImportCodes.CommitOutcomeUnknown] = [CommitOutcomeUnknownMessage],
         ["ISSUES_TRUNCATED"] = ["More issue codes than an attempt keeps; their occurrences are counted together."],
+        // 1.12.1 review M-3: RedatedRetiredMessage writes the dated form, which SafeMessage keeps (dates and numbers only).
+        [ImportCodes.ImportRedatedRetired] = ["An earlier import of this same stock file under another date was retired (re-dated)."],
         [ImportCodes.EvidenceNotRetained] = ["Data is present; the source file could not be kept as evidence."],
 
         // Not-needed files of the folder import (IF-027; FolderImportService writes these exact texts).
@@ -316,7 +318,47 @@ public static class ImportDiagnosticCatalogue
 
     /// <summary><paramref name="message"/> when the code writes exactly that text, otherwise <see cref="Template"/>.</summary>
     public static string SafeMessage(string? code, string? message) =>
-        code is not null && Templates.TryGetValue(code, out var messages) && message is not null && messages.Contains(message, StringComparer.Ordinal)
+        code is not null && Templates.TryGetValue(code, out var messages) && message is not null &&
+        (messages.Contains(message, StringComparer.Ordinal) || (code == ImportCodes.ImportRedatedRetired && RedatedRetiredPattern.IsMatch(message)))
             ? message
             : Template(code);
+
+    private const string DatePattern = @"\d{2} [A-Z][a-z]{2} \d{4}";
+    private const string RangePattern = DatePattern + "( to " + DatePattern + ")?";
+    private const string DaysPattern = DatePattern + "(, " + DatePattern + @")*( and \d+ more days)?";
+
+    private static readonly Regex RedatedRetiredPattern = new(
+        @"^Import \d+ for " + RangePattern + @" was retired \(same file, re-dated to " + RangePattern + @"\)\." +
+        "( " + DaysPattern + @" now ha(s|ve) no stock reading\.)?" +
+        @"( \d[\d,]* BinWise rows? that stood in for missing Closing Stock rows on " + DaysPattern + @" (was|were) archived with it\.)?$");
+
+    /// <summary>
+    /// IF-028 / 1.12.1 review M-3: the plain sentence of <see cref="ImportCodes.ImportRedatedRetired"/>. It holds import
+    /// numbers, dates and counts only, never a source value. <paramref name="lostDays"/> are the days the retired import had
+    /// a reading for that now have none; <paramref name="fallbackDays"/> the days whose stand-in BinWise rows were archived.
+    /// </summary>
+    public static string RedatedRetiredMessage(long previousImportFileId, DateOnly oldStart, DateOnly oldEnd, DateOnly newStart, DateOnly newEnd,
+        IReadOnlyList<DateOnly> lostDays, int fallbackRows, IReadOnlyList<DateOnly> fallbackDays)
+    {
+        ArgumentNullException.ThrowIfNull(lostDays);
+        ArgumentNullException.ThrowIfNull(fallbackDays);
+        var text = new System.Text.StringBuilder(System.FormattableString.Invariant(
+            $"Import {previousImportFileId} for {Range(oldStart, oldEnd)} was retired (same file, re-dated to {Range(newStart, newEnd)})."));
+        if (lostDays.Count > 0)
+            text.Append(' ').Append(Days(lostDays)).Append(lostDays.Count == 1 ? " now has" : " now have").Append(" no stock reading.");
+        if (fallbackRows > 0 && fallbackDays.Count > 0)
+            text.Append(' ').Append(fallbackRows.ToString("N0", System.Globalization.CultureInfo.InvariantCulture))
+                .Append(fallbackRows == 1 ? " BinWise row" : " BinWise rows").Append(" that stood in for missing Closing Stock rows on ")
+                .Append(Days(fallbackDays)).Append(fallbackRows == 1 ? " was" : " were").Append(" archived with it.");
+        return text.ToString();
+
+        static string Day(DateOnly day) => day.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        static string Range(DateOnly start, DateOnly end) => start == end ? Day(start) : $"{Day(start)} to {Day(end)}";
+        static string Days(IReadOnlyList<DateOnly> days)
+        {
+            var ordered = days.Distinct().Order().ToArray();
+            var shown = string.Join(", ", ordered.Take(5).Select(Day));
+            return ordered.Length > 5 ? System.FormattableString.Invariant($"{shown} and {ordered.Length - 5} more days") : shown;
+        }
+    }
 }
