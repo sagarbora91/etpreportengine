@@ -41,10 +41,18 @@ Output folders (frozen contract 5.1):
                                 original-pdb\ (PDBs of the unprotected DLLs), protected-pdb\ (PDBs Obfuscar regenerated)
 ```
 
-Then (outside this script) the protected-build smoke compares the two folders (`Test-EtpProtectedBuild.ps1`, lane V1), the
-installer is built from `<OutputDirectory>`, and `scripts\release\Archive-EtpSymbols.ps1` copies the symbols to
+Then (outside this script, in this order, all inside `ops\pipeline\Build-Installer-1.13.0.ps1`): `build-windows-installer.ps1`
+signs `<OutputDirectory>`, builds the installer from it with Inno and signs the installer; THEN the protected-build smoke
+compares the two folders (`Test-EtpProtectedBuild.ps1`, lane V1). So a signed installer exists before the smoke has passed. What
+keeps it from being published (R1-01, 16 Oct): on any failure the build renames the installer, release, `-unprotected` and
+`-symbols` folders to `FAILED-<time>-<name>` with `NOT-PUBLISHABLE.txt` inside, and only a passed smoke plus a verified
+archive writes `artifacts\publish-evidence-<tag>.json` (commit, installer SHA-256, signer, map SHA-256, archive, smoke
+report). `Publish-Release-1.13.0.ps1` refuses a protected build without that evidence or when any value differs from what it
+would publish; there is no override. After the smoke passes the build deletes `<OutputDirectory>-unprotected`, and
+`scripts\release\Archive-EtpSymbols.ps1` copies the symbols to
 `E:\ETP\Reference\Symbols\<version>-<sha7>\` (refuses `E:\ETP\Installers`, OneDrive and the release folder; never
-overwrites; writes and checks `SHA256SUMS.txt`). The nightly copy of `E:\ETP\Reference` to G: carries it from there.
+overwrites; writes and checks `SHA256SUMS.txt`), after which the build deletes `<OutputDirectory>-symbols`. The nightly copy
+of `E:\ETP\Reference` to G: carries the archive from there.
 
 Options (only with `-Protect`):
 
@@ -185,14 +193,23 @@ determined expert. It also does not change a single number in a report - the smo
 
 ## 8. Per-release checklist (protected build)
 
-1. Obfuscar at the pinned version and hash under `E:\Tools\Obfuscar\<version>\` (section 3).
-2. `Build-Installer.ps1` with `-Protect` (lane G1); the build prints the three folders.
-3. Protected-build smoke passes (`Test-EtpProtectedBuild.ps1 -Protected <out> -Unprotected <out>-unprotected ...`).
-4. `<out>` contains no `*.pdb`, no `Mapping.txt`, no `NOT-FOR-RELEASE.txt`; `release.json` has `protection.obfuscated: true`.
-5. `Archive-EtpSymbols.ps1 -SymbolsDirectory <out>-symbols -ReleaseDirectory <out>` -> `E:\ETP\Reference\Symbols\<version>-<sha7>\`.
-6. Decompiler comparison and performance results recorded in `docs\security\VERIFICATION.md` (lane V1).
-7. VM acceptance on the protected installer.
-8. Delete `<out>-unprotected` and `<out>-symbols` from `artifacts` after the archive is verified.
+What the scripts really do, in order (`ops\pipeline\Build-Installer-1.13.0.ps1 -Protect -PfxPath ...`, run by the chain; the
+generic `Build-Installer.ps1` has no `-Protect`):
+
+1. Obfuscar at the pinned version and hash under `E:\Tools\Obfuscar\<version>\` (section 3); `installer\certs\etp-codesign.cer`
+   committed (a signed build refuses without it and checks it is the signer's certificate).
+2. `build-windows-installer.ps1 -Protect -PfxPath`: release build with tests, folder publish, obfuscation (the three folders),
+   signing of exe, `Etp.*.dll` and scripts, Inno, signing of the installer.
+3. Checks: `<out>` holds no `*.pdb`, `Mapping.txt`, `obfuscation-report.json`; the setup exe has one signer and a timestamp.
+4. Protected-build smoke (`Test-EtpProtectedBuild.ps1 -Protected <out> -Unprotected <out>-unprotected ...`): identical AND
+   complete (every fixture file imported, cells, PDF pages, checksummed tables, the reflection probes for the "both profiles"
+   exclusions). Any failure in steps 2-5 quarantines every folder of the build (`FAILED-*`, `NOT-PUBLISHABLE.txt`).
+5. `<out>-unprotected` deleted; `Archive-EtpSymbols.ps1` -> `E:\ETP\Reference\Symbols\<version>-<sha7>\` (read back, map
+   hash = `release.json`); `<out>-symbols` deleted; `artifacts\publish-evidence-<tag>.json` and `smoke-report-<tag>.md` written.
+6. `Publish-Release-1.13.0.ps1` publishes only with matching evidence (installer SHA-256, HEAD commit, signer, archived map) and
+   refuses an unsigned or untimestamped installer unless `-AllowUnprotected` is given for a build that does not claim protection.
+7. Decompiler comparison and performance results recorded in `docs\security\VERIFICATION.md` (lane V1).
+8. VM acceptance on the protected installer (`Run-VM-1.13.0-Sequence.ps1 -ExpectedProfile Standard`).
 
 Self-test of the scripts: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\tests\Obfuscation.Tests.ps1`
 (no Obfuscar, no build, temp folders only).

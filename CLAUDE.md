@@ -16,7 +16,7 @@ Manager, Viewer. Runs on Workpc (office) and, later, three shop PCs on one LAN w
 
 | What | Where |
 |---|---|
-| Repository (GitHub `sagarbora91/etpreportengine`, private) | main clone `E:\ETP\Code\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f`; lane worktrees `E:\ETP\Code\Worktrees\<lane>` |
+| Repository (GitHub `sagarbora91/etpreportengine`; PUBLIC until Sagar switches it to private - treat everything pushed as public) | main clone `E:\ETP\Code\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f`; lane worktrees `E:\ETP\Code\Worktrees\<lane>` |
 | Your worktree | the one you were started in. Never `cd` into another worktree, never edit another lane's files |
 | Release/gate/VM scripts | run from `E:\ETP\Migration 2026-10-04\` (`Start-FastGate.ps1`, `Start-Gate.ps1`, `Chain-Gate-Then-Installer-<ver>.ps1`, `Build-Installer.ps1`, `Publish-Release.ps1`, `Run-VM-<ver>-Sequence.ps1`); since 1.13 a copy is in git under `ops/pipeline/` (build lock in `ops/pipeline/tools`, VM harness without business figures in `ops/pipeline/harness`; layout in its README) |
 | Build lock | `E:\ETP\Code\Worktrees\_tools\Invoke-Serialized.ps1` (+ `PAUSE-LANE-BUILDS`, `heavy-jobs.log`) |
@@ -156,10 +156,15 @@ delete the pause file yourself.
 - Keys live only on Sagar's two USB sticks (release ECDSA key, Authenticode PFX, OneDrive backup key), passphrases on
   paper. Claude never handles them; Sagar plugs the stick in for the step that needs it.
 - Public artefacts are fine to commit: the public `.cer` (`installer/certs/`), public-key lines in `ReleaseSigningKeys.cs`.
-- Dev builds are **never** obfuscated or signed. Obfuscation and signing happen only in
-  `scripts\build-windows-release.ps1 -Protect` called from `Build-Installer.ps1`. Never add MSBuild hooks, csproj changes
-  or `[Obfuscation]` attributes to do it elsewhere.
+- Dev builds are **never** obfuscated or signed. Obfuscation happens only in `scripts\build-windows-release.ps1 -Protect`, and
+  signing with the USB PFX only in `scripts\build-windows-installer.ps1 -PfxPath`, both driven by
+  `ops\pipeline\Build-Installer-1.13.0.ps1 -Protect -PfxPath` (the chain). The generic `Build-Installer.ps1` has no `-Protect`.
+  Never add MSBuild hooks, csproj changes or `[Obfuscation]` attributes to do it elsewhere.
 - Never ship `*.pdb` files; symbols and the obfuscation map go to `E:\ETP\Reference\Symbols\<ver>-<sha7>\` only.
-- The protected-build smoke must pass before an installer exists. If a protected build misbehaves, reproduce on the
-  unprotected publish first. Details: `docs/security/RELEASE-PROTECTION.md`, `CODE-SIGNING.md`, `VERIFICATION.md`.
+- The signed installer is built BEFORE the protected-build smoke runs (one script builds, signs and packs). It becomes
+  publishable only through `artifacts\publish-evidence-<tag>.json`, which the build writes after the smoke passed and the
+  symbols were archived; on any failure the build renames its folders `FAILED-*` with `NOT-PUBLISHABLE.txt`, and
+  `Publish-Release-1.13.0.ps1` refuses a protected build without matching evidence (no override). Never publish by hand
+  around that. If a protected build misbehaves, reproduce on the unprotected publish first. Details:
+  `docs/security/RELEASE-PROTECTION.md` section 8, `CODE-SIGNING.md`, `VERIFICATION.md`.
 - No source encryption (decision 65). Plain source is how Claude works.

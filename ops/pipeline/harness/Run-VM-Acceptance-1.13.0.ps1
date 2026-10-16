@@ -15,8 +15,10 @@ Same stages as 1.12.0 plus -Stage Release113. What is new (details and command l
       3. Get-AuthenticodeSignature on the exe, every Etp.*.dll, every shipped .ps1/.psm1 and the uninstaller; one signer; timestamped; status recorded as Valid
          (certificate trusted in the VM) or UnknownError/NotTrusted (not trusted yet, expected, REVIEW) - the script NEVER trusts the certificate; trusting is a printed
          manual step with Install-EtpPublisherCertificate.ps1 and the fingerprint (pass -PublisherThumbprint to compare with the paper card, -TrustExpected Trusted|Untrusted to insist);
-      4. obfuscation: the ETP assemblies' TypeDef tables are read in the guest (own metadata reader, no .NET 10 load into Windows PowerShell) and the share of types still in an
-         Etp.* namespace is compared with -MaxReadablePercent; the four named services must not all be findable; the -Stage ServiceUi evidence must show the WPF screens/SQL
+      4. obfuscation: the ETP assemblies' TypeDef tables are read in the guest (own metadata reader, no .NET 10 load into Windows PowerShell). The profile comes from the
+         installed release.json (must equal -ExpectedProfile). Every profile: per library assembly, the share of NON-PUBLIC top-level types still in an Etp.* namespace must
+         be <= -MaxReadableNonPublicPercent (10). Strong only: the share of ALL types still in an Etp.* namespace <= -MaxReadablePercent and the four named services not
+         findable (Standard keeps public types by design: INFO / REVIEW, R1-03); the -Stage ServiceUi evidence must show the WPF screens/SQL
          checks passed on this version; diagnostics logs are scanned (counts only) for XAML/type-load failures;
       5. performance: headless timings (startup of --automation-once, one import) against a baseline taken on the SAME VM at the 1.12.x checkpoint, with the plan's limits
          (4.6): more than -PerfWarnPercent (5) = REVIEW (string hiding to be dropped from the slow assembly), more than -PerfFailPercent (10) = FAIL (obfuscation withheld);
@@ -118,7 +120,13 @@ param(
     [ValidateRange(0, 100)][double]$PerfWarnPercent = 5,
     [ValidateRange(0, 1000)][double]$PerfFailPercent = 10,
     [ValidateRange(0, 60)][double]$PerfNoiseSeconds = 0.5,
+    # R1-03 (16 Oct): the global readable-type share is a hard limit only for -ObfuscationProfile Strong; the Standard profile keeps every
+    # PUBLIC type readable by design (KeepPublicApi=true), so for Standard the gate is the per-assembly share of NON-PUBLIC top-level types
+    # still in an Etp.* namespace (-MaxReadableNonPublicPercent). The profile is read from the installed release.json (protection.profile)
+    # and must equal -ExpectedProfile (Any = accept either).
     [ValidateRange(0, 100)][double]$MaxReadablePercent = 60,
+    [ValidateRange(0, 100)][double]$MaxReadableNonPublicPercent = 10,
+    [ValidateSet('Standard', 'Strong', 'Any')][string]$ExpectedProfile = 'Standard',
     [ValidateRange(1, 1000)][double]$MaxExeMb = 10,
     [ValidateRange(1, 2000)][int]$MinDllCount = 20,
     [ValidateRange(1, 720)][int]$ServiceUiMaxAgeHours = 24,
@@ -3859,7 +3867,8 @@ $ProtectedServiceNames = @('SalesReportingService', 'StockReconciliationService'
 $ProtectedPattern = '(?i)XamlParseException|TypeLoadException|MissingMethodException|MissingFieldException|MissingMemberException|BadImageFormatException|FileLoadException|System\.Windows\.Data Error'
 
 # Reads the TypeDef table of a managed assembly (ECMA-335 II.22.37) without loading it: Windows PowerShell 5.1 in the guest cannot load a .NET 10 assembly,
-# and a reflection-only load would need every reference resolved. Plain C# 5 so Add-Type (CodeDom) compiles it. Returns "namespace<TAB>name" per type.
+# and a reflection-only load would need every reference resolved. Plain C# 5 so Add-Type (CodeDom) compiles it. Returns "namespace<TAB>name<TAB>visibility" per type
+# (visibility = TypeDef flags & 7: 0 top-level not public, 1 top-level public, 2-7 nested).
 $EtpMetadataSource = @'
 using System;
 using System.Collections.Generic;
@@ -3955,9 +3964,10 @@ public static class EtpMetadata
         for (int i = 0; i < rows[2]; i++)
         {
             int r = td + i * typeDefSize;
+            uint flags = U32(b, r);
             int nameIdx = Idx(b, r + 4, strIdx);
             int nsIdx = Idx(b, r + 4 + strIdx, strIdx);
-            result.Add(Str(b, stringsOff, nsIdx) + "\t" + Str(b, stringsOff, nameIdx));
+            result.Add(Str(b, stringsOff, nsIdx) + "\t" + Str(b, stringsOff, nameIdx) + "\t" + (flags & 7u).ToString());
         }
         return result.ToArray();
     }
@@ -3968,7 +3978,7 @@ $Release113FactsBlock = {
     param([double]$MaxExeMb, [int]$MinDllCount, [int]$LookbackHours, [string]$DiagPattern)
     $ErrorActionPreference = 'Continue'
     $f = [ordered]@{ appDir = ''; exeExists = $false; exeMb = 0.0; desktopDllExists = $false; dllCount = 0; etpDlls = @(); symbolFiles = @(); signatures = @(); signerStore = @()
-        installCertScript = ''; cerFiles = @(); diagHits = @(); diagFilesScanned = 0; errors = @() }
+        installCertScript = ''; cerFiles = @(); diagHits = @(); diagFilesScanned = 0; installedProfile = ''; installedObfuscated = ''; errors = @() }
     try {
         $appDir = Get-P6AppDir
         $f.appDir = $appDir
@@ -4005,6 +4015,12 @@ $Release113FactsBlock = {
         $ic = @($all | Where-Object { $_.Name -eq 'Install-EtpPublisherCertificate.ps1' }) | Select-Object -First 1
         if ($ic) { $f.installCertScript = & $rel $ic.FullName }
         $f.cerFiles = @($all | Where-Object { $_.Extension -eq '.cer' } | ForEach-Object { & $rel $_.FullName })
+        # R1-03: the profile the installed build was made with (build-windows-release.ps1 writes release.json.protection).
+        try {
+            $rj = Get-Content -Raw -LiteralPath (Join-Path $appDir 'release.json') | ConvertFrom-Json
+            if ($rj.protection) { $f.installedProfile = [string]$rj.protection.profile; $f.installedObfuscated = [string]$rj.protection.obfuscated }
+        }
+        catch { $f.errors += "release.json: $($_.Exception.Message)" }
     }
     catch { $f.errors += "app folder: $($_.Exception.Message)" }
     # Diagnostics of the account running this block (ETPTest): counts of load/XAML failures only, never the text (it can quote invoice numbers).
@@ -4034,14 +4050,19 @@ $Release113MetaBlock = {
     $services = @($ServicesCsv -split ',' | Where-Object { $_ })
     $list = New-Object System.Collections.Generic.List[object]
     foreach ($dll in @(Get-ChildItem -LiteralPath (Get-P6AppDir) -Filter 'Etp.*.dll' -File | Sort-Object Name)) {
-        $row = [ordered]@{ assembly = $dll.Name; total = 0; etpNamespace = 0; named = @(); error = '' }
+        $row = [ordered]@{ assembly = $dll.Name; total = 0; etpNamespace = 0; nonPublicTopLevel = 0; nonPublicEtpNamespace = 0; nonPublicEtpSample = @(); named = @(); error = '' }
         try {
             foreach ($line in [EtpMetadata]::TypeDefs($dll.FullName)) {
-                $parts = $line -split "`t", 2
-                $ns = [string]$parts[0]; $nm = [string]$parts[1]
+                $parts = $line -split "`t", 3
+                $ns = [string]$parts[0]; $nm = [string]$parts[1]; $vis = [int]$parts[2]
                 if ($nm -eq '<Module>' -or $nm.StartsWith('<') -or $nm.Contains('<>')) { continue }
                 $row.total++
                 if ($ns.StartsWith('Etp.')) { $row.etpNamespace++ }
+                # R1-03: top-level non-public types the compiler did not inject (System.* / Microsoft.* attributes keep their namespace).
+                if ($vis -eq 0 -and -not $ns.StartsWith('System.') -and -not $ns.StartsWith('Microsoft.')) {
+                    $row.nonPublicTopLevel++
+                    if ($ns.StartsWith('Etp.')) { $row.nonPublicEtpNamespace++; if (@($row.nonPublicEtpSample).Count -lt 5) { $row.nonPublicEtpSample += ($ns + '.' + $nm) } }
+                }
                 if ($services -contains $nm) { $row.named += ($ns + '.' + $nm) }
             }
         }
@@ -4178,7 +4199,14 @@ function Test-Release113Signatures($D, [string]$Area) {
     }
 }
 
-function Test-Release113Obfuscation([string]$Area) {
+function Test-Release113Obfuscation([string]$Area, $Facts) {
+    # R1-03: which profile was installed, and is it the one expected?
+    $installed = [string]$Facts.installedProfile
+    $profileText = $(if ($installed) { "$installed (release.json protection.obfuscated=$($Facts.installedObfuscated))" } else { 'not recorded in the installed release.json' })
+    $script:RunInfo['Obfuscation profile (installed release.json)'] = $profileText
+    if ($ExpectedProfile -eq 'Any') { Add-Check $Area 'Obfuscation profile of the installed build' 'Standard or Strong' $profileText (Get-Result ($installed -in @('Standard', 'Strong'))) }
+    else { Add-Check $Area 'Obfuscation profile of the installed build' "-ExpectedProfile $ExpectedProfile" $profileText (Get-Result ($installed -eq $ExpectedProfile)) }
+    $strong = ($installed -eq 'Strong')
     $m = Invoke-GuestJson $Release113MetaBlock @($EtpMetadataSource, ($ProtectedServiceNames -join ','))
     Repair-RowSets $m @('assemblies', 'errors')
     Save-Json 'release113\assembly-types.json' $m
@@ -4193,18 +4221,27 @@ function Test-Release113Obfuscation([string]$Area) {
         Add-Check $Area "Types still in an Etp.* namespace: $($a.assembly)" 'recorded (the same count from the unprotected publish is in VERIFICATION.md)' "$($a.etpNamespace) of $($a.total) types ($pct %)" 'INFO'
     }
     $core = @($good | Where-Object { [string]$_.assembly -notlike '*Desktop*' })
+    # R1-03: the gate for EVERY profile, per library assembly: non-public top-level types must have lost their Etp.* namespace (renamed).
+    foreach ($a in $core) {
+        $np = [int]$a.nonPublicTopLevel; $kept = [int]$a.nonPublicEtpNamespace
+        if ($np -le 0) { Add-Check $Area "Non-public types renamed: $($a.assembly)" "<= $MaxReadableNonPublicPercent % still in an Etp.* namespace" 'no top-level non-public type in this assembly' 'INFO'; continue }
+        $p = [math]::Round(100.0 * $kept / $np, 1)
+        Add-Check $Area "Non-public types renamed: $($a.assembly) (share of top-level non-public types still in an Etp.* namespace)" "<= $MaxReadableNonPublicPercent % (-MaxReadableNonPublicPercent)" "$kept of $np ($p %)$(if ($kept) { '; e.g. ' + (@($a.nonPublicEtpSample) -join ', ') })" (Get-Result ($p -le $MaxReadableNonPublicPercent))
+    }
     $total = 0; $etpNs = 0
     foreach ($a in $core) { $total += [int]$a.total; $etpNs += [int]$a.etpNamespace }
     if ($total -le 0) { Add-Check $Area 'Obfuscated assemblies: share of types still readable in an Etp.* namespace' "<= $MaxReadablePercent %" 'no library assembly was read' 'FAIL' }
     else {
         $pctAll = [math]::Round(100.0 * $etpNs / $total, 1)
-        Add-Check $Area "Obfuscated library assemblies: share of types still readable in an Etp.* namespace (public API is kept by design, KeepPublicApi=true)" "<= $MaxReadablePercent % (-MaxReadablePercent; calibrate against the unprotected count)" "$etpNs of $total types ($pctAll %) across $($core.Count) assemblies" (Get-Result ($pctAll -le $MaxReadablePercent))
+        if ($strong) { Add-Check $Area "Obfuscated library assemblies (Strong): share of ALL types still readable in an Etp.* namespace" "<= $MaxReadablePercent % (-MaxReadablePercent)" "$etpNs of $total types ($pctAll %) across $($core.Count) assemblies" (Get-Result ($pctAll -le $MaxReadablePercent)) }
+        else { Add-Check $Area "Library assemblies (Standard keeps public types by design, KeepPublicApi=true): share of ALL types still in an Etp.* namespace" 'recorded; the gate for Standard is the non-public check above' "$etpNs of $total types ($pctAll %) across $($core.Count) assemblies" 'INFO' }
     }
     $named = @($good | ForEach-Object { @($_.named) } | Where-Object { $_ })
     $namedShort = @($named | ForEach-Object { ([string]$_ -split '\.')[-1] } | Sort-Object -Unique)
     $lvl = 'PASS'
-    if ($namedShort.Count -ge $ProtectedServiceNames.Count) { $lvl = 'FAIL' } elseif ($namedShort.Count -gt 0) { $lvl = 'REVIEW' }
-    Add-Check $Area "The named services are not findable by type name ($($ProtectedServiceNames -join ', '))" 'none findable (plan 5.4); a public one is REVIEW, all four is FAIL' $(if ($named.Count) { "$($named.Count) findable: $($named -join '; ')" } else { 'none findable' }) $lvl
+    if ($strong) { if ($namedShort.Count -ge $ProtectedServiceNames.Count) { $lvl = 'FAIL' } elseif ($namedShort.Count -gt 0) { $lvl = 'REVIEW' } }
+    elseif ($namedShort.Count -gt 0) { $lvl = 'REVIEW' }
+    Add-Check $Area "The named services are not findable by type name ($($ProtectedServiceNames -join ', '))" $(if ($strong) { 'Strong: none findable (plan 5.4); some = REVIEW, all four = FAIL' } else { 'Standard: they are public, so findable by design (REVIEW, expected; plan 5.4 holds for Strong only)' }) $(if ($named.Count) { "$($named.Count) findable: $($named -join '; ')" } else { 'none findable' }) $lvl
 }
 
 function Test-Release113ServiceUiEvidence([string]$Area) {
@@ -4319,7 +4356,7 @@ function Invoke-Release113Stage {
     $script:RunInfo['Installed app folder'] = [string]$d.appDir
     Test-Release113Files $d $area
     Test-Release113Signatures $d $area
-    Test-Release113Obfuscation $area
+    Test-Release113Obfuscation $area $d
     Test-Release113ServiceUiEvidence $area
     $hits = @($d.diagHits)
     Add-Check $area "Diagnostics of the last $DiagLookbackHours h: no XAML / type-load / missing-member failure (counts only, text stays in the VM)" 'none' $(if ($hits.Count) { "$($hits.Count) file(s): $((@($hits | Select-Object -First 5 | ForEach-Object { "$($_.file) x$($_.lines) $($_.first)" })) -join '; ')" } else { "none in $($d.diagFilesScanned) file(s) scanned" }) (Get-Result ($hits.Count -eq 0) 'REVIEW')

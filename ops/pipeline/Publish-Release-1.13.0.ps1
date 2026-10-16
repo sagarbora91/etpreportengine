@@ -1,6 +1,11 @@
 # 1.13.0 COPY (code-protection lane G1, 15 Oct 2026; the original Publish-Release.ps1 is untouched). Differences: refuses if any .pdb/.map/Mapping.txt/obfuscation-report
 # is in the publish folder or the installer folder; requires the protected-build evidence (symbols folder with Mapping.txt) unless -AllowUnprotected;
 # records obfuscation + Authenticode signing in the notes of release.json. Not run yet, parse-checked only.
+# R1-01/R1-05 (16 Oct review fixes): a build whose release.json claims protection is published ONLY with
+# artifacts\publish-evidence-<tag>.json (written by Build-Installer-1.13.0 after the smoke passed and the symbols were archived), and
+# only when its installer SHA-256, commit (= worktree HEAD), signer and map SHA-256 (archived copy re-hashed) match what is published;
+# there is no override. An unsigned or untimestamped installer is refused unless -AllowUnprotected is passed for a build that does
+# NOT claim protection. Folders marked NOT-PUBLISHABLE.txt (renamed FAILED-* by the build) are refused.
 # Parameterised publish (replaces Publish-Installer-<ver>.ps1; Arch 14, 12 Oct 2026). Run after Build-Installer.ps1 exited 0.
 #   & 'E:\ETP\Migration 2026-10-04\Publish-Release.ps1' -Version 1.11.2 -Worktree 'E:\ETP\Code\Worktrees\release-1.11.2'
 # Copies the newest artifacts\installer-* folder to <InstallersRoot>\ETP Reporting Engine <Version>\, adds the build log, then writes
@@ -51,32 +56,68 @@ if ($SigningKeyPath) {
 }
 $ErrorActionPreference = 'Stop'
 $artifacts = Join-Path $Worktree 'artifacts'
+# Build-Installer-1.13.0 renames a failed build's folders to FAILED-<time>-<name>, so they never match 'installer-*' (R1-01).
 $src = Get-ChildItem $artifacts -Directory -Filter 'installer-*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $src) { throw 'No artifacts\installer-* folder found.' }
 $setup = Get-ChildItem $src.FullName -Filter "EtpReportingEngine-Setup-$Version-x64.exe" -File
 if (-not $setup) { throw "The newest installer folder ($($src.Name)) has no EtpReportingEngine-Setup-$Version-x64.exe." }
-# --- 1.13.0 protection checks (G1) ---
-$relName = $src.Name -replace '^installer-', 'windows-release-'
+# --- 1.13.0 protection checks (G1; R1-01 / R1-05 review fixes 16 Oct) ---
+$tag = $src.Name -replace '^installer-', ''
+$relName = "windows-release-$tag"
 $relDir = Join-Path $artifacts $relName
+if (Test-Path -LiteralPath (Join-Path $src.FullName 'NOT-PUBLISHABLE.txt')) { throw "Refusing to publish: $($src.FullName) is marked NOT-PUBLISHABLE (its build failed after the installer step: $((Get-Content -Raw -LiteralPath (Join-Path $src.FullName 'NOT-PUBLISHABLE.txt')).Trim()))." }
 if (-not (Test-Path -LiteralPath $relDir -PathType Container)) { throw "No publish folder $relDir for installer folder $($src.Name); cannot prove the release carries no symbols." }
+if (Test-Path -LiteralPath (Join-Path $relDir 'NOT-PUBLISHABLE.txt')) { throw "Refusing to publish: $relDir is marked NOT-PUBLISHABLE." }
 $forbidden = @(Get-ChildItem -LiteralPath $relDir, $src.FullName -Recurse -File -Force -ErrorAction SilentlyContinue |
     Where-Object { $_.Extension -in '.pdb', '.map' -or $_.Name -in 'Mapping.txt', 'obfuscation-report.json' })
 if ($forbidden.Count) { throw ("Refusing to publish: symbol or obfuscation-map files are inside the release/installer folder: " + (($forbidden | Select-Object -First 10 | ForEach-Object { $_.FullName }) -join "; ")) }
-$symbolsDir = "$relDir-symbols"
-# Integration 15 Oct: the map alone is not proof; the publish folder's own release.json (written by build-windows-release.ps1 -Protect)
-# must say obfuscated, and the unprotected comparison folder's marker must never be in the publish folder.
+# Integration 15 Oct: the publish folder's own release.json (written by build-windows-release.ps1 -Protect) must say obfuscated, and the
+# unprotected comparison folder's marker must never be in the publish folder.
 $relReceipt = $null
 try { $relReceipt = Get-Content -LiteralPath (Join-Path $relDir 'release.json') -Raw | ConvertFrom-Json } catch { $relReceipt = $null }
-$obfuscated = (Test-Path -LiteralPath (Join-Path $symbolsDir 'Mapping.txt')) -and $null -ne $relReceipt -and $null -ne $relReceipt.protection -and $relReceipt.protection.obfuscated -eq $true
 if (Test-Path -LiteralPath (Join-Path $relDir 'NOT-FOR-RELEASE.txt')) { throw "Refusing to publish: $relDir is the unprotected comparison build (NOT-FOR-RELEASE.txt)." }
-if (-not $obfuscated -and -not $AllowUnprotected) { throw "No Mapping.txt in ${symbolsDir}, or $relDir\release.json does not record protection.obfuscated=true: this is not a protected (obfuscated) build. Pass -AllowUnprotected only for a deliberate test publish." }
+$claimsProtected = $null -ne $relReceipt -and $null -ne $relReceipt.protection -and $relReceipt.protection.obfuscated -eq $true
+$headCommit = (git -C $Worktree rev-parse HEAD).Trim()
+$installerHashNow = (Get-FileHash -LiteralPath $setup.FullName -Algorithm SHA256).Hash
 $sig = Get-AuthenticodeSignature -LiteralPath $setup.FullName
 $signed = $null -ne $sig.SignerCertificate
+$timestamped = $null -ne $sig.TimeStamperCertificate
 if ($signed -and $sig.Status -notin @([System.Management.Automation.SignatureStatus]::Valid, [System.Management.Automation.SignatureStatus]::UnknownError, [System.Management.Automation.SignatureStatus]::NotTrusted)) {
     throw "Refusing to publish: the installer's signature status is $($sig.Status) (changed after signing?)."
 }
-$protNote = 'Build protection: obfuscation=' + $(if ($obfuscated) { 'Obfuscar (Mapping.txt archived under Reference\Symbols, not shipped)' } else { 'NONE' }) +
-    '; Authenticode=' + $(if ($signed) { "signed, signer thumbprint $($sig.SignerCertificate.Thumbprint), status $($sig.Status)" } else { 'NOT SIGNED' }) +
+# R1-05: an unsigned or untimestamped installer is published only on purpose (-AllowUnprotected), and never as a protected build.
+if ((-not $signed -or -not $timestamped -or [string]::IsNullOrWhiteSpace([string]$sig.SignerCertificate.Thumbprint)) -and ($claimsProtected -or -not $AllowUnprotected)) {
+    throw "Refusing to publish: the installer is $(if (-not $signed) { 'NOT SIGNED' } else { 'signed WITHOUT a timestamp' }). A 1.13.0 release is signed and timestamped; pass -AllowUnprotected only for a deliberate unprotected test publish of an unprotected build."
+}
+# R1-01: a protected build is published only with the evidence Build-Installer-1.13.0 writes after the smoke passed, bound to the exact
+# installer bytes, the commit, the signer and the archived map. No override: an unprotected test publish (-AllowUnprotected) is only
+# possible for a build whose release.json does NOT claim protection.
+$obfuscated = $false
+$evidence = $null
+if ($claimsProtected -or -not $AllowUnprotected) {
+    $evidencePath = Join-Path $artifacts "publish-evidence-$tag.json"
+    if (-not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) { throw "Refusing to publish: no smoke evidence $evidencePath. Build-Installer-1.13.0 writes it only after the protected-vs-unprotected smoke passed and the symbols were archived." }
+    $evidence = Get-Content -Raw -LiteralPath $evidencePath | ConvertFrom-Json
+    $problems = @()
+    if (-not $claimsProtected) { $problems += "$relDir\release.json does not record protection.obfuscated=true" }
+    if ([string]$evidence.result -ne 'SMOKE-PASSED' -or [string]$evidence.smoke -ne 'IDENTICAL') { $problems += "evidence result is '$($evidence.result)/$($evidence.smoke)', not SMOKE-PASSED/IDENTICAL" }
+    if ([string]$evidence.tag -ne $tag) { $problems += "evidence is for build $($evidence.tag), not $tag" }
+    if ([string]$evidence.installer -ne $setup.Name) { $problems += "evidence names installer $($evidence.installer), not $($setup.Name)" }
+    if ([string]$evidence.installerSha256 -ine $installerHashNow) { $problems += "installer SHA-256 is $installerHashNow but the smoke evidence recorded $($evidence.installerSha256) (changed or rebuilt after the smoke)" }
+    if ([string]$evidence.commit -ine $headCommit) { $problems += "evidence commit $($evidence.commit) is not $Worktree HEAD $headCommit" }
+    if ($relReceipt -and [string]$relReceipt.commit -ine [string]$evidence.commit) { $problems += "release.json commit $($relReceipt.commit) is not the evidence commit $($evidence.commit)" }
+    if ($signed -and [string]$evidence.signerThumbprint -ine [string]$sig.SignerCertificate.Thumbprint) { $problems += "installer signer $($sig.SignerCertificate.Thumbprint) is not the evidence signer $($evidence.signerThumbprint)" }
+    $mapWanted = if ($relReceipt -and $relReceipt.protection) { [string]$relReceipt.protection.mappingSha256 } else { '' }
+    if (-not $mapWanted -or [string]$evidence.mappingSha256 -ine $mapWanted) { $problems += "evidence map SHA-256 $($evidence.mappingSha256) is not release.json's $mapWanted" }
+    $archivedMap = Join-Path ([string]$evidence.symbolsArchive) 'Mapping.txt'
+    if (-not $evidence.symbolsArchive -or -not (Test-Path -LiteralPath $archivedMap -PathType Leaf)) { $problems += "no archived map at $archivedMap" }
+    elseif ((Get-FileHash -LiteralPath $archivedMap -Algorithm SHA256).Hash -ine $mapWanted) { $problems += "the archived map $archivedMap is not this build's (SHA-256 differs)" }
+    if ($problems.Count) { throw ("Refusing to publish: the smoke evidence does not match what would be published: " + ($problems -join '; ') + '.') }
+    $obfuscated = $true
+    Write-Host "Smoke evidence: $evidencePath (IDENTICAL, report $($evidence.smokeReport)); installer SHA-256 and commit match; map archived at $($evidence.symbolsArchive)."
+}
+$protNote = 'Build protection: obfuscation=' + $(if ($obfuscated) { "Obfuscar, profile $($relReceipt.protection.profile), protected-build smoke IDENTICAL (Mapping.txt archived under Reference\Symbols, not shipped)" } else { 'NONE' }) +
+    '; Authenticode=' + $(if ($signed) { "signed, signer thumbprint $($sig.SignerCertificate.Thumbprint), status $($sig.Status)$(if (-not $timestamped) { ', NO timestamp' })" } else { 'NOT SIGNED' }) +
     '; pdb-in-release=none.'
 Write-Host $protNote
 if ($Notes) { $Notes = $Notes.TrimEnd() + [Environment]::NewLine + $protNote } else { $Notes = $protNote }
@@ -98,10 +139,8 @@ $planned = $false
 if ($SigningKeyPath -and -not $SkipSchemaPlan) {
     # The plan is read-only (A3). A pending migration OR a pending database object means the update changes the database.
     # Integration (13 Oct): Build-Installer writes artifacts\windows-release-<sha>-<tag>, so the default is the newest such folder.
-    $candidate = if ($CandidateExe) { $CandidateExe } else {
-        $newest = Get-ChildItem (Join-Path $Worktree 'artifacts') -Directory -Filter 'windows-release*' -ErrorAction SilentlyContinue |
-            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Etp.Reporting.Desktop.exe') } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($newest) { Join-Path $newest.FullName 'Etp.Reporting.Desktop.exe' } else { Join-Path $Worktree 'artifacts\windows-release\Etp.Reporting.Desktop.exe' } }
+    # 16 Oct: the release folder this installer was made from (not the newest windows-release* folder, which could be another build).
+    $candidate = if ($CandidateExe) { $CandidateExe } else { Join-Path $relDir 'Etp.Reporting.Desktop.exe' }
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {
         try {
             $psi = New-Object System.Diagnostics.ProcessStartInfo

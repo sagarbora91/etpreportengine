@@ -2,7 +2,7 @@
 # Elevated (Windows PowerShell 5.1), interactive: waits for Chain-Gate-Then-Installer-1.13.0.ps1 (chain-1.13.0.log must end DONE), checks the installer is the
 # build of the sha the gate passed (installer-build-1.13.0-<sha>-b1.log, SHA256SUMS.txt) and that it is the PROTECTED build (release.json notes name obfuscation
 # and a signer thumbprint, no .pdb files beside it), lists the checkpoints, then runs the VM stages in order. Sagar types the ETPTest password (once per stage)
-# and answers the YES prompts in this window. Log: E:\ETP\Migration 2026-10-04m-1.13.0-sequence.log
+# and answers the YES prompts in this window. Log: E:\ETP\Migration 2026-10-04\vm-1.13.0-sequence.log; stage lines: E:\ETP\Migration 2026-10-04\vm-1.13.0-stages.txt
 #   -Path From112x (default)   upgrade from the 1.12.x checkpoint (the VM state after the 1.12.0 acceptance; give the exact name with -CheckpointName)
 #   -CheckpointName '<pattern>' overrides the checkpoint (wildcards allowed, newest match wins). Default pattern is a PLACEHOLDER: the stop below
 #                              tells Claude/Sagar which checkpoints exist if it matches nothing.
@@ -12,6 +12,10 @@
 # fallback to the 1.12.0 helper (it has no Release113 stage and no required -CheckpointName). -CheckpointName is required: no placeholder default.
 #   -RecordPerfBaseline        adds stage 0: Release113 -RecordPerfBaseline on the restored 1.12.x checkpoint BEFORE the upgrade (113-VM-HELPER-NOTE.md step 1).
 #   -PublisherThumbprint <SHA-1 from the paper card>, -TrustExpected Trusted|Untrusted|Either: passed to stage 4 (Release113).
+#   -ExpectedProfile Standard|Strong|Any (default Standard), -MaxReadablePercent (Strong only, default 60), -MaxReadableNonPublicPercent
+#                              (every profile, default 10): passed to stage 4 explicitly (R1-03). Standard keeps public types readable by design;
+#                              its gate is the per-assembly share of non-public types still in an Etp.* namespace.
+# Every ending writes one line to the stages file: ABORT <reason> <time>, STAGE <name> exit N <time>, SEQUENCE END <time> (R1-12).
 [CmdletBinding()]
 param(
     [ValidateSet('From112x')][string]$Path = 'From112x',
@@ -20,6 +24,9 @@ param(
     [switch]$RecordPerfBaseline,
     [ValidatePattern('^([A-Fa-f0-9]{40})?$')][string]$PublisherThumbprint,
     [ValidateSet('Either', 'Trusted', 'Untrusted')][string]$TrustExpected = 'Either',
+    [ValidateSet('Standard', 'Strong', 'Any')][string]$ExpectedProfile = 'Standard',
+    [ValidateRange(0, 100)][double]$MaxReadablePercent = 60,
+    [ValidateRange(0, 100)][double]$MaxReadableNonPublicPercent = 10,
     [string]$Helper = 'E:\ETP\Reference\Work in progress 2026-10-04 (CONTAINS BUSINESS DATA)\Run-VM-Acceptance-1.13.0.ps1'
 )
 $log = 'E:\ETP\Migration 2026-10-04\vm-1.13.0-sequence.log'
@@ -31,12 +38,14 @@ $stagesFile = 'E:\ETP\Migration 2026-10-04\vm-1.13.0-stages.txt'
 $h = $Helper
 if (-not (Test-Path -LiteralPath $h)) {
   Write-Host "VM acceptance helper not found: $h (copy ops\pipeline\harness\Run-VM-Acceptance-1.13.0.ps1 there). Not falling back to 1.12.0." -ForegroundColor Red
+  "ABORT helper not found $h $(Get-Date -Format s)" | Add-Content $stagesFile
   Stop-Transcript | Out-Null; Read-Host 'Press Enter to close'; exit 1
 }
 $vmName = 'ETP-Acceptance-186'
 if (-not $CheckpointName) {
   Write-Host "Pass -CheckpointName with the 1.12.x checkpoint to upgrade from (no default). Checkpoints of ${vmName}:" -ForegroundColor Red
   Get-VMSnapshot -VMName $vmName -ErrorAction SilentlyContinue | Sort-Object CreationTime | Format-Table Name, CreationTime -AutoSize | Out-String | Write-Host
+  "ABORT no -CheckpointName given $(Get-Date -Format s)" | Add-Content $stagesFile
   Stop-Transcript | Out-Null; Read-Host 'Press Enter to close'; exit 1
 }
 if (-not $SkipWait) {
@@ -100,7 +109,8 @@ if (-not (Get-VMSnapshot -VMName $vmName | Where-Object Name -like $pattern)) {
   Stop-Transcript | Out-Null; Read-Host 'Press Enter to close'; exit 1
 }
 Write-Host "Path: $Path; checkpoint: $pattern" -ForegroundColor Cyan
-"START path=$Path checkpoint='$pattern' $(Get-Date -Format s)" | Add-Content $stagesFile
+Write-Host "Stage 4 expects obfuscation profile $ExpectedProfile (non-public readable <= $MaxReadableNonPublicPercent % per assembly; all-types <= $MaxReadablePercent % applies to Strong only)." -ForegroundColor Cyan
+"START path=$Path checkpoint='$pattern' profile=$ExpectedProfile $(Get-Date -Format s)" | Add-Content $stagesFile
 $ref = 'E:\ETP\Reference'
 $before = @(Get-ChildItem -LiteralPath $ref -Directory -Filter 'VM195-*-Upgrade-Checkpoint*' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
 $outFolder = $null
@@ -108,7 +118,7 @@ $stages = @(
   @{ Name = '1/4 Upgrade to 1.13.0 from the 1.12.x checkpoint';  Args = @('-Scenario','Upgrade','-Stage','Install','-UpgradeFrom','Checkpoint','-CheckpointName',$pattern) },
   @{ Name = '2/4 Service UI checks and timings';          Args = @('-Scenario','Rehearsal','-Stage','ServiceUi') },
   @{ Name = '3/4 Night-one health check';                 Args = @('-Scenario','Rehearsal','-Stage','HealthNightOne') },
-  @{ Name = '4/4 1.13.0 read-only checks and checklist';   Args = @('-Scenario','Upgrade','-UpgradeFrom','Checkpoint','-Stage','Release113','-TrustExpected',$TrustExpected) + $(if ($PublisherThumbprint) { @('-PublisherThumbprint',$PublisherThumbprint) } else { @() }) }
+  @{ Name = '4/4 1.13.0 read-only checks and checklist';   Args = @('-Scenario','Upgrade','-UpgradeFrom','Checkpoint','-Stage','Release113','-TrustExpected',$TrustExpected,'-ExpectedProfile',$ExpectedProfile,'-MaxReadablePercent',[string]$MaxReadablePercent,'-MaxReadableNonPublicPercent',[string]$MaxReadableNonPublicPercent) + $(if ($PublisherThumbprint) { @('-PublisherThumbprint',$PublisherThumbprint) } else { @() }) }
 )
 if ($RecordPerfBaseline) {
   # Stage 0 (113-VM-HELPER-NOTE.md step 1): timings on the 1.12.x checkpoint before the upgrade; restores the checkpoint and asks YES.

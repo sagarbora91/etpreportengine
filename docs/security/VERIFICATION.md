@@ -39,6 +39,8 @@ Driven for real, against each build's own files:
 6. DSR/pack Excel: `OpenXmlReportPackExporter` output read cell by cell (sheet name, cell address, text, formula).
 7. DSR/pack PDF: `SimplePdfReportPackExporter` output; page count and a hash of the whole file with every Flate stream decoded and replaced by the hash of its bytes.
 8. Health: `DBCC CHECKDB` clean on both databases, applied-migration count equal, plan JSON equal.
+9. Reflection probes (R1-02, 16 Oct): the read paths that the obfuscar.xml "both profiles" exclusions protect, each a private type System.Text.Json binds by constructor parameter or property names. Import History: one artificial failed attempt with two issues is recorded (on 3 Jan 2000, a date no fixture uses) and read back through `SqlServerImportHistoryQuery.LoadAsync` (`StoredIssue`). Tally: a TEST company with one store and a cost centre is saved and loaded (`StoreCostCentre`). SEC-01: the embedded permission matrix is parsed as `SecurityProbes` does (`MatrixFile`). The report family registry is parsed. The probe host checks each read-back itself (a missing exclusion throws "parameters with null names" in the protected build only, so the run is INCOMPLETE, exit 3) and writes `reflection.json`, compared like the import.
+10. Completeness (R1-06): each build must, on its own, have imported every fixture file (no Failed), produced at least 50 Excel cells and a PDF with pages, checksummed at least 5 tables with rows (listed-only and empty tables do not count) and answered every reflection probe. Otherwise the result is INCOMPLETE (exit 3) even when both builds fail alike. The counts are printed (`COUNTS ...`) and in the report.
 
 Why a probe host: the shipped exe has no headless verb for import or export. Its only headless verbs are `--initialize-database`, `--initialize-configured-database`, `--automation-once` and `--plan-database-changes`. So the script generates a tiny console project in `%TEMP%`, compiles it once against the unprotected folder's public API and runs it twice, loading the Etp assemblies of the build under test from that build's folder. This also proves the plan's assumption that the public API survives protection (`KeepPublicApi`): if a protected assembly lacks a public member the host needs, the run fails with a missing-method error and the result is INCOMPLETE (exit 3), never a pass.
 
@@ -69,6 +71,22 @@ PDF text is not extracted: no text-extraction library ships with the product and
 ## Decompilation comparison
 
 `Compare-EtpDecompilation.ps1` uses `ilspycmd` pinned at 11.1.0.9782 in `E:\Tools\ilspycmd` (install once, by hand: `dotnet tool install ilspycmd --version 11.1.0.9782 --tool-path E:\Tools\ilspycmd`; NuGet needs the 4-part version). Package `ilspycmd.11.1.0.9782.nupkg` SHA-256 `74C07FACAF1850C78A779FC509031F756E1C0DE24B1A536F3363D7EF81CE001F` (installed 15 Oct 2026 with Sagar's approval; also in `E:\Tools\TOOLS-SHA256.txt`). The script never downloads it and refuses if it is missing or a different version. It decompiles each ETP assembly from both folders and reports: readable non-public type and method names, the four named services (`SalesReportingService`, `StockReconciliationService`, `InvoiceTenderReconciliationService`, `DailyReportingPackService`) and their visibility, plain SQL string literals, and shipped `.pdb` files. Expected honest result: non-public names and SQL text gone; public types (including services declared `public`) still findable by name because `KeepPublicApi` keeps them; structure and arithmetic still readable; the SQL files untouched. The report states these limits itself.
+
+## Readable type names: calibration for the VM check (R1-03)
+
+Measured 16 Oct 2026 on the unprotected Release build of c838b0e8 (`src\Etp.Reporting.Desktop\bin\Release`, the harness's own TypeDef reader under Windows PowerShell 5.1; compiler-generated `<...>` types left out):
+
+| Assembly | Types | In an Etp.* namespace | Top-level public | Top-level non-public (not System.*/Microsoft.*) | Nested |
+|---|---|---|---|---|---|
+| Application | 473 | 459 | 459 | 0 | 14 |
+| Domain | 20 | 20 | 20 | 0 | 0 |
+| Import | 285 | 242 | 237 | 5 | 43 |
+| Infrastructure.Http | 2 | 2 | 2 | 0 | 0 |
+| Infrastructure.SqlServer | 437 | 358 | 314 | 44 | 79 |
+| Reporting | 139 | 134 | 128 | 6 | 5 |
+| (Desktop, not a library) | 479 | 404 | 353 | 51 | 75 |
+
+The six libraries hold 1,356 types; 1,160 (85.5 %) are top-level public. The Standard profile (`KeepPublicApi=true`) keeps every public name, so after protection about 85 % of library types are still in an `Etp.*` namespace by design: the old single limit (60 %) would fail a correct Standard build. `Run-VM-Acceptance-1.13.0.ps1 -Stage Release113` therefore reads the installed `release.json` `protection.profile` (it must equal `-ExpectedProfile`, default Standard) and gates, for every profile, on the share of top-level NON-public types per library assembly still in an `Etp.*` namespace (`-MaxReadableNonPublicPercent`, default 10 %; none of these 55 types is a SkipType, so a correct build shows 0). The all-types share against `-MaxReadablePercent` (60 %) and "the four named services not findable" are hard checks only for Strong; for Standard they are INFO / REVIEW (the services are public).
 
 ## Performance
 
