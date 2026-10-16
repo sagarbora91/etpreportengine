@@ -7,7 +7,8 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// 1.9.4, R-WLMHW-01 (report audit of 3 Oct 2026). R013 staff rows are paired with R025 sales lines by
 /// occurrence: the nth R013 row for (store, date, document, item) takes the nth line, a line takes at most one
 /// R013 row, and a surplus R013 row reads as Missing. The stored match_status (decided at import by counting
-/// lines) no longer decides attribution. R003 (one row per discount) keeps its stored status.
+/// lines) no longer decides attribution. R003 (one row per discount) keeps its stored status unless it is Ambiguous and
+/// pairs one to one (P12, 1.12.1; see DiscountOccurrencePairingSqlTests).
 /// </summary>
 public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
@@ -68,9 +69,10 @@ public sealed class StaffOccurrencePairingSqlTests(SqlDatabaseFixture database) 
         Assert.Equal("CROA", Assert.Single(lineage, x => x.LineIdentifier == "1").CroNumber);
         Assert.Equal("CROB", Assert.Single(lineage, x => x.LineIdentifier == "2").CroNumber);
 
-        // Both R013 rows are paired; the R003 rows keep their stored (Ambiguous) status and still count.
+        // Both R013 rows are paired. P12 (1.12.1): the two Ambiguous R003 rows on the two lines are paired by occurrence too
+        // (R003 rows = R025 lines for the key), so nothing is unmatched; until 1.12.0 they counted 2.
         var trend = Assert.Single(await new Phase2OperationsRepository(database.ConnectionString).LoadManagementTrendAsync(date, date), x => x.StoreCode == "OCCTWO");
-        Assert.Equal(2, trend.UnmatchedEnrichmentRows);
+        Assert.Equal(0, trend.UnmatchedEnrichmentRows);
     }
 
     [SqlFact]

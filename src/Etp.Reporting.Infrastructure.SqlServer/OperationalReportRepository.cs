@@ -649,7 +649,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         }
 
         const string enrichmentSql = $"""
-            SELECT e.store_code,e.transaction_date,e.document_number,e.product_code,e.effective_match_status,f.original_file_name,s.sheet_name,s.source_row_number
+            SELECT e.store_code,e.transaction_date,e.document_number,e.product_code,e.effective_match_status,f.original_file_name,s.sheet_name,s.source_row_number,
+                   e.enrichment_type
             FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e JOIN dbo.source_lineage s ON s.source_lineage_id=e.source_lineage_id
             JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
             WHERE e.store_code=@store AND e.transaction_date=@date AND e.effective_match_status<>'Matched'
@@ -661,10 +662,13 @@ public sealed partial class OperationalReportRepository(string connectionString)
             command.Parameters.AddWithValue("@store", storeCode); command.Parameters.AddWithValue("@date", businessDate);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
-                rows.Add(new(reader.GetString(4) == "Ambiguous" ? "FAIL" : "WARNING", "Staff enrichment", $"R013_{reader.GetString(4).ToUpperInvariant()}",
+            {
+                var (area, code, message) = EnrichmentException(reader.GetString(8), reader.GetString(4));
+                rows.Add(new(reader.GetString(4) == "Ambiguous" ? "FAIL" : "WARNING", area, code,
                     reader.GetString(0), reader.GetFieldValue<DateOnly>(1), reader.GetString(2), reader.GetString(3), null,
                     reader.GetString(5), reader.GetString(6), reader.GetInt32(7),
-                    "The staff/CRO enrichment could not be linked to exactly one canonical R025 sales line.", "Review the invoice, item and source row; preserve the exact variance."));
+                    message, "Review the invoice, item and source row; preserve the exact variance."));
+            }
         }
 
         var physical = await LoadBrandPhysicalStockAsync(storeCode, businessDate, cancellationToken);
@@ -689,6 +693,21 @@ public sealed partial class OperationalReportRepository(string connectionString)
             rows.Add(new("FAIL", "Staff", "STAFF_CANONICAL_VARIANCE", storeCode, businessDate, null, null, staff.Variance,
                 null, null, null, staff.Message, "Review unmatched and unassigned R013 rows; do not round the variance away."));
         return rows.OrderBy(x => x.Severity).ThenBy(x => x.Area).ThenBy(x => x.DocumentNumber).ThenBy(x => x.SourceRow).ToArray();
+    }
+
+    /// <summary>
+    /// P12 (1.12.1, DQ-UNMATCHED-ENRICHMENT): an unmatched enrichment row is labelled by its own family. Until 1.12.0 every row
+    /// read "R013_..." with the staff/CRO message, so an R003 discount row claimed to be a staff attribution problem.
+    /// </summary>
+    internal static (string Area, string Code, string Message) EnrichmentException(string enrichmentType, string status)
+    {
+        var family = enrichmentType.Trim().ToUpperInvariant();
+        var code = $"{family}_{status.Trim().ToUpperInvariant()}";
+        return family == "R013"
+            ? ("Staff enrichment", code, "The staff/CRO enrichment could not be linked to exactly one canonical R025 sales line.")
+            : family == "R003"
+                ? ("Discount enrichment", code, "The R003 discount row could not be linked to exactly one canonical R025 sales line; staff attribution is not affected.")
+                : ("Enrichment", code, $"The {family} enrichment row could not be linked to exactly one canonical R025 sales line.");
     }
 
     // RA-OPS-02 (1.9.9): exception rows name the field by its display name and the screen where it is entered.

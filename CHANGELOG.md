@@ -24,6 +24,7 @@ The known leftovers of 1.12.0 (lanes P1-P8), the money rules Sagar decided on 15
 - When an import retires a wrongly dated copy of the same stock file, the import result and Imports > History now say so ("Import N for <date> was retired (same file, re-dated to <date>)") and name any day that now has no stock reading. Closing Stock stand-in rows of the retired copy are archived too.
 - Imports > History: an empty export now says it is listed under its export day, because an empty file does not say which days it covers.
 - Import failure register: IF-021 and IF-025 verified; IF-028 and IF-032 fixed; IF-029, IF-030 and IF-031 closed as decided.
+- Data quality (P12): R003 discount rows on an invoice that repeats the same item on identical lines are now paired line by line, like the staff rows, so they no longer count as "unmatched" (DATA-05, Control centre issue 4, Trends "Unmatched Staff Rows"; 137 false alarms at the Titan store). If the counts differ, the rows still show as unmatched. Daily exceptions now name the real family (R003_AMBIGUOUS, "Discount enrichment") instead of calling every row R013. No figure changes: no report reads R003 values.
 
 **Service Centres (P1, P8)**
 
