@@ -10,6 +10,8 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     public string Rail => Module;
     public string Tab => Category;
     public string Path => $"{Module} → {Category} → {Title}";
+    /// <summary>1.12.1: the plain destination a person reads on a "Where to fix" button: the section and the screen, never a repeated word.</summary>
+    public string ShortPath => string.Equals(Module, Title, StringComparison.OrdinalIgnoreCase) ? Title : $"{Module} → {Title}";
     public string Purpose => ReportCode is null ? $"Open {Title.ToLowerInvariant()} in {Module}." : ProductReportCatalogue.All.Single(x => x.Code == ReportCode).Description;
     public WorkspaceRoute Route => new(Destination, ReportCode, Id);
     /// <summary>The route with a task argument (1.10.0): a blank argument is the plain route.</summary>

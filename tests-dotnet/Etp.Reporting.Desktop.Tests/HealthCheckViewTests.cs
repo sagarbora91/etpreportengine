@@ -138,7 +138,7 @@ public sealed class HealthCheckViewTests
 
             var backups = view.Rows.Single(row => row.Check == "DB-03");
             Assert.True(backups.Fix.IsTask);
-            Assert.Equal("Settings → Database → Backups", backups.FixText);
+            Assert.Equal("Settings → Backups", backups.FixText);
             Assert.Equal(System.Windows.Visibility.Visible, backups.FixButtonVisibility);
             var instruction = view.Rows.Single(row => row.Check == "DB-04");
             Assert.False(instruction.Fix.IsTask);
@@ -599,11 +599,35 @@ public sealed class HealthCheckViewTests
     }
 
     [Fact]
+    public void Where_to_fix_labels_use_the_plain_task_path_without_repeating_a_word()
+    {
+        Assert.Equal("Import → Import folder", FixTarget.Resolve("import-files").Label);
+        Assert.Equal("Settings → Error register", FixTarget.Resolve("error-register").Label);
+        Assert.All(TaskNavigation.All, task =>
+        {
+            var words = task.ShortPath.Split(" → ");
+            Assert.Equal(words.Length, words.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        });
+    }
+
+    [Fact]
+    public void Where_to_fix_button_wraps_and_no_grid_row_is_height_capped()
+    {
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src",
+            "Etp.Reporting.Desktop", "Modules", "OperationsAdministration", "HealthCheckView.cs"));
+        var fix = source[source.IndexOf("DataGridTemplateColumn BuildFixColumn", StringComparison.Ordinal)..];
+        fix = fix[..fix.IndexOf("BuildRowStyle", StringComparison.Ordinal)];
+        Assert.Contains("TextWrapping.Wrap", fix);
+        Assert.DoesNotContain("MaxHeight", fix);
+        Assert.DoesNotContain("RowHeight", source);
+    }
+
+    [Fact]
     public void Each_where_to_fix_button_is_named_by_its_line_and_a_ref_is_found_in_a_status_line()
     {
         var result = new HealthCheckResult("BKP-01", default, HealthOutcome.Warning, "OLD", "Old backup.", "backups", TimeSpan.Zero);
         var row = new HealthRow(result, FixTarget.Resolve("backups"), null);
-        Assert.Equal("Open where to fix for BKP-01: Settings → Database → Backups", row.FixButtonName);
+        Assert.Equal("Open where to fix for BKP-01: Settings → Backups", row.FixButtonName);
 
         Assert.True(DesktopDiagnostics.TryFindReference("Save failed. Ref: 1a2b3c4d5e6f", out var reference));
         Assert.Equal("1A2B3C4D5E6F", reference);

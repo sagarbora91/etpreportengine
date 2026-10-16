@@ -86,7 +86,7 @@ public sealed record FixTarget(string Label, string? TaskId)
     {
         if (string.IsNullOrWhiteSpace(fix)) return new("", null);
         var task = TaskNavigation.Find(fix.Trim());
-        return task is null ? new(fix.Trim(), null) : new(task.Path, task.Id);
+        return task is null ? new(fix.Trim(), null) : new(task.ShortPath, task.Id);
     }
 }
 
@@ -784,7 +784,15 @@ public sealed class HealthCheckView : UserControl
     {
         var panel = new FrameworkElementFactory(typeof(StackPanel));
         var button = new FrameworkElementFactory(typeof(Button));
+        // 1.12.1: the label wraps inside the button and the row grows to fit; no fixed height anywhere on the path.
+        var label = new FrameworkElementFactory(typeof(TextBlock));
+        label.SetBinding(TextBlock.TextProperty, new Binding(nameof(HealthRow.FixText)));
+        label.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        label.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+        button.SetValue(ContentControl.ContentTemplateProperty, new DataTemplate { VisualTree = label });
         button.SetBinding(ContentControl.ContentProperty, new Binding(nameof(HealthRow.FixText)));
+        button.SetValue(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left);
+        button.SetValue(Control.PaddingProperty, new Thickness(8, 4, 8, 4));
         button.SetBinding(UIElement.VisibilityProperty, new Binding(nameof(HealthRow.FixButtonVisibility)));
         button.SetValue(FrameworkElement.MinHeightProperty, 32.0);
         button.SetValue(FrameworkElement.MarginProperty, new Thickness(4));
@@ -800,7 +808,7 @@ public sealed class HealthCheckView : UserControl
         text.SetValue(FrameworkElement.MarginProperty, new Thickness(6, 4, 6, 4));
         panel.AppendChild(button);
         panel.AppendChild(text);
-        return new DataGridTemplateColumn { Header = "Where to fix", Width = 220, CellTemplate = new DataTemplate { VisualTree = panel } };
+        return new DataGridTemplateColumn { Header = "Where to fix", Width = 240, CellTemplate = new DataTemplate { VisualTree = panel } };
     }
 
     private static Style BuildRowStyle()
