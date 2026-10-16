@@ -172,6 +172,72 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
     // split-payment sale INV-2 on the first store, their R018 GST rows, approved mappings and a final generation.
     // r018YearLabel is R018's INVOICEYEAR column, a label only (OD-1): the invoices are keyed by the financial year of
     // 25 Aug 2026, which is 2027.
+    // Decision 74 (review M-1), cross-layer: R025 rows name the cancelled bill, the view leaves the partly cancelled bill in,
+    // the loader nets it by its BC document's lines, R018 'BC' rows and refund, and the composer plans the net voucher.
+    // P1 = ITEMA 1,180 + ITEMB 590 + ITEMC 2 x 118 (GST 9% + 9%), cash 2,006; PB1 cancels ITEMB (refund 590 cash).
+    // Hand-computed: Dr Cash 1,416.00 = Sales 1,200.00 + CGST 108.00 + SGST 108.00, the bill's DSR VALUE.
+    [SqlFact]
+    public async Task A_bill_partly_cancelled_the_same_day_is_prepared_net_of_the_cancelled_item()
+    {
+        var (profile, _) = await SeedAsync("TSVP", "TSVQ");
+        await database.ExecuteAsync("""
+            DECLARE @store varchar(30)='TSVP',@batch uniqueidentifier=NEWID(),@file bigint,@gst bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tsvp-r025.xlsx',LOWER(CONVERT(char(64),HASHBYTES('SHA2_256',N'tsvp-r025'),2)),1,@store,'R025','20260825','20260825','20260825',1);
+            SET @file=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
+            SELECT @file,'Sales',n,'sale' FROM (VALUES(1),(2),(3),(4)) v(n)
+            UNION ALL SELECT @file,'Tender',n,'tender' FROM (VALUES(1),(2)) v(n)
+            UNION ALL SELECT @file,'Gst',n,'gst' FROM (VALUES(1),(2),(3),(4)) v(n);
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES(@store,N'P1',2027,'20260825'),(@store,N'PB1',2027,'20260825');
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,v.line,v.item,v.type,v.qty,v.gross,v.net,v.tax,'INR',s.source_lineage_id
+            FROM (VALUES(N'P1','1',N'ITEMA','INV',1,1180,1000,180,1),(N'P1','2',N'ITEMB','INV',1,590,500,90,2),(N'P1','3',N'ITEMC','INV',2,236,200,36,3),
+                        (N'PB1','1',N'ITEMB','BC',-1,-590,-500,-90,4)) v(doc,line,item,type,qty,gross,net,tax,n)
+            JOIN dbo.sales_invoices i ON i.store_code=@store AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Sales' AND s.source_row_number=v.n;
+            INSERT dbo.etp_r025(import_file_id,source_lineage_id,content_key,source_transaction_type,store_code,invoice_number,transaction_date,reference_invoice_number,reference_invoice_date)
+            SELECT @file,s.source_lineage_id,CONCAT('tsvp:r025:',s.source_row_number),CASE s.source_row_number WHEN 4 THEN N'BC' ELSE N'INV' END,@store,
+                   CASE s.source_row_number WHEN 4 THEN N'PB1' ELSE N'P1' END,'20260825',CASE s.source_row_number WHEN 4 THEN N'P1' END,CASE s.source_row_number WHEN 4 THEN CONVERT(date,'20260825') END
+            FROM dbo.source_lineage s WHERE s.import_file_id=@file AND s.sheet_name='Sales';
+            INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,t.code,t.amount,'INR',s.source_lineage_id
+            FROM (VALUES(N'P1',N'CASH',2006,1),(N'PB1',N'CASH_REFUND',-590,2)) t(doc,code,amount,n)
+            JOIN dbo.sales_invoices i ON i.store_code=@store AND i.document_number=t.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Tender' AND s.source_row_number=t.n;
+            INSERT dbo.[etp_r018](import_file_id,source_lineage_id,content_key,[store_code],[transaction_type],[doc_invoice_no],[doc_invoice_date],[invoice_year],[item_number],
+              [cgst_rate],[cgst_amount],[sgst_utgst_rate],[sgst_utgst_amount],[igst_rate],[igst_amount],[cess_rate],[cess_amount])
+            SELECT @file,s.source_lineage_id,CONCAT('tsvp:gst:',s.source_row_number),N'TSVP',g.type,g.doc,'20260825',2027,g.item,9,g.amount,9,g.amount,0,0,0,0
+            FROM (VALUES(1,N'INV',N'P1',N'ITEMA',90),(2,N'INV',N'P1',N'ITEMB',45),(3,N'INV',N'P1',N'ITEMC',18),(4,N'BC',N'PB1',N'ITEMB',-45)) g(n,type,doc,item,amount)
+            JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Gst' AND s.source_row_number=g.n;
+            """);
+        Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.v_sales_cancelled_same_day WHERE store_code='TSVP'"));
+        var service = new SqlServerTallySalesBatchService(database.ConnectionString);
+
+        var preview = await service.PreviewAsync(profile, "TSVP", Day);
+
+        Assert.Null(preview.Plan.BlockingReason);
+        var bill = preview.Plan.Vouchers.Single(voucher => voucher.DocumentNumber == "P1");
+        Assert.Equal(TallyVoucherStatus.Planned, bill.Status);
+        Assert.Equal(new[] { "TENDER_CASH|1416", "SALES_REVENUE|1200", "OUTPUT_CGST_9|108", "OUTPUT_SGST_9|108" },
+            bill.Entries.Select(entry => $"{entry.BusinessEvent}|{entry.Debit + entry.Credit:0.##}"));
+        Assert.Equal(1416m, bill.ExpectedTotal);
+        Assert.Equal(TallySalesVoucherComposer.CancellationNettedCode, preview.Plan.Vouchers.Single(voucher => voucher.DocumentNumber == "PB1").BlockCode);
+        // INV-1 (1,180) and the net P1 (1,416) are the day's planned vouchers.
+        Assert.Equal((2596m, 2596m), (preview.Plan.DebitTotal, preview.Plan.CreditTotal));
+
+        // Saved as planned: the stored vouchers and entries carry the net figures, so the file and the read-back check them.
+        var batch = await service.SaveAsync(preview);
+        Assert.Equal("1416.0000|1416.0000", await database.ExecuteAsync($"""
+            SELECT CONCAT(SUM(e.debit_amount),'|',SUM(e.credit_amount)) FROM dbo.accounting_entries e
+            JOIN dbo.accounting_vouchers v ON v.accounting_voucher_id=e.accounting_voucher_id
+            WHERE e.accounting_batch_id={batch} AND v.document_number=N'P1'
+            """));
+        Assert.Equal("1416.0000", Convert.ToString(await database.ExecuteAsync(
+            $"SELECT expected_total FROM dbo.accounting_vouchers WHERE accounting_batch_id={batch} AND document_number=N'P1'"), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     private async Task<(int Profile, long Generation)> SeedAsync(string store, string otherStore, bool mapTax = true, int r018YearLabel = 2027)
     {
         await database.ExecuteAsync($"INSERT dbo.stores(store_code,store_name) VALUES('{store}',N'Synthetic {store}'),('{otherStore}',N'Synthetic {otherStore}')");

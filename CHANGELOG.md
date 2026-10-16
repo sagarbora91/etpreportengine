@@ -9,6 +9,7 @@ The known leftovers of 1.12.0 (lanes P1-P8), the money rules Sagar decided on 15
 - Staff/CRO, Sales summary, Brand-wise and Customer-wise totals now leave out gift cards and line types that are not a sale, return or cancellation, like the DSR, so every store total matches the DSR VALUE.
 - A bill cancelled the same day is no longer counted as a CRO bill or a Management Trend invoice (as on the DSR), so CRO average bill value and units per bill match the DSR.
 - A bill where only some items were cancelled the same day still counts as one invoice.
+- Tally: a bill where only some items were cancelled the same day now goes to Tally net of the cancelled items (value, GST and quantity), so its voucher equals the bill's DSR VALUE (decision 74). The cancellation document itself shows as "taken off that bill". A bill cancelled whole still stays out. If the cancelled part was refunded by a different payment mode than the bill, the bill is left out for a later step and says why.
 - When the sales export covers only part of a period (for example last year's month before the first history file), the DSR shows the figure marked "Partial" and leaves growth blank.
 - Required daily sales now divides by the days left after today; on the last day of the month it is blank.
 - The Service WDC figure on the DSR now counts only the Service shop, matching the Service total.
@@ -20,6 +21,7 @@ The known leftovers of 1.12.0 (lanes P1-P8), the money rules Sagar decided on 15
 
 - Importing the same stock file again under a corrected date retires the earlier import by itself, with the reason "re-dated". Its rows are archived, nothing is deleted, and it is refused if that day is finalised. Re-import the Helios R010 file once to retire the 29 Sep copy (import 26).
 - One dating rule for Closing Stock and BinWise exports: made from 12:00 noon, an export is that day's closing; made before noon, it is the previous day's. When Closing Stock falls back to BinWise, it counts the retail bin only.
+- When an import retires a wrongly dated copy of the same stock file, the import result and Imports > History now say so ("Import N for <date> was retired (same file, re-dated to <date>)") and name any day that now has no stock reading. Closing Stock stand-in rows of the retired copy are archived too.
 - Imports > History: an empty export now says it is listed under its export day, because an empty file does not say which days it covers.
 - Import failure register: IF-021 and IF-025 verified; IF-028 and IF-032 fixed; IF-029, IF-030 and IF-031 closed as decided.
 

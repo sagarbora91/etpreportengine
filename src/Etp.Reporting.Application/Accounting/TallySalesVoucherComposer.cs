@@ -41,7 +41,15 @@ public sealed record InvoiceAccountingSource(
     IReadOnlyList<InvoiceSourceLine> Lines,
     IReadOnlyList<InvoiceTaxRow> TaxRows,
     IReadOnlyList<InvoiceSourceTender> Tenders,
-    bool CancelledSameDay = false);
+    bool CancelledSameDay = false)
+{
+    /// <summary>Decision 74: this bill was partly cancelled the same day and its lines, GST and payment are already net of the
+    /// cancellation (<see cref="TallySameDayCancellation.Net"/>). Null for any other invoice.</summary>
+    public SameDayCancellationNetting? PartCancellation { get; init; }
+
+    /// <summary>Decision 74: this is a BC document whose lines were taken off bill <c>CancelsPartOf</c>'s voucher.</summary>
+    public string? CancelsPartOf { get; init; }
+}
 
 /// <summary>An approved ledger mapping version for one business event on the voucher date.</summary>
 public sealed record TallyLedgerMapping(string BusinessEvent, long MappingId, int Version, string DebitLedger, string CreditLedger);
@@ -101,7 +109,10 @@ public static class TallySalesVoucherComposer
     public const string RoundOffCode = "ROUND_OFF";
 
     /// <summary>Known limits of Slice 7a. Such invoices are left out and do not block the rest of the day.</summary>
-    public static IReadOnlySet<string> ScopeBlocks { get; } = new HashSet<string>(StringComparer.Ordinal) { "NOT_IN_SCOPE_7A", "CESS_NOT_SUPPORTED", "KEY_UNSAFE", CancelledSameDayCode };
+    public static IReadOnlySet<string> ScopeBlocks { get; } = new HashSet<string>(StringComparer.Ordinal) { "NOT_IN_SCOPE_7A", "CESS_NOT_SUPPORTED", "KEY_UNSAFE", CancelledSameDayCode, CancellationNettedCode };
+
+    /// <summary>Decision 74: a BC document that cancels part of a bill; its lines are taken off that bill's voucher.</summary>
+    public const string CancellationNettedCode = "CANCELLATION_NETTED";
 
     /// <summary>Decision 41: the bill was cancelled on its own day, so it is left out like the DSR leaves it out of the count.</summary>
     public const string CancelledSameDayCode = "CANCELLED_SAME_DAY";
@@ -173,7 +184,8 @@ public static class TallySalesVoucherComposer
         const int revision = 1;
         var role = TallyComponentRole.Sales;
         var key = $"ETP:{invoice.StoreCode}:{invoice.InvoiceYear}:{invoice.DocumentNumber}:{role}:{revision}";
-        var narration = Cut($"{key} | ETP {invoice.StoreCode} invoice {invoice.DocumentNumber} dated {invoice.InvoiceDate.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture)}", 500);
+        var narration = Cut($"{key} | ETP {invoice.StoreCode} invoice {invoice.DocumentNumber} dated {invoice.InvoiceDate.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture)}"
+            + (invoice.PartCancellation is { BlockCode: null } netted ? $", net of same-day cancellation {string.Join(", ", netted.CancellationDocuments)}" : ""), 500);
         var gross = invoice.Lines.All(line => line.Gross is not null) ? Money(invoice.Lines.Sum(line => line.Gross!.Value)) : 0m;
         var sourceHash = SourceHash(invoice);
 
@@ -185,6 +197,10 @@ public static class TallySalesVoucherComposer
         // Known limits first, so an invoice this slice never sends is not reported as a fault.
         if (invoice.CancelledSameDay)
             return Blocked(CancelledSameDayCode, "the bill was cancelled the same day (decision 41), so it is not sent to Tally.");
+        if (invoice.CancelsPartOf is { } bill)
+            return Blocked(CancellationNettedCode, $"this cancels part of bill {bill} the same day; the cancelled items are taken off that bill's voucher (decision 74).");
+        if (invoice.PartCancellation is { BlockCode: { } nettingCode } netting)
+            return Blocked(nettingCode, netting.BlockDetail ?? "the same-day cancellation could not be taken off this bill.");
         if (UnsafeKeyCharacters.IsMatch(invoice.DocumentNumber) || invoice.DocumentNumber.Length is 0 or > 80)
             return Blocked("KEY_UNSAFE", "the invoice number contains ':', '|' or a space and cannot be traced in Tally.");
         if (invoice.Lines.Count == 0)
@@ -283,6 +299,8 @@ public static class TallySalesVoucherComposer
                 .Select(tender => (object?)Object(("code", tender.SourceTenderCode), ("mode", tender.Mode), ("amount", Decimal(tender.Amount)))).ToList()));
         // Added only when set, so the hash of every invoice prepared before decision 41 reached Tally stays the same.
         if (invoice.CancelledSameDay) facts.Add("cancelledSameDay", "true");
+        if (invoice.PartCancellation is { } part) facts.Add("netOfCancellation", string.Join(",", part.CancellationDocuments));
+        if (invoice.CancelsPartOf is { } cancels) facts.Add("cancelsPartOf", cancels);
         return Hash(facts);
     }
 

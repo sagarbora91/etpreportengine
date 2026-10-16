@@ -352,6 +352,41 @@ public sealed class SqlServerTallySalesBatchService(string connectionString, Fun
             FROM dbo.reporting_sales_tenders t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
             LEFT JOIN dbo.tender_modes m ON m.source_tender_code=t.tender_type AND m.active=1
             WHERE i.store_code=@store AND i.transaction_date=@date;
+            -- Decision 74: the same-day BC documents of the day's bills (current R025 rows naming the bill), for netting a
+            -- partly cancelled bill. A BC document that names several bills gives each only its own lines (by lineage).
+            SELECT DISTINCT i.sales_invoice_id bill_id,b.sales_invoice_id bc_id
+            INTO #bc_ref
+            FROM dbo.etp_r025 r
+            JOIN dbo.import_files f ON f.import_file_id=r.import_file_id AND f.report_code='R025' AND f.is_superseded=0 AND f.data_truth_version=1
+            JOIN dbo.sales_invoices i ON i.store_code=@store AND i.transaction_date=@date AND i.store_code=CONVERT(varchar(30),LTRIM(RTRIM(r.store_code)))
+              AND i.document_number=CONVERT(nvarchar(80),LTRIM(RTRIM(r.reference_invoice_number))) AND i.transaction_date=r.transaction_date
+            JOIN dbo.sales_invoices b ON b.store_code=i.store_code AND b.document_number=CONVERT(nvarchar(80),LTRIM(RTRIM(r.invoice_number)))
+              AND b.transaction_date=r.transaction_date AND b.sales_invoice_id<>i.sales_invoice_id
+            WHERE UPPER(LTRIM(RTRIM(r.source_transaction_type)))=N'BC' AND NULLIF(LTRIM(RTRIM(r.reference_invoice_number)),N'') IS NOT NULL
+              AND (r.reference_invoice_date IS NULL OR r.reference_invoice_date=r.transaction_date);
+            SELECT x.bill_id,x.bc_id,b.document_number,CONVERT(bit,CASE WHEN (SELECT COUNT(*) FROM #bc_ref y WHERE y.bc_id=x.bc_id)>1 THEN 1 ELSE 0 END) shared,
+                   l.line_identifier,l.product_code,l.source_transaction_type,l.source_quantity,l.source_gross_amount,l.source_net_amount,l.source_tax_amount
+            FROM #bc_ref x JOIN dbo.sales_invoices b ON b.sales_invoice_id=x.bc_id JOIN dbo.sales_invoices bill ON bill.sales_invoice_id=x.bill_id
+            JOIN dbo.sales_lines l ON l.sales_invoice_id=x.bc_id AND UPPER(LTRIM(RTRIM(COALESCE(l.source_transaction_type,N''))))=N'BC'
+            WHERE (SELECT COUNT(*) FROM #bc_ref y WHERE y.bc_id=x.bc_id)=1
+               OR EXISTS(SELECT 1 FROM dbo.etp_r025 r JOIN dbo.import_files f ON f.import_file_id=r.import_file_id AND f.report_code='R025' AND f.is_superseded=0
+                         WHERE r.source_lineage_id=l.source_lineage_id AND CONVERT(nvarchar(80),LTRIM(RTRIM(r.reference_invoice_number)))=bill.document_number);
+            WITH bc_tax AS (
+              SELECT b.sales_invoice_id bc_id,CAST(r.item_number AS nvarchar(80)) COLLATE DATABASE_DEFAULT AS item_number,
+                     r.cgst_rate,r.cgst_amount,r.sgst_utgst_rate,r.sgst_utgst_amount,r.igst_rate,r.igst_amount,r.cess_amount,r.import_file_id,
+                     MAX(r.import_file_id) OVER(PARTITION BY b.sales_invoice_id) AS latest_file
+              FROM dbo.[etp_r018] r
+              JOIN dbo.import_files f ON f.import_file_id=r.import_file_id AND f.is_superseded=0
+              JOIN dbo.sales_invoices b ON CAST(r.store_code AS nvarchar(80)) COLLATE DATABASE_DEFAULT=b.store_code
+                AND YEAR(r.doc_invoice_date)+CASE WHEN MONTH(r.doc_invoice_date)>=4 THEN 1 ELSE 0 END=b.invoice_year
+                AND CAST(r.doc_invoice_no AS nvarchar(80)) COLLATE DATABASE_DEFAULT=b.document_number
+              WHERE b.sales_invoice_id IN(SELECT bc_id FROM #bc_ref) AND CAST(r.transaction_type AS nvarchar(80)) COLLATE DATABASE_DEFAULT='BC')
+            SELECT bc_id,item_number,cgst_rate,cgst_amount,sgst_utgst_rate,sgst_utgst_amount,igst_rate,igst_amount,cess_amount
+            FROM bc_tax WHERE import_file_id=latest_file AND item_number IS NOT NULL;
+            SELECT t.sales_invoice_id,t.tender_type,m.mode,t.source_amount
+            FROM dbo.reporting_sales_tenders t LEFT JOIN dbo.tender_modes m ON m.source_tender_code=t.tender_type AND m.active=1
+            WHERE t.sales_invoice_id IN(SELECT bc_id FROM #bc_ref);
+            DROP TABLE #bc_ref;
             """;
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new SqlCommand(sql, connection);
@@ -381,8 +416,58 @@ public sealed class SqlServerTallySalesBatchService(string connectionString, Fun
         while (await reader.ReadAsync(cancellationToken))
             tenders[reader.GetInt64(0)].Add(new(reader.GetString(1), Text(reader, 2), reader.GetDecimal(3)));
 
-        return (generation, heads.Select(head => new InvoiceAccountingSource(head.Id, head.Store, head.Year, head.Document, head.Date,
-            lines[head.Id], tax[head.Id], tenders[head.Id], head.Cancelled)).ToArray());
+        // Decision 74: a partly cancelled bill goes to Tally net of its same-day BC lines.
+        var bcLines = new List<(long Bill, long Bc, string Document, bool Shared, InvoiceSourceLine Line)>();
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            bcLines.Add((reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetBoolean(3),
+                new(reader.GetString(4), reader.GetString(5), Text(reader, 6), reader.GetDecimal(7), Number(reader, 8), Number(reader, 9), Number(reader, 10))));
+        var bcTax = new Dictionary<long, List<InvoiceTaxRow>>();
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            if (!bcTax.TryGetValue(reader.GetInt64(0), out var rows)) bcTax[reader.GetInt64(0)] = rows = [];
+            rows.Add(new(reader.GetString(1), Number(reader, 2), Number(reader, 3), Number(reader, 4), Number(reader, 5), Number(reader, 6), Number(reader, 7), Number(reader, 8)));
+        }
+        var bcTenders = new Dictionary<long, List<InvoiceSourceTender>>();
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            if (!bcTenders.TryGetValue(reader.GetInt64(0), out var rows)) bcTenders[reader.GetInt64(0)] = rows = [];
+            rows.Add(new(reader.GetString(1), Text(reader, 2), reader.GetDecimal(3)));
+        }
+        return (generation, Assemble(heads.Select(head => new InvoiceAccountingSource(head.Id, head.Store, head.Year, head.Document, head.Date,
+            lines[head.Id], tax[head.Id], tenders[head.Id], head.Cancelled)).ToArray(), bcLines, bcTax, bcTenders));
+    }
+
+    /// <summary>Decision 74: nets each partly cancelled bill (not in <c>v_sales_cancelled_same_day</c>) by its BC parts and marks
+    /// those BC documents as taken off it. A bill cancelled whole, and its BC document, stay as before.</summary>
+    internal static IReadOnlyList<InvoiceAccountingSource> Assemble(IReadOnlyList<InvoiceAccountingSource> invoices,
+        IReadOnlyList<(long Bill, long Bc, string Document, bool Shared, InvoiceSourceLine Line)> bcLines,
+        IReadOnlyDictionary<long, List<InvoiceTaxRow>> bcTax, IReadOnlyDictionary<long, List<InvoiceSourceTender>> bcTenders)
+    {
+        var netted = new Dictionary<long, InvoiceAccountingSource>();
+        var cancels = new Dictionary<long, SortedSet<string>>();
+        foreach (var invoice in invoices)
+        {
+            if (invoice.CancelledSameDay) continue;
+            var parts = bcLines.Where(row => row.Bill == invoice.SalesInvoiceId).GroupBy(row => (row.Bc, row.Document, row.Shared))
+                .Select(group => new SameDayCancellationPart(group.Key.Document, group.Select(row => row.Line).ToArray(),
+                    bcTax.TryGetValue(group.Key.Bc, out var rows) ? rows : [], bcTenders.TryGetValue(group.Key.Bc, out var paid) ? paid : [], group.Key.Shared))
+                .ToArray();
+            if (parts.Length == 0) continue;
+            var net = netted[invoice.SalesInvoiceId] = TallySameDayCancellation.Net(invoice, parts);
+            // Every item taken back: the bill and its BC document stay out as a whole-bill cancellation does.
+            if (net.CancelledSameDay) continue;
+            foreach (var bc in bcLines.Where(row => row.Bill == invoice.SalesInvoiceId).Select(row => row.Bc).Distinct())
+            {
+                if (!cancels.TryGetValue(bc, out var bills)) cancels[bc] = bills = new(StringComparer.Ordinal);
+                bills.Add(invoice.DocumentNumber);
+            }
+        }
+        return invoices.Select(invoice => netted.TryGetValue(invoice.SalesInvoiceId, out var nettedBill) ? nettedBill
+            : cancels.TryGetValue(invoice.SalesInvoiceId, out var bills) ? invoice with { CancelsPartOf = string.Join(", ", bills) }
+            : invoice).ToArray();
     }
 
     /// <summary>Approved, active mappings on the date; a store-specific mapping wins over the all-stores one.</summary>
