@@ -43,7 +43,7 @@ only when the signer thumbprint is ours and a timestamp is present; `HashMismatc
 
 ## Trusting the certificate on a PC (Sagar, each PC, by hand)
 
-Open PowerShell as administrator and run `scripts\Install-EtpPublisherCertificate.ps1 -CertificatePath <path to etp-codesign.cer>`.
+Open PowerShell as administrator and run `scripts\Install-EtpPublisherCertificate.ps1 -CertificatePath <path to etp-codesign.cer>`. From 1.13.0 both ship in the ETP program folder (`scripts\Install-EtpPublisherCertificate.ps1` with `etp-codesign.cer` beside it, R1-11), so on a shop PC run that copy without `-CertificatePath`; the script prints the file it is about to trust.
 It prints the subject and both fingerprints. Compare them with the paper card; if both match, type `YES`. It then adds the public
 certificate to Local Machine Trusted Root and Trusted Publishers. Setup never does this and nothing here is silent. Trusting means
 "anything signed with this key is trusted on this PC", which is why custody equals the release key's. To undo: `certlm.msc`, remove
@@ -56,6 +56,18 @@ ceremony, a new `.cer` in `installer\certs\`, and the trust script again on ever
 
 ## Checks
 
-`scripts\release\tests\Signing.Tests.ps1` (plain PowerShell, no Pester) proves the refusals and, when a timestamp URL is supplied,
-signs a throwaway file with a throwaway certificate. After install, `Get-AuthenticodeSignature <file>` shows `Valid` on a PC that
-trusts the certificate.
+`scripts\release\tests\Signing.Tests.ps1` (plain PowerShell, no Pester) proves the refusals and ALWAYS runs the real signing path
+(R1-04, 16 Oct): a throwaway certificate made in memory in the test, its PFX in a temp folder, `sign-etp-artifacts.ps1 -PfxPath`
+with a SecureString passphrase (as `build-windows-installer.ps1` passes it), signed without a timestamp through the test-only
+switch `-TestOnlyNoTimestamp` (refused without `-TestOnlySkipUsbCheck`, never used for a release). It checks our signer, the
+status `UnknownError`/`NotTrusted` of an untrusted self-signed certificate, tamper detection, and that no private-key file is
+left under `%APPDATA%\Microsoft\Crypto`. With `ETP_SIGNING_TEST_TIMESTAMP_URL` (for example `http://timestamp.digicert.com`,
+internet) it also signs with a timestamp and checks the `TimeStamperCertificate`. Children run in the same PowerShell as the
+test, so run it under both `powershell.exe` and `E:\Tools\PowerShell\7\pwsh.exe`; on 16 Oct both passed, with and without the
+timestamp. After install, `Get-AuthenticodeSignature <file>` shows `Valid` on a PC that trusts the certificate; whether the
+self-signed certificate (BasicConstraints CA=false, critical) reads `Valid` once it sits in LocalMachine\Root is a hard pass
+criterion of the first `-TrustExpected Trusted` VM run (R1-13), checked on the VM before Workpc.
+
+The PFX is opened with `X509KeyStorageFlags.EphemeralKeySet` (R1-09): the private key stays in memory for the signing run and
+no key file is written to the user's key container on C:, so a killed chain leaves none behind. `Set-AuthenticodeSignature`
+accepts the ephemeral key in both Windows PowerShell 5.1 and pwsh 7 (the self-test above).

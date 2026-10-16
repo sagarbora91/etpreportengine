@@ -9,11 +9,12 @@ to this PC's Trusted Root Certification Authorities and Trusted Publishers store
 the ETP key show as valid here and UAC shows the publisher name.
 
 Trusting a self-signed certificate means: anything signed with that key is trusted on this PC. That is why the key lives only on
-the two USB sticks. To undo it later: certmgr.msc (or `certlm.msc`) > Trusted Root Certification Authorities and Trusted
-Publishers > remove "Saagar Traders - ETP Reporting Engine".
+the two USB sticks. To undo it later: run certlm.msc (the Local Machine certificates; certmgr.msc shows only the current user's) >
+Trusted Root Certification Authorities and Trusted Publishers > remove "Saagar Traders - ETP Reporting Engine".
 
 .PARAMETER CertificatePath
-The public certificate (.cer). Default: installer\certs\etp-codesign.cer in the repository, or etp-codesign.cer beside this script.
+The public certificate (.cer). Default: etp-codesign.cer beside this script (the installed copy: scripts\ in the ETP program folder),
+then installer\certs\etp-codesign.cer in the repository.
 A file that contains a private key (a PFX) is refused.
 
 .PARAMETER TestOnlySimulate
@@ -27,7 +28,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if (-not $CertificatePath) {
-    foreach ($candidate in (Join-Path $PSScriptRoot '..\installer\certs\etp-codesign.cer'), (Join-Path $PSScriptRoot 'etp-codesign.cer')) {
+    foreach ($candidate in (Join-Path $PSScriptRoot 'etp-codesign.cer'), (Join-Path $PSScriptRoot '..\installer\certs\etp-codesign.cer')) {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) { $CertificatePath = $candidate; break }
     }
     if (-not $CertificatePath) { throw 'No certificate file found. Pass -CertificatePath with the etp-codesign.cer from the USB stick.' }
@@ -51,6 +52,7 @@ try {
 
     Write-Host ''
     Write-Host 'You are about to trust this publisher on this PC:'
+    Write-Host "  File:                $full"
     Write-Host "  Subject:             $($certificate.Subject)"
     Write-Host "  Valid:               $($certificate.NotBefore.ToString('yyyy-MM-dd')) to $($certificate.NotAfter.ToString('yyyy-MM-dd'))"
     Write-Host "  SHA-1 thumbprint:    $($certificate.Thumbprint)"
@@ -72,6 +74,6 @@ try {
         }
         finally { $store.Close() }
     }
-    Write-Host 'Done. The ETP publisher certificate is now trusted on this PC (Trusted Root and Trusted Publishers).'
+    Write-Host 'Done. The ETP publisher certificate is now trusted on this PC (Trusted Root and Trusted Publishers). To undo: certlm.msc.'
 }
 finally { $certificate.Dispose() }

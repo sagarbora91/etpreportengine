@@ -23,10 +23,18 @@ param(
     [Parameter(ParameterSetName = 'Pfx')][switch]$AllowFixedDrive,
     # Pfx only, for the self-tests with a throwaway certificate. Never used for a real release; prints a warning.
     [Parameter(ParameterSetName = 'Pfx')][switch]$TestOnlySkipUsbCheck,
-    [Parameter(Mandatory)][uri]$TimestampServer
+    # Pfx + -TestOnlySkipUsbCheck only (R1-04, 16 Oct): sign WITHOUT a timestamp so the self-test runs the real signing path
+    # offline. Never used for a release (build-windows-installer.ps1 never passes it); prints a warning.
+    [Parameter(ParameterSetName = 'Pfx')][switch]$TestOnlyNoTimestamp,
+    [uri]$TimestampServer
 )
 $ErrorActionPreference = 'Stop'
-if ($TimestampServer.Scheme -notin @('http', 'https')) { throw 'Choose the certificate provider timestamp service.' }
+if ($TestOnlyNoTimestamp) {
+    if (-not $TestOnlySkipUsbCheck) { throw '-TestOnlyNoTimestamp is for the self-tests only and needs -TestOnlySkipUsbCheck.' }
+    if ($TimestampServer) { throw 'Pass either -TimestampServer or -TestOnlyNoTimestamp, not both.' }
+    Write-Warning 'TEST ONLY: signing without a timestamp. Never do this for a real release.'
+}
+elseif (-not $TimestampServer -or $TimestampServer.Scheme -notin @('http', 'https')) { throw 'Choose the certificate provider timestamp service (-TimestampServer).' }
 
 function Assert-EtpPfxOnUsb([string]$Path, [switch]$AllowFixed) {
     # Same drive rules as the release-key ceremony: removable, not the system drive, not OneDrive, not a share.
@@ -59,7 +67,9 @@ if ($PSCmdlet.ParameterSetName -eq 'Pfx') {
     }
     else { Assert-EtpPfxOnUsb -Path $PfxPath -AllowFixed:$AllowFixedDrive }
     if (-not $Passphrase) { $Passphrase = Read-Host -AsSecureString 'Code-signing key passphrase' }
-    try { $loaded = New-Object Security.Cryptography.X509Certificates.X509Certificate2([IO.Path]::GetFullPath($PfxPath), $Passphrase) }
+    # R1-09 (16 Oct): EphemeralKeySet keeps the private key in memory only, so no key file is written under
+    # %APPDATA%\Microsoft\Crypto (on C:) and none is left behind if the process is killed mid-chain.
+    try { $loaded = New-Object Security.Cryptography.X509Certificates.X509Certificate2([IO.Path]::GetFullPath($PfxPath), $Passphrase, [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet) }
     catch { throw 'The signing key could not be opened (wrong passphrase or damaged file).' }
     $certificate = $loaded
 }
@@ -74,10 +84,11 @@ try {
         $full = [IO.Path]::GetFullPath($path)
         if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw 'A signing input is missing.' }
         if ([IO.Path]::GetExtension($full) -notin @('.exe', '.dll', '.ps1', '.psm1')) { throw 'Unsupported signing input.' }
-        $result = Set-AuthenticodeSignature -LiteralPath $full -Certificate $certificate -HashAlgorithm SHA256 -TimestampServer $TimestampServer.AbsoluteUri
+        $result = if ($TestOnlyNoTimestamp) { Set-AuthenticodeSignature -LiteralPath $full -Certificate $certificate -HashAlgorithm SHA256 }
+            else { Set-AuthenticodeSignature -LiteralPath $full -Certificate $certificate -HashAlgorithm SHA256 -TimestampServer $TimestampServer.AbsoluteUri }
         $verified = Get-AuthenticodeSignature -LiteralPath $full
         $statusOk = if ($isPfx) { "$($verified.Status)" -in @('Valid', 'UnknownError', 'NotTrusted') } else { $verified.Status -eq 'Valid' }
-        if (-not $statusOk -or $null -eq $verified.SignerCertificate -or $verified.SignerCertificate.Thumbprint -ine $expected -or $null -eq $verified.TimeStamperCertificate) {
+        if (-not $statusOk -or $null -eq $verified.SignerCertificate -or $verified.SignerCertificate.Thumbprint -ine $expected -or ($null -eq $verified.TimeStamperCertificate -and -not $TestOnlyNoTimestamp)) {
             throw "Signing failed or could not be verified for $([IO.Path]::GetFileName($full)) (status $($verified.Status)); no release can be published."
         }
     }
