@@ -51,7 +51,9 @@ public sealed class ShopLiveSchedule
         if (string.IsNullOrWhiteSpace(json)) { error = "The shop-live file is empty."; return false; }
         try
         {
-            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            // 1.12.1 review m-4: as strict as the receive script's PowerShell 5.1 ConvertFrom-Json (no comments, no trailing
+            // commas), so a file the script refuses is never one ETP reads as valid.
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = false, CommentHandling = JsonCommentHandling.Disallow });
             if (document.RootElement.ValueKind != JsonValueKind.Object) { error = "The shop-live file must be a JSON object."; return false; }
             var entries = new List<ShopLiveEntry>();
             var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

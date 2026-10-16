@@ -82,6 +82,9 @@ public sealed class ShopLiveTests : IDisposable
     [InlineData("""{ "shops": [ { "role": "TITAN" }, { "role": "titan" } ] }""")]
     [InlineData("""{ "shops": [ { "role": "TITAN", "storeCodes": ["ZZ001"] }, { "role": "HELIOS", "storeCodes": ["zz001"] } ] }""")]
     [InlineData("""{ "shops": [ { "role": "TITAN", "storeCodes": [""] } ] }""")]
+    // 1.12.1 review m-4: as strict as PowerShell 5.1, which the receive script uses: no comments, no trailing commas.
+    [InlineData("""{ "shops": [ { "role": "TITAN", "sendingFrom": "2026-10-20" }, ] }""")]
+    [InlineData("""{ /* live from 20 Oct */ "shops": [ { "role": "TITAN", "sendingFrom": "2026-10-20" } ] }""")]
     public void An_invalid_file_is_refused_with_a_reason_and_waives_nothing(string json)
     {
         Assert.False(ShopLiveSchedule.TryParse(json, out var schedule, out var error));
