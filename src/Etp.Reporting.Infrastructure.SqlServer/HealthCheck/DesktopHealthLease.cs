@@ -18,23 +18,22 @@ public static class NightlyHealthLease
     /// <summary>
     /// True when an import batch started within the last 4 hours is still Pending or Processing
     /// (<c>open_imports</c> of <c>dbo.load_database_operational_health</c>, which the automation account may run). A batch
-    /// older than 4 hours is stale (a crashed import) and never blocks. Unreadable (older database, no column, any
-    /// error) is false: the run goes ahead.
+    /// older than 4 hours is stale (a crashed import) and never blocks. No row means no import.
+    /// <para>
+    /// 1.12.1 review M-2: any failure (timeout behind a running import's locks, connection, permission) <b>throws</b>. It is
+    /// never "no import": the update gate maps the throw to <c>DatabaseUnreadable</c> ("try again in a minute"), and the
+    /// nightly health schedule catches it itself and goes ahead, as before.
+    /// </para>
     /// </summary>
     public static async Task<bool> ImportIsOpenAsync(IEtpConnectionFactory connections, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connections);
-        try
-        {
-            await using var connection = await connections.OpenAsync(EtpConnectionPurpose.Default, cancellationToken).ConfigureAwait(false);
-            await using var command = new SqlCommand("EXEC dbo.load_database_operational_health;", connection);
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return false;
-            var ordinal = reader.GetOrdinal("open_imports");
-            return !reader.IsDBNull(ordinal) && Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) > 0;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception) { return false; }
+        await using var connection = await connections.OpenAsync(EtpConnectionPurpose.Default, cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand("EXEC dbo.load_database_operational_health;", connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return false;
+        var ordinal = reader.GetOrdinal("open_imports");
+        return !reader.IsDBNull(ordinal) && Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) > 0;
     }
 
     /// <summary>The lease, or null when another run holds it. Disposing releases it.</summary>

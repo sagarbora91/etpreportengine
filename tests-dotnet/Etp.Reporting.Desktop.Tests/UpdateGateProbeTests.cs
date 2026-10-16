@@ -14,13 +14,14 @@ public sealed class UpdateGateProbeTests
     {
         public bool Owner = true, ImportInWindow, ImportInDatabase, LeaseHeld, OperationsBusy, BackupTask, DrillTask, Draft, OtherSession, Keys = true, Enabled = true;
         public Exception? Throw;
+        public Func<CancellationToken, Task<bool>>? ImportInDatabaseSource;
 
         public UpdateGateProbe Probe(Func<Func<bool>, bool>? onUi = null)
         {
             var sources = new UpdateGateSources(
                 () => Owner,
                 () => ImportInWindow,
-                _ => Throw is null ? Task.FromResult(ImportInDatabase) : Task.FromException<bool>(Throw),
+                ImportInDatabaseSource ?? (_ => Throw is null ? Task.FromResult(ImportInDatabase) : Task.FromException<bool>(Throw)),
                 _ => Throw is null ? Task.FromResult(LeaseHeld) : Task.FromException<bool>(Throw),
                 () => OperationsBusy,
                 () => BackupTask,
@@ -63,6 +64,40 @@ public sealed class UpdateGateProbeTests
     public async Task The_automation_lease_is_also_held_by_an_automatic_import_so_an_open_import_is_the_only_sentence()
     {
         Assert.Equal(new[] { UpdateGateBlock.ImportRunning }, await BlocksAsync(new Sources { ImportInDatabase = true, LeaseHeld = true }.Probe()));
+    }
+
+    /// <summary>A connection factory that hands out a closed connection, so the real query fails as an unreadable database would.</summary>
+    private sealed class ClosedConnectionFactory : Etp.Reporting.Infrastructure.SqlServer.Connections.IEtpConnectionFactory
+    {
+        public string DatabaseName => "EtpReporting";
+        public Microsoft.Data.SqlClient.SqlConnection Create(Etp.Reporting.Infrastructure.SqlServer.Connections.EtpConnectionPurpose purpose = default) => new();
+        public Task<Microsoft.Data.SqlClient.SqlConnection> OpenAsync(Etp.Reporting.Infrastructure.SqlServer.Connections.EtpConnectionPurpose purpose = default, CancellationToken ct = default) =>
+            Task.FromResult(new Microsoft.Data.SqlClient.SqlConnection());
+    }
+
+    private sealed class FailingConnectionFactory : Etp.Reporting.Infrastructure.SqlServer.Connections.IEtpConnectionFactory
+    {
+        public string DatabaseName => "EtpReporting";
+        public Microsoft.Data.SqlClient.SqlConnection Create(Etp.Reporting.Infrastructure.SqlServer.Connections.EtpConnectionPurpose purpose = default) => throw new TimeoutException("Synthetic: timed out behind a running import");
+        public Task<Microsoft.Data.SqlClient.SqlConnection> OpenAsync(Etp.Reporting.Infrastructure.SqlServer.Connections.EtpConnectionPurpose purpose = default, CancellationToken ct = default) =>
+            Task.FromException<Microsoft.Data.SqlClient.SqlConnection>(new TimeoutException("Synthetic: timed out behind a running import"));
+    }
+
+    [Fact]
+    public async Task The_real_open_imports_source_throws_on_a_failed_read_so_the_gate_fails_closed_not_no_import()
+    {
+        // 1.12.1 review M-2: the source used to swallow every error into "no import", so a timed-out read let an update start.
+        await Assert.ThrowsAnyAsync<Exception>(() => Etp.Reporting.Infrastructure.SqlServer.HealthCheck.NightlyHealthLease.ImportIsOpenAsync(new ClosedConnectionFactory(), CancellationToken.None));
+        await Assert.ThrowsAnyAsync<Exception>(() => Etp.Reporting.Infrastructure.SqlServer.HealthCheck.NightlyHealthLease.ImportIsOpenAsync(new FailingConnectionFactory(), CancellationToken.None));
+
+        foreach (var factory in new Etp.Reporting.Infrastructure.SqlServer.Connections.IEtpConnectionFactory[] { new ClosedConnectionFactory(), new FailingConnectionFactory() })
+        {
+            var sources = new Sources { ImportInDatabaseSource = token => Etp.Reporting.Infrastructure.SqlServer.HealthCheck.NightlyHealthLease.ImportIsOpenAsync(factory, token) };
+            var result = UpdateGate.Evaluate(await sources.Probe().ReadAsync(CancellationToken.None));
+            Assert.False(result.Allowed);
+            Assert.Equal(new[] { UpdateGateBlock.DatabaseUnreadable }, result.Blocks);
+            Assert.Contains("Try again in a minute", UpdateGate.Describe(UpdateGateBlock.DatabaseUnreadable));
+        }
     }
 
     [Fact]
